@@ -7,100 +7,92 @@
 
 ## Statut
 
-- **Phase** : 5 — API cœur (Tickets, Collection, Référentiels)
-- **État** : Terminé
+- **Phase** : 6 — Frontend socle (Vite, React, TanStack, Eden)
+- **État** : Terminée (à valider manuellement)
 - **Priorité** : P0
 - **Mis à jour** : 2026-11-15
-- **Branche conseillée** : `feat/phase-5-core-api`
+- **Branche conseillée** : `feat/phase-6-frontend-socle`
 
 ---
 
 ## Objectif
 
-Créer les routes métier protégées par l'authentification pour gérer la génération de tickets, la mécanique de grattage sécurisée, et la consultation de la collection du joueur.
+Initialiser l'application frontend dans `apps/web` avec Vite, React, TailwindCSS et l'écosystème TanStack. Connecter les clients Better Auth et Eden Treaty, puis implémenter les pages d'authentification (Inscription / Connexion) 100 % en français.
 
 À la fin de cette tâche :
-- Un joueur peut générer un ticket à gratter (avec la Pépite, les panneaux et les routes répartis aléatoirement).
-- Le joueur peut gratter une case via une transaction sécurisée.
-- L'API ne renvoie **jamais** les cases non grattées au client (anti-triche).
-- Le joueur peut consulter ses cartes et ses statistiques.
-- Les schémas de réponse TypeBox sont stricts pour que le frontend (Eden Treaty) soit parfaitement typé.
+- Le frontend démarre et communique avec l'API.
+- Eden Treaty auto-complète les appels API dans le code React.
+- L'utilisateur peut s'inscrire, se connecter et être redirigé vers un tableau de bord vide.
+- Aucune librairie d'internationalisation (i18n) n'est installée.
 
 ---
 
 ## À lire avant de coder
 
-1. `.docs/01-architecture.md` (Sections 5.4, 5.5 et 5.6 pour la logique de tirage et de grattage).
-2. Le middleware d'authentification créé en Phase 4 (`authPlugin`).
+1. `.docs/01-architecture.md` (Sections 2 et 6 pour Eden Treaty et le parti-pris "Français uniquement").
 
 ---
 
 ## Étapes
 
-### 1. Routes Référentiels (`apps/api/src/routes/ref.ts`)
-- [x] Créer `GET /api/v1/ref/regions`, `departements`, `communes`, `odonymes` pour l'autocomplétion.
+### 1. Initialisation Vite & Dépendances
+- [x] Configurer Vite + React + TypeScript dans `apps/web`.
+- [x] Installer TailwindCSS et configurer `tailwind.config.js` / `index.css`. — Tailwind v4 via `@tailwindcss/vite` : pas de `tailwind.config.js`, tout vit dans `src/styles.css` (`@import "tailwindcss";`).
+- [x] Installer `@tanstack/react-router`, `@tanstack/react-query`, `@tanstack/react-form`.
+- [x] Installer `@elysiajs/eden` et `@better-auth/react`. — Paquets réels : `@elysia/eden` et `better-auth` (le client React est l'entrée `better-auth/react`).
 
-### 2. Routes Tickets (`apps/api/src/routes/tickets.ts`)
-- [x] `POST /api/v1/tickets` : Génère une grille de 16 cases en base selon les règles (1 pépite, 2 jumelés, 3 panneaux, 10 routes). Révèle immédiatement une case classique.
-- [x] `GET /api/v1/tickets/current` : Renvoie le ticket actif (`status = 'ACTIVE'`). Ne renvoie **que** les cases déjà révélées via `ticket_reveals`.
-- [x] `POST /api/v1/tickets/:id/scratch` : Reçoit `cellIndex`. Utilise `db.transaction()` et `.forUpdate()` pour empêcher le double-clic.
-- [x] Logique de grattage : Décrémente `scrapes_remaining`, applique l'effet (carte ajoutée, bonus station, etc.), enregistre dans `ticket_reveals`. Si `scrapes_remaining === 0`, passe le ticket en `EXHAUSTED`.
+### 2. Clients API & Auth (`apps/web/src/lib/`)
+- [x] Créer `api.ts` pour initialiser Eden Treaty : importer **uniquement les types** (`import type { App }`) depuis `apps/api` et instancier `treaty<App>()`.
+- [x] Créer `auth.ts` pour initialiser `createAuthClient()` de Better Auth pointant vers l'URL de l'API.
 
-### 3. Routes Collection (`apps/api/src/routes/cards.ts`)
-- [x] `GET /api/v1/cards` : Liste les cartes du joueur (avec filtres optionnels).
-- [x] `GET /api/v1/collection/stats` : Renvoie le nombre de cartes par rareté et par catégorie.
+### 3. Routage et Layout
+- [x] Configurer TanStack Router (provider et arbre de routes).
+- [x] Créer un layout principal (Header avec état de connexion, Footer simple).
 
-### 4. Typage Eden (TypeBox)
-- [x] Sur toutes les routes, définir le champ `response:` avec `t.Object(...)` pour typer précisément ce que le client reçoit.
+### 4. Pages d'authentification
+- [x] Créer `/login` (Connexion par email/mot de passe).
+- [x] Créer `/register` (Inscription avec email, mot de passe et `pseudo`).
+- [x] Gérer les redirections (redirection vers `/` si déjà connecté).
+- [x] Rédiger tous les textes, labels et messages d'erreur strictement en français.
 
 ### 5. Qualité
-- [x] `bun run typecheck`
+- [x] `bun run typecheck` dans `apps/web` (vérifier que TypeScript trouve bien les types backend).
 - [x] `bun run lint`
-- [x] Écrire les tests d'intégration dans `packages/spec/src/tickets.spec.ts` (vérifier l'anti-triche et le forUpdate).
 
 ---
 
 ## Critères d'acceptation
-1. Un `console.log` de la réponse API côté client d'un ticket actif ne montre aucune donnée sur les cases non grattées.
-2. Le grattage d'une case déjà grattée renvoie une erreur HTTP 409.
-3. Les transactions Kysely empêchent deux requêtes simultanées de gratter 2 fois avec 1 seul coup restant.
-4. Les types `Eden` sont disponibles et stricts.
+1. Le client Eden Treaty est parfaitement typé (les paramètres et réponses des routes API s'autocomplètent).
+2. Le code backend n'est pas inclus dans le bundle web (vérifiable par l'usage exclusif de `import type`).
+3. Les formulaires utilisent TanStack Form avec des validations simples.
+4. L'UI d'inscription/connexion est fonctionnelle et crée de vraies sessions en base via Better Auth.
+5. Toute l'interface est en français.
 
 ---
 
+## Commandes
+```sh
+docker compose --profile tools run --rm dev bun run --cwd apps/web typecheck
+```
+
 ## Interdits
-- Ne jamais envoyer l'objet `grid` complet ou `treasure_index` dans le JSON de retour.
-- Ne pas coder la logique de scoring des tableaux (Phase 8), se limiter à la gestion brute des tickets et de l'inventaire.
+- Ne jamais faire un import classique du serveur (import { app } from '@hexagone/api').
+- N'installer aucune librairie comme i18next ou react-intl.
 
 ---
 
 ## Journal
 
-### 2026-11-15 — Spec tickets, collection et référentiels + vérification
+### 2026-11-15 — Phase 6 : frontend socle
 
-**Fichiers créés**
-- `packages/spec/src/tickets.spec.ts` — 14 tests d'intégration (Bun + `app.handle` + Kysely sur PostgreSQL réel), jeu de référence seedé préfixé (`crypto.randomUUID().slice(0, 8)`), nettoyé en `afterAll` dans l'ordre FK.
-
-**Conception**
-- **Transaction / `forUpdate`** : le grattage s'exécute dans `db.transaction().execute(async (trx) => …)` avec `SELECT … FOR UPDATE` sur la ligne du ticket, ce qui sérialise deux grattages concurrents. Le test « deux grattages concurrents avec 1 coup restant » le prouve : exactement un 200 et un 409, `status = EXHAUSTED`, `scrapes_remaining = 0`, une seule nouvelle ligne `ticket_reveals`.
-- **Anti-triche (masquage)** : `grid` et `treasure_index` ne remontent jamais ; seules les cases révélées (`ticket_reveals`) sont exposées (`kind`, `nom`, `card`, `distance`), les autres restent `null`. Le test vérifie l'absence de fuite dans le texte brut (`treasure_index`, `"grid"`, `grid:`) **et** la présence des colonnes côté serveur (masquage, pas absence).
-
-**Résultats**
-- `bun test packages/spec` : 60 tests, 60 pass, 0 fail (dont 14 nouveaux).
-- `bun run --cwd packages/spec typecheck` : OK.
-- `bun run --cwd apps/api typecheck` : OK.
-- `bun run lint` : OK.
-
-**Écarts connus (conservés)**
-1. Transactions Kysely sous la forme `db.transaction().execute(cb)` (API callback, cohérente dans tout `ticket.ts`).
-2. Les plugins de routes (`tickets`, `cards`, `ref`) re-déclarent `.use(authPlugin)` alors que `protectedRoutes` le fait déjà au niveau du groupe : redondance inoffensive, laissée en place (le retrait propre imposerait de vérifier la portée `scoped` des `derive`/`onBeforeHandle`).
-
-Aucun bug d'API trouvé : seuls des ajustements de formatage (longueur de ligne, ordre d'imports) ont été nécessaires côté spec.
-
-### 2026-11-15 — Durcissement post-revue (Phase 5)
-
-- `POST /api/v1/tickets` : violation d'unicité Postgres (`23505` sur `tickets_one_active_per_user`) mappée en 409 `TICKET_ALREADY_ACTIVE` (plus de 500 en cas de création concurrente).
-- Schémas de réponse stricts : `additionalProperties: false` sur les payloads masqués (ticket/cell/card) et cartes.
-- Validation de la grille : `parseGrid` exporté depuis `services/ticket.ts` (anti-corruption, `TICKET_CORRUPTED` en 503) et réutilisé dans `routes/tickets.ts`.
-- RNG injecté (`pickIndex`) pour le tirage adjacent BELVEDERE ; assertion anti-fuite (`treasure_index`/`grid`) ajoutée sur la réponse brute du grattage.
-- Vérification : 60 tests / 0 fail, typecheck api+spec OK, lint OK, build api OK.
+- **État** : implémenté, gates verts dans Docker (`apps/web typecheck`, `apps/api typecheck`, `biome check`, `vite build` → `EXIT=0`). Reste la validation manuelle du parcours inscription → session → `/api/v1/me`.
+- **Créés** : `apps/web/src/lib/auth.ts`, `apps/web/src/lib/session.ts`, `apps/web/src/components/{text-field,button,form-error}.tsx`, `apps/web/src/routes/{login,register}.tsx`.
+- **Modifiés** : `apps/web/src/lib/api.ts` (Eden typé + `credentials: 'include'`), `apps/web/src/routes/{__root,index}.tsx` (header session, tableau de bord vide), `apps/web/src/vite-env.d.ts` (`VITE_API_URL`), `apps/web/package.json` (`better-auth`), `apps/api/package.json` (export `./auth` — type uniquement), `bun.lock`.
+- **Routes** : `/`, `/login`, `/register` ; `routeTree.gen.ts` régénéré par `tsr generate`, jamais édité à la main.
+- **Écarts assumés** :
+  1. `@better-auth/react` n'existe pas comme paquet : `createAuthClient` vient de `better-auth/react`, avec `inferAdditionalFields<typeof auth>()` pour typer `pseudo` et `currency` côté client.
+  2. Import de type via l'alias workspace `@hexamap/api/app` (≡ `apps/api/src/app.ts`) plutôt qu'un chemin relatif, conformément à `apps/web/AGENTS.md`. Aucun import de valeur du serveur (0 occurrence sous `apps/web/src`).
+  3. URL de base Eden = `import.meta.env.VITE_API_URL || window.location.origin` : pas de `localhost:3000` en dur, le proxy Vite `/api` et l'accès LAN restent valides.
+  4. Textes français écrits en dur dans le JSX ; aucun fichier JSON de traduction, `src/content/` non créé.
+  5. Branche : travail laissé sur `feat/phase-5-core-api` (arbre déjà modifié par la phase 5). À basculer sur `feat/phase-6-frontend-socle` avant tout commit.
+- **Reste à faire** : test manuel du parcours d'authentification ; découpage du bundle principal (596 kB, avertissement Vite non bloquant).
