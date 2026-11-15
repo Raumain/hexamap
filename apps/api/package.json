@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./app": "./src/app.ts",
+    "./auth": "./src/auth.ts",
     "./type": "./src/type.ts"
   },
   "scripts": {

@@ -11,6 +11,7 @@
     "generate": "tsr generate"
   },
   "dependencies": {
+    "better-auth": "^1.7.25",
     "@elysia/eden": "^1.4.10",
     "@hexamap/api": "workspace:*",
     "@hexamap/shared": "workspace:*",
