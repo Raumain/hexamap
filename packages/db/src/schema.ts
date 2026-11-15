@@ -1,0 +1,188 @@
+import type { Generated } from 'kysely';
+
+export type Rarity = 'COMMUNE' | 'INHABITUELLE' | 'RARE' | 'EPIQUE' | 'LEGENDAIRE' | 'MYTHIQUE';
+
+export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
+export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
+export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
+export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+
+export interface UserTable {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  pseudo: string | null;
+  currency: number | null;
+}
+
+export interface SessionTable {
+  id: string;
+  expiresAt: Date;
+  token: string;
+  createdAt: Date;
+  updatedAt: Date;
+  ipAddress: string | null;
+  userAgent: string | null;
+  userId: string;
+}
+
+export interface AccountTable {
+  id: string;
+  accountId: string;
+  providerId: string;
+  userId: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  idToken: string | null;
+  accessTokenExpiresAt: Date | null;
+  refreshTokenExpiresAt: Date | null;
+  scope: string | null;
+  password: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VerificationTable {
+  id: string;
+  identifier: string;
+  value: string;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GameConfigTable {
+  key: string;
+  value: unknown;
+  updated_at: Generated<Date>;
+}
+
+export interface UserCardTable {
+  id: Generated<string>;
+  user_id: string;
+  category: CardCategory;
+  ref_code: string;
+  rarity: Rarity;
+  score: number;
+  acquired_at: Generated<Date>;
+  source: Generated<CardSource>;
+  locked: Generated<boolean>;
+}
+
+export interface TicketTable {
+  id: Generated<string>;
+  user_id: string;
+  status: Generated<TicketStatus>;
+  grid: unknown;
+  treasure_index: number;
+  scrapes_remaining: Generated<number>;
+  renovation_pending: Generated<boolean>;
+  created_at: Generated<Date>;
+  expires_at: Date | null;
+}
+
+export interface TicketRevealTable {
+  ticket_id: string;
+  cell_index: number;
+  card_user_id: string | null;
+  distance: number;
+  revealed_at: Generated<Date>;
+}
+
+export interface TableauTable {
+  id: Generated<string>;
+  user_id: string;
+  name: Generated<string>;
+  region_card_id: string | null;
+  departement_card_id: string | null;
+  commune_card_id: string | null;
+  rue_card_id: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface MarketListingTable {
+  id: Generated<string>;
+  seller_id: string;
+  user_card_id: string;
+  price: number;
+  status: Generated<MarketStatus>;
+  created_at: Generated<Date>;
+  sold_at: Date | null;
+  buyer_id: string | null;
+}
+
+export interface CurrencyLedgerTable {
+  id: Generated<string>;
+  user_id: string;
+  delta: number;
+  reason: string;
+  created_at: Generated<Date>;
+}
+
+export interface RefRegionTable {
+  code: string;
+  nom: string;
+  geom: unknown | null;
+  blason_url: string | null;
+}
+
+export interface RefDepartementTable {
+  code: string;
+  nom: string;
+  code_region: string;
+  population: number;
+  geom: unknown | null;
+  blason_url: string | null;
+}
+
+export interface RefCommuneTable {
+  code_insee: string;
+  nom: string;
+  code_departement: string;
+  code_region: string;
+  population: number;
+  latitude: number | null;
+  longitude: number | null;
+  rarete: Rarity;
+  score_base: number;
+  draw_bucket: Generated<number>;
+  geom: unknown | null;
+}
+
+export interface RefOdonymeTable {
+  id: Generated<string>;
+  nom_normalise: string;
+  nom_affichage: string;
+  nb_communes: number;
+  rarete: Rarity;
+  score_base: number;
+  draw_bucket: Generated<number>;
+}
+
+export interface CommuneOdonymeTable {
+  code_insee: string;
+  odonyme_id: string;
+}
+
+export interface Database {
+  user: UserTable;
+  session: SessionTable;
+  account: AccountTable;
+  verification: VerificationTable;
+  game_config: GameConfigTable;
+  user_cards: UserCardTable;
+  tickets: TicketTable;
+  ticket_reveals: TicketRevealTable;
+  tableaux: TableauTable;
+  market_listings: MarketListingTable;
+  currency_ledger: CurrencyLedgerTable;
+  ref_regions: RefRegionTable;
+  ref_departements: RefDepartementTable;
+  ref_communes: RefCommuneTable;
+  ref_odonymes: RefOdonymeTable;
+  commune_odonymes: CommuneOdonymeTable;
+}

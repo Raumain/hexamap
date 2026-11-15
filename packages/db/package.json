@@ -1,0 +1,22 @@
+{
+  "name": "@hexamap/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "migrate": "bun src/migrate.ts",
+    "codegen": "kysely-codegen --dialect postgres --out-file src/types.generated.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "kysely": "^0.29.9",
+    "kysely-postgres-js": "^5.1.0",
+    "postgres": "^4.1.1"
+  },
+  "devDependencies": {
+    "kysely-codegen": "^0.20.0"
+  }
+}
