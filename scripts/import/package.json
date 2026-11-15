@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "bun src/index.ts",
+    "import": "bun src/index.ts",
+    "import:lite": "bun src/index.ts --lite",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
