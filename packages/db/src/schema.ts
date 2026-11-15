@@ -168,11 +168,19 @@ export interface CommuneOdonymeTable {
   odonyme_id: string;
 }
 
+export interface RateLimitTable {
+  id: string;
+  key: string;
+  count: number;
+  lastRequest: string;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
   account: AccountTable;
   verification: VerificationTable;
+  rateLimit: RateLimitTable;
   game_config: GameConfigTable;
   user_cards: UserCardTable;
   tickets: TicketTable;

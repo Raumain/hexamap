@@ -150,7 +150,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - Découper l'API en modules/plugins Elysia (`auth`, `tickets`, `cards`, `tableaux`, `market`, `reference`).
 - Déclarer les schémas `body`, `params`, `query` et `response` avec TypeBox (`t`).
 - Les schémas `response` sont obligatoires : ils alimentent le typage Eden Treaty.
-- Les routes protégées utilisent la macro de session Better Auth.
+- Les routes protégées sont montées sur un groupe Elysia dédié (préfixe `/api/v1`) qui utilise le plugin `middleware/auth.ts`. Ses hooks `derive` et `onBeforeHandle` portent `{ as: 'scoped' }` : un hook déclaré dans un plugin est local par défaut et ne protégerait pas les routes du groupe parent.
 - Les erreurs ont un code stable (anglais) et un message français.
 - Les appels directs à `auth.api.*` ne doivent pas être utilisés pour des mutations sans vérification d'origine/CSRF.
 - Les transactions critiques (grattage, achat) utilisent une transaction Kysely et un verrou `FOR UPDATE`.

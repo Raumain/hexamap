@@ -16,7 +16,7 @@ Lire d'abord `../../.docs/03-active-task.md`, `../../.docs/01-architecture.md` e
 - Découper les routes en plugins Elysia. Ne pas créer un fichier géant.
 - Déclarer `body`, `params`, `query` et `response` avec TypeBox (`t`).
 - Les schémas `response` sont obligatoires : ils alimentent les types Eden.
-- Les routes protégées utilisent la macro de session Better Auth.
+- Les routes protégées sont montées sur un groupe Elysia dédié utilisant `middleware/auth.ts` (`derive` + `onBeforeHandle` en `{ as: 'scoped' }`), pas une macro globale.
 - Codes HTTP explicites : 201 création, 204 suppression, 401 non authentifié, 403 interdit, 404 introuvable, 409 conflit.
 - Les erreurs ont un code stable en anglais et un message en français.
 - Ne pas exposer de données internes : jamais `grid`, `treasure_index`, ni le contenu de cases non révélées.
