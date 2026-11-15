@@ -27,6 +27,7 @@
 | `user`, `session`, `account`, `verification` | **Migrée** | `packages/db/migrations/0002_auth.ts` |
 | `user_cards`, `tickets`, `ticket_reveals`, `tableaux`, `market_listings`, `currency_ledger` | **Migrée** | `packages/db/migrations/0003_game.ts` |
 | `ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes` | **Migrée** | `packages/db/migrations/0004_reference.ts` |
+| `rateLimit` | **Migrée** | `packages/db/migrations/0005_rate_limit.ts` |
 
 > Tant qu'une table n'est pas au statut **Migrée**, elle ne doit pas être interrogée en runtime.
 
@@ -95,6 +96,19 @@ create table "verification" (
 create index "session_userId_idx" on "session" ("userId");
 create index "account_userId_idx" on "account" ("userId");
 create index "verification_identifier_idx" on "verification" ("identifier");
+```
+
+La table `rateLimit` est créée par Better Auth uniquement quand
+`rateLimit: { storage: "database" }` est actif (sinon le rate limiting est en
+mémoire). Elle est migrée explicitement par `0005_rate_limit.ts` :
+
+```sql
+create table "rateLimit" (
+  "id" text not null primary key,
+  "key" text not null unique,
+  "count" integer not null,
+  "lastRequest" bigint not null
+);
 ```
 
 ---
@@ -365,6 +379,13 @@ export interface VerificationTable {
   updatedAt: Date;
 }
 
+export interface RateLimitTable {
+  id: string;
+  key: string;
+  count: number;
+  lastRequest: string;
+}
+
 export interface GameConfigTable {
   key: string;
   value: unknown;
@@ -483,6 +504,7 @@ export interface Database {
   session: SessionTable;
   account: AccountTable;
   verification: VerificationTable;
+  rateLimit: RateLimitTable;
   game_config: GameConfigTable;
   user_cards: UserCardTable;
   tickets: TicketTable;
