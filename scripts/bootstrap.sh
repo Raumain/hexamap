@@ -18,6 +18,12 @@ docker compose up -d db
 echo "[hexamap] Application des migrations..."
 docker compose --profile tools run --rm dev bun run db:migrate
 
+echo "[hexamap] Import des référentiels géographiques (Bretagne, si absent)..."
+docker compose --profile tools run --rm dev bun run scripts/import/index.ts --lite --if-empty || {
+  echo "[hexamap] Import initial ignoré (sources Open Data injoignables ?)."
+  echo "[hexamap] Relance manuelle : docker compose --profile tools run --rm dev bun run scripts/import/index.ts --lite"
+}
+
 echo "[hexamap] Construction et démarrage de l'API et du web..."
 docker compose up -d --build
 

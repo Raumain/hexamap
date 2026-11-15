@@ -43,6 +43,10 @@ if [ "$FRESH" -eq 1 ]; then
   docker compose down --volumes --remove-orphans
   docker compose up -d db
   docker compose --profile tools run --rm dev bun run db:migrate
+  echo "[hexamap] Import des référentiels géographiques (Bretagne)…"
+  docker compose --profile tools run --rm dev bun run scripts/import/index.ts --lite || {
+    echo "[hexamap] Import initial ignoré (sources Open Data injoignables ?)."
+  }
 fi
 
 echo "[hexamap] Démarrage de la pile…"
