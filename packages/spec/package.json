@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hexamap/api": "workspace:*",
+    "@hexamap/db": "workspace:*",
     "@hexamap/shared": "workspace:*"
   }
 }

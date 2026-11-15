@@ -73,6 +73,8 @@
       "name": "@hexamap/spec",
       "version": "0.1.0",
       "dependencies": {
+        "@hexamap/api": "workspace:*",
+        "@hexamap/db": "workspace:*",
         "@hexamap/shared": "workspace:*",
       },
     },
