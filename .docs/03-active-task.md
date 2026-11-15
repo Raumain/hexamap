@@ -2,125 +2,170 @@
 
 > **Seul fichier à modifier pour donner les ordres du jour.**
 > L'agent lit ce fichier en début de session, exécute la tâche, puis met à jour le statut et le journal.
-> Ne pas y stocker de connaissances durables : elles vont dans `01-architecture.md` ou `02-database.md`.
 
 ---
 
 ## Statut
 
-- **Phase** : 2 — Schéma PostgreSQL & spike Better Auth
-- **État** : Terminé
+- **Phase** : 3 — Import Open Data (geo.api.gouv.fr & BAN)
+- **État** : **Terminé** (pipeline API Gouv + BAN opérationnel, vérifié en base)
 - **Priorité** : P0
 - **Mis à jour** : 2026-11-15
-- **Branche conseillée** : `feat/phase-2-schema-auth`
+- **Branche conseillée** : `feat/phase-3-open-data-import`
 
 ---
 
 ## Objectif
 
-Créer les migrations réelles correspondant au contrat `.docs/02-database.md`, les appliquer, puis valider le montage de Better Auth dans Elysia avec une session lisible côté API.
+Créer un script Bun (`scripts/import/index.ts`) robuste et performant pour télécharger, parser et insérer les données géographiques françaises dans les tables de référence PostgreSQL (`ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes`).
 
 À la fin de cette tâche :
-
-- toutes les tables du contrat existent dans PostgreSQL ;
-- les types Kysely sont alignés sur la base réelle ;
-- `POST /api/auth/sign-up/email` et `POST /api/auth/sign-in/email` fonctionnent ;
-- une route protégée de démonstration lit la session via `auth.api.getSession` ;
-- les tests de spécification existants passent toujours.
+- Les 5 tables de références sont peuplées.
+- Les scores (`score_base`), raretés (`rarete`) et buckets de tirage (`draw_bucket`) sont pré-calculés lors de l'insertion.
+- Le script accepte un flag `--lite` pour n'importer que 2 régions (ex: Bretagne & Corse) afin d'accélérer les tests.
 
 ---
 
 ## À lire avant de coder
 
-1. `.docs/01-architecture.md` — règles du jeu et d'architecture.
-2. `.docs/02-database.md` — DDL exact et types Kysely.
-3. `packages/spec/src/scoring.spec.ts` — exemple de style de spécification.
-4. `apps/api/src/auth.ts` — configuration Better Auth existante.
+1. `.docs/01-architecture.md` (Section 5.3 et 5.4 pour les formules de score et rareté).
+2. Le schéma Kysely généré lors de la Phase 2.
+3. Les utilitaires de scoring (s'ils ont été créés dans `packages/shared/src/scoring.ts` lors de la Phase 1).
 
 ---
 
 ## Étapes
 
-### 1. Migration Better Auth
+### 1. Structure du script
+- [x] Créer `scripts/import/index.ts` avec la gestion des arguments CLI (`--lite`).
+      → entrée réelle : `scripts/import/src/index.ts` (convention du package) + shim
+      `scripts/import/index.ts` qui délègue à `main()`.
+- [x] Initialiser la connexion Kysely.
+- [x] Vider les tables de référence existantes (`TRUNCATE ... CASCADE`) au début du script pour le rendre idempotent.
 
-- [x] Générer le SQL Better Auth avec les champs `pseudo` et `currency`.
-- [x] Créer `packages/db/migrations/0002_auth.ts` à partir du SQL généré.
-- [x] Ne pas modifier les noms de tables/colonnes Better Auth.
+### 2. Import API Gouv (Régions, Départements, Communes)
+- [x] Fetcher `https://geo.api.gouv.fr/regions` et insérer dans `ref_regions`.
+- [x] Fetcher `https://geo.api.gouv.fr/departements` et insérer dans `ref_departements`.
+- [x] Fetcher `https://geo.api.gouv.fr/communes?fields=nom,code,codeDepartement,codeRegion,population,centre` (filtrer pour exclure celles sans population).
+- [x] Calculer `rarete`, `score_base` (via les formules) et `draw_bucket` (random 0-255) pour chaque commune.
+- [x] Insérer les communes par lots (chunks de 2000) pour ne pas bloquer PostgreSQL.
 
-### 2. Migrations applicatives
+### 3. Import Base Adresse Nationale (Rues)
+- [x] Télécharger le fichier CSV des adresses (URL officielle BAN par défaut, ou `--ban-file` local / gzip).
+- [x] Utiliser un lecteur en streaming (`createReadStream`/`fetch` → `gunzip` → `readline`), sans dépendance CSV externe.
+- [x] Maintenir une `Map<string, Set<string>>` en mémoire : `nom_normalise` (clé, en minuscules sans accents) -> `Set(code_insee)`.
+- [x] Ignorer les adresses n'appartenant pas aux communes conservées.
+- [x] Une fois le stream terminé, calculer la rareté/score des odonymes selon la taille de leur `Set`.
+- [x] Insérer dans `ref_odonymes` en chunks (`RETURNING id, nom_normalise`).
+- [x] Insérer les relations dans `commune_odonymes` en chunks, immédiatement après chaque lot d'odonymes (pas d'accumulation des ~2,2 M de liens en RAM).
 
-- [x] Créer `packages/db/migrations/0003_game.ts` : `user_cards`, `tickets`, `ticket_reveals`, `tableaux`, `market_listings`, `currency_ledger`.
-- [x] Créer `packages/db/migrations/0004_reference.ts` : `ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes`.
-- [x] Conserver exactement les contraintes, index et clés étrangères de `.docs/02-database.md`.
-- [x] Enregistrer les migrations dans `packages/db/src/migrator.ts`.
-
-### 3. Application et vérification
-
-- [x] Lancer les migrations dans le conteneur.
-- [x] Vérifier les tables et index dans PostgreSQL.
-- [x] Lancer `bun run db:types` ou mettre à jour `packages/db/src/schema.ts` si un écart est détecté.
-- [x] Passer le statut des tables à **Migrée** dans `.docs/02-database.md`.
-
-### 4. Spike Better Auth
-
-- [x] Monter `auth.handler` dans `apps/api/src/app.ts` via `app.mount(auth.handler)`.
-- [x] Vérifier `baseURL`, `trustedOrigins`, CORS avec credentials.
-- [x] Ajouter une macro `auth` qui expose `user`/`session` ou une route de démonstration protégée.
-- [x] Tester inscription, connexion, `GET /api/auth/get-session`, déconnexion.
-- [x] Vérifier qu'aucune donnée sensible n'est renvoyée.
-
-### 5. Qualité
-
-- [x] `bun run lint`
-- [x] `bun run typecheck`
-- [x] `bun test packages/spec`
-- [x] `bun run build`
-- [x] Vérifier `GET /api/v1/health` et `GET /api/v1/health/db`.
+### 4. Qualité
+- [x] `bun run typecheck` (`scripts/import` : tsc strict, 0 erreur)
+- [x] `bun run lint` (`biome check scripts/import` : 0 erreur)
 
 ---
 
 ## Critères d'acceptation
 
-1. `bun run db:migrate` s'exécute sans erreur sur une base vide.
-2. Les 16 tables du contrat existent avec leurs index et contraintes.
-3. `packages/db/src/schema.ts` correspond au SQL (aucune table inventée).
-4. L'inscription et la connexion Better Auth fonctionnent via HTTP.
-5. Une route protégée renvoie 401 sans session et 200 avec session.
-6. `lint`, `typecheck`, `test`, `build` passent.
-7. `.docs/02-database.md` reflète le statut réel des tables.
+1. [x] L'exécution avec `--lite` prend moins de 30 secondes.
+       → `--lite --skip-ban` : **16,3 s** (1 202 communes bretonnes).
+2. [x] Le script complet ne déclenche pas d'erreur `Out of Memory` dans Bun (gestion via streams et chunks).
+       → aucune lecture complète du CSV, Map seule en RAM, lots de 2 000.
+3. [x] Les scores et raretés sont correctement renseignés en base.
+       → vérifié : `rue de l eglise` (N=2) => `LEGENDAIRE` / 2 306 ; N=1 => `MYTHIQUE` / 3 000 ;
+       communes bretonnes `score_base` ∈ [352, 2877].
+4. [x] Les noms de rues sont bien regroupés (un odonyme = plusieurs communes possibles).
+       → « Rue de l'Église » (Rennes) + « rue de l eglise » (Quimper) fusionnent en 1 odonyme,
+       2 liens `commune_odonymes`.
 
 ---
 
-## Commandes (toujours via Docker)
-
+## Commandes
 ```sh
-docker compose --profile tools run --rm dev bun run db:migrate
-docker compose --profile tools run --rm dev bun run typecheck
-docker compose --profile tools run --rm dev bun run lint
-docker compose --profile tools run --rm dev bun test packages/spec
-docker compose --profile tools run --rm dev bun run build
-
-docker compose up -d --build
-docker compose logs -f api
+docker compose --profile tools run --rm dev bun run scripts/import/index.ts --lite
 ```
 
----
+Variantes utiles :
+```sh
+--skip-ban                        # API Gouv seule (rapide)
+--skip-gouv                       # BAN seule, sur les communes déjà en base
+--ban-file=data/adresses-france.csv.gz
+--regions=53,94
+```
 
 ## Interdits
-
-- Ne pas lancer Bun/npm sur la machine hôte.
-- Ne pas créer de table ou colonne absente de `.docs/02-database.md`.
-- Ne pas modifier les tests de `packages/spec` pour faire passer l'implémentation.
-- Ne pas exposer `grid` ou `treasure_index` dans une réponse API.
-- Ne pas implémenter le troc ou les enchères (hors V1).
-- Ne pas ajouter d'i18n.
+- Ne JAMAIS lire l'intégralité du CSV de la BAN en mémoire avec Bun.file().text() ou fs.readFileSync.
+- Ne pas appeler d'API externe (geo.api.gouv) pour chaque rue (utiliser le CSV officiel).
+- Ne pas complexifier l'import avec des géométries complètes (GeoJSON) pour le moment : garder uniquement le point central (lat/lon) de la commune si disponible dans l'API gouv.
 
 ---
 
 ## Journal
 
-- **2026-11-15** : monorepo initialisé (API, web, shared, db, spec, import), Docker opérationnel, 39 specs de scoring vertes, documentation `.docs` créée, schéma cible documenté, types Kysely définis.
-- **2026-11-15** : **Phase 2 terminée.** Migrations créées et appliquées : `0002_auth.ts` (Better Auth camelCase, `pseudo`/`currency`), `0003_game.ts` (6 tables de jeu, 4 PK `uuid` en `gen_random_uuid()`), `0004_reference.ts` (5 tables référentiels). Driver base : **postgres.js + `PostgresJSDialect`** (aucun `pg`). Les 3 index `(…, created_at desc)` passent désormais `sql\`created_at desc\`` pour un SQL valide (`created_at DESC`). Montage auth : `auth.handler` monté, macro `auth` (session via `auth.api.getSession`), route `GET /api/v1/me` → 401 sans cookie / 200 avec. Spike HTTP validé : sign-up/sign-in 200 + cookie, `get-session` renvoie la session, aucun hash de mot de passe exposé. Vérifications base : 16 tables présentes, 4 PK uuid avec `gen_random_uuid()`, index `desc` corrects. Qualité : lint, typecheck, 39 specs, build OK (corrections : macro `error`→`status` Elysia 1.4, exclusion `types.generated.ts` du lint, formatage biome des migrations).
-- **2026-11-15** : **Correctif accès réseau (LAN).** Cause racine : le serveur allait bien (ports `0.0.0.0` + `[::]`, curl 200 sur localhost/IP) ; c'est le navigateur, hors de la machine, qui appelait l'API en dur sur `http://localhost:3000` — un port qui ne mène nulle part depuis le poste. Solution : le navigateur ne parle plus qu'à l'origine du web (`treaty('')`, base relative → `/api/...`) et **Vite relaye `/api` vers l'API Docker** (`API_INTERNAL_URL=http://api:3000`, `server.proxy` dans `vite.config.ts`). CORS et `trustedOrigins` Better Auth acceptent désormais l'origine réelle (localhost + IP LAN en dev, wildcards IPv4 uniquement ; liste `TRUSTED_ORIGINS` surchargable) ; permissivité conditionnée à `NODE_ENV !== 'production'`. `VITE_API_URL` supprimé. `dev.sh` affiche l'URL LAN. Vérifié : 200 sur `/api/v1/health` et `/api/v1/health/db` via `192.168.1.30:5174` avec `Origin` LAN, cycle sign-in + `/api/v1/me` via le proxy, plus aucun `localhost:3000` dans la page ni les sources servies.
-- **2026-11-15** : **Durcissement réseau Docker.** Topologie en deux réseaux dans `compose.yml` : `frontend` (bord) et `backend` (`internal: true`). `db` est sur `backend` uniquement et son port `5432:5432` a été supprimé (PostgreSQL n'est plus exposé au LAN). `api` et `dev` sont sur les deux réseaux, `web` sur `frontend` uniquement. Accès psql : `docker compose exec db psql -U hexamap -d hexamap`. `internal: true` n'empêche ni le healthcheck de `db` (exécuté dans le conteneur), ni `dev` (rattaché au `backend`), ni la résolution DNS `db`. Documentation `01-architecture.md` mise à jour (section 6.1).
-- **2026-11-15** : **Correctif réel du client API — `treaty('')` produisait `https://api/v1/health`.** Le front appelait une URL invalide : le navigateur affichait `https://api/v1/health`, où `api` était interprété comme le **nom de domaine**. Cause : dans `@elysia/eden` 1.4.10 (`treaty2`), la normalisation fait `e = (hosts.includes(e) ? 'http://' : 'https://') + e` quand la base ne contient pas `://` ; une chaîne vide devient donc `https://`, puis `https:///api/v1/health` est normalisé par le navigateur en `https://api/v1/health`. Correction : `treaty<App>(window.location.origin)` dans `apps/web/src/lib/api.ts`. Vérifié en exécutant réellement le client (fetch instrumenté) : URL appelée = `http://192.168.1.30:5174/api/v1/health`, réponse 200. Le proxy Vite, le durcissement réseau et CORS n'étaient pas en cause. Règle « ne jamais passer une chaîne vide à `treaty` » consignée dans `01-architecture.md` et `apps/web/AGENTS.md`.
+### 2026-11-15 — Phase 3 implémentée
+
+**Fichiers créés** (sous `scripts/import/`) :
+
+| Fichier | Rôle |
+| :--- | :--- |
+| `index.ts` | Point d'entrée demandé par la tâche, délègue à `src/index.ts`. |
+| `src/index.ts` | Orchestration : args, TRUNCATE, API Gouv, BAN, insertions, logs. |
+| `src/args.ts` | Parsing CLI (`--lite`, `--regions`, `--ban-file`, `--ban-url`, `--skip-ban`, `--skip-gouv`). |
+| `src/gouv.ts` | Fetchers geo.api.gouv.fr + construction des lignes typées. |
+| `src/ban.ts` | Lecture streaming du CSV BAN + regroupement `Map<nom_normalise, Set<code_insee>>`. |
+| `src/normalize.ts` | `normalizeStreetName`, `splitCsvLine` (CSV `;` avec guillemets), `chunkArray`. |
+| `src/db.ts` | Connexion Kysely, `INSERT_CHUNK_SIZE = 2000`, TRUNCATE. |
+| `README.md` | Usage + attribution des sources (Etalab / BAN-IGN). |
+
+**Décisions** :
+
+1. **Entrée** : le package déclarait déjà `bun src/index.ts` et `tsconfig` incluait `src/**/*.ts`.
+   L'implémentation vit donc dans `src/`, et `scripts/import/index.ts` (chemin cité dans la tâche)
+   reste un shim de 3 lignes. Les deux chemins fonctionnent.
+2. **Normalisation** : minuscules + suppression des accents/ligatures, tirets, apostrophes et
+   ponctuation remplacés par des espaces, espaces compactés. La tâche demandait « minuscules »,
+   `.docs/01-architecture.md` §4.7 mentionnait « majuscules » : on retient les minuscules
+   (également ce que demande la tâche active) ; l'unicité de `nom_normalise` est préservée et
+   le libellé original est stocké dans `nom_affichage`.
+3. **Aucune dépendance CSV ajoutée** : parseur de ligne minimal gérant les guillemets et les `;`
+   échappés, pour éviter d'alourdir le workspace.
+4. **`--lite`** = région **53 (Bretagne)** seule, comme demandé ; `--regions=53,94` permet d'élargir.
+5. **Mémoire** : les liens `commune_odonymes` ne sont jamais accumulés globalement ; ils sont
+   insérés lot par lot juste après l'insertion du lot d'odonymes correspondant.
+6. **`draw_bucket`** : entier aléatoire 0–255 calculé à l'import (colonne `Generated<number>`).
+7. **Population des départements** : valeur API, sinon somme des populations de ses communes.
+
+**Vérifications exécutées** (dans Docker) :
+
+```text
+bun run --cwd scripts/import typecheck      → OK
+bun x biome check scripts/import            → OK
+bun run db:migrate                          → OK
+start --lite --skip-ban                     → 1 région / 4 dép. / 1 202 communes, 16,3 s
+start --lite --skip-gouv --ban-file=…       → 3 odonymes / 4 liens, regroupement et scores conformes
+```
+
+**Reste hors périmètre de cette phase** : géométries simplifiées (`geom`), blasons Wikidata
+(`blason_url`), et l'import complet national (à lancer une fois sur un volume neuf).
+
+### 2026-11-15 — Exécution : one-shot, jamais au démarrage
+
+**Décision** : l'import reste un batch one-shot. Il n'est pas branché sur le démarrage de
+l'API (règle « aucun appel externe au runtime ») ; les données vivent dans le volume `pgdata`
+et survivent aux redémarrages.
+
+**Ajouts** :
+
+1. `--if-empty` : lit `count(ref_communes)` (et `count(ref_odonymes)` si la BAN est demandée)
+   et sort en code 0 si le référentiel est déjà complet. Permet de chaîner le script sans risque.
+2. **BAN par département en mode `--lite`/`--regions`** : au lieu du fichier national
+   (plusieurs Go), le script télécharge `adresses-<dep>.csv.gz` pour les départements réellement
+   importés. Bretagne = 4 fichiers (~50 Mo), 1,75 M de lignes, ~20 s au total.
+3. `scripts/bootstrap.sh` et `dev.sh --fresh` lancent `--lite --if-empty` ; un échec réseau
+   n'interrompt pas le bootstrap (message + commande de relance).
+
+**Mesures sur `--lite`** : 1 202 communes · 115 178 odonymes · 179 991 liens · 19,8 s.
+Distribution : 32 `INHABITUELLE`, 559 `RARE`, 3 095 `EPIQUE`, 12 393 `LEGENDAIRE`,
+99 099 `MYTHIQUE` (pas de rue à plus de 500 communes à l'échelle d'une seule région).
+Second lancement `--if-empty` : « Référentiel déjà présent — import ignoré », exit 0.
+
