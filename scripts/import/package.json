@@ -1,0 +1,15 @@
+{
+  "name": "@hexamap/import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hexamap/db": "workspace:*",
+    "@hexamap/shared": "workspace:*",
+    "kysely": "^0.29.9"
+  }
+}

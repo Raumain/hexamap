@@ -1,0 +1,99 @@
+name: hexamap
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hexamap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hexamap}
+      POSTGRES_DB: ${POSTGRES_DB:-hexamap}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hexamap} -d ${POSTGRES_DB:-hexamap}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # PostgreSQL est isolé sur le réseau interne : aucun port publié, aucune route
+    # vers le LAN. Accès uniquement depuis les autres services du réseau backend.
+    networks:
+      - backend
+
+  # Service utilitaire : toutes les commandes Bun passent par le conteneur.
+  # Exemple : docker compose --profile tools run --rm dev bun install
+  # Sur frontend (accès Internet pour `bun install`) ET backend (accès à `db`
+  # pour `db:migrate`).
+  dev:
+    image: oven/bun:1
+    profiles: ["tools"]
+    working_dir: /app
+    user: "${UID:-1000}:${GID:-1000}"
+    env_file: .env
+    environment:
+      HOME: /app
+    volumes:
+      - .:/app
+      - ./node_modules:/app/node_modules
+    command: ["bun", "--version"]
+    networks:
+      - frontend
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: dev
+    working_dir: /app
+    user: "${UID:-1000}:${GID:-1000}"
+    env_file: .env
+    environment:
+      HOME: /app
+      DATABASE_URL: ${DATABASE_URL:-postgres://hexamap:hexamap@db:5432/hexamap}
+    volumes:
+      - .:/app
+      - ./node_modules:/app/node_modules
+    command: ["bun", "run", "--cwd", "apps/api", "dev"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: dev
+    working_dir: /app
+    user: "${UID:-1000}:${GID:-1000}"
+    env_file: .env
+    environment:
+      HOME: /app
+      # Cible du proxy Vite (résolution interne Docker). Jamais exposée au navigateur.
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:3000}
+    volumes:
+      - .:/app
+      - ./node_modules:/app/node_modules
+    command: ["bun", "run", "--cwd", "apps/web", "dev", "--host", "0.0.0.0"]
+    ports:
+      - "5174:5174"
+    depends_on:
+      - api
+    networks:
+      - frontend
+
+networks:
+  # Réseau de bord : accessible depuis le LAN via les ports publiés (5174, 3000).
+  frontend:
+  # Réseau interne : aucune route vers l'extérieur, aucun port publié. La DB
+  # n'est joignable que par les services qui y sont rattachés.
+  backend:
+    internal: true
+
+volumes:
+  pgdata:
