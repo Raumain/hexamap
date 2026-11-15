@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    container:
+      image: oven/bun:1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer les dépendances
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Tests de spécification
+        run: bun test packages/spec
+
+      - name: Build
+        run: bun run build

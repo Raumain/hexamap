@@ -1,0 +1,17 @@
+node_modules
+.bun
+.git
+.gitignore
+.docs
+docs
+AGENTS.md
+**/AGENTS.md
+opencode.json
+.ignore
+.env
+.env.local
+dist
+**/dist
+**/.vite
+*.log
+coverage

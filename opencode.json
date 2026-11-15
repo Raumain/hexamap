@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [".docs/01-architecture.md", ".docs/02-database.md", ".docs/03-active-task.md"],
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      ".bun/**",
+      "**/dist/**",
+      "**/.vite/**",
+      "bun.lock",
+      "**/routeTree.gen.ts",
+      "**/types.generated.ts",
+      "**/*.log"
+    ]
+  }
+}

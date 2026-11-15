@@ -1,0 +1,18 @@
+# Fichiers exclus de la recherche et de la lecture par les agents.
+node_modules/
+.bun/
+**/node_modules/
+**/dist/
+dist/
+**/.vite/
+.vite/
+coverage/
+bun.lock
+*.log
+.env
+.env.*
+!.env.example
+.bash_history
+apps/web/src/routeTree.gen.ts
+packages/db/src/types.generated.ts
+auth-schema.tmp.sql

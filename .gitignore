@@ -1,0 +1,15 @@
+node_modules
+.bun
+.bash_history
+.auth-schema.tmp.sql
+.env
+.env.local
+!.env.example
+dist
+**/dist
+*.log
+.DS_Store
+.vite
+**/.vite
+packages/db/src/types.generated.ts
+coverage
