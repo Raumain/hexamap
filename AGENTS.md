@@ -67,6 +67,19 @@ docker compose up -d --build
 6. Mettre à jour `.docs/03-active-task.md` (statut, journal) et, si nécessaire, `.docs/02-database.md` ou `.docs/01-architecture.md`.
 7. Ne pas commiter sans demande explicite.
 
+## Git et publication
+
+Règle unique, sans exception : **une phase se livre toujours sur une branche dédiée, jamais directement sur `main`.** (Les phases 1 à 3 ont été commitées sur `main` : ce n'est plus le cas.)
+
+1. Partir de `main` à jour : `git switch main && git pull`.
+2. Créer la branche annoncée dans `.docs/03-active-task.md` (`feat/phase-N-...`).
+3. Commits atomiques, un par sujet cohérent, au format `type(scope): impératif en français` — `feat`, `fix`, `test`, `docs`, `chore`, `refactor`, `build`.
+4. Avant de pousser : `bun test packages/spec`, `bun run typecheck`, `bun run lint` dans Docker.
+5. Pousser : `git push -u origin <branche>`, puis ouvrir une PR vers `main`. Ne pas fusionner sans demande.
+6. `main` ne reçoit que des merges de PR, jamais de commit direct.
+
+Si une phase n'a pas de branche annoncée, la créer avec le même format.
+
 ## Hygiène de contexte
 
 - Ne pas lire `node_modules/`, `dist/`, `.bun/`, `bun.lock`, `apps/web/src/routeTree.gen.ts`, `packages/db/src/types.generated.ts`, les logs ou les fichiers de build.

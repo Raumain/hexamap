@@ -11,7 +11,7 @@
 - **État** : **Terminé** (config, plugin Elysia, migration `rateLimit`, tests spec verts)
 - **Priorité** : P0
 - **Mis à jour** : 2026-11-15
-- **Branche conseillée** : `feat/phase-4-auth-robust`
+- **Branche** : `feat/phase-4-auth-robust` (obligatoire — voir `AGENTS.md` §Git et publication)
 
 ---
 
