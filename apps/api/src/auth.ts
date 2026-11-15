@@ -43,7 +43,7 @@ export const auth = betterAuth({
     additionalFields: {
       pseudo: {
         type: 'string',
-        required: false,
+        required: true,
       },
       currency: {
         type: 'number',
@@ -52,6 +52,9 @@ export const auth = betterAuth({
         input: false,
       },
     },
+  },
+  rateLimit: {
+    storage: 'database',
   },
   advanced: {
     useSecureCookies: env.NODE_ENV === 'production',

@@ -5,8 +5,26 @@ import { sql } from 'kysely';
 import { auth, trustedOrigins } from './auth';
 import { db } from './db';
 import { env } from './env';
+import { authPlugin } from './middleware/auth';
 
 const isDev = env.NODE_ENV !== 'production';
+
+const protectedRoutes = new Elysia({ prefix: '/api/v1' })
+  .use(authPlugin)
+  .get('/me', ({ user, status }) => {
+    if (!user) {
+      return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
+    }
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        pseudo: user.pseudo,
+        currency: user.currency,
+      },
+    };
+  });
 
 export const app = new Elysia()
   .use(
@@ -24,17 +42,6 @@ export const app = new Elysia()
     }),
   )
   .use(openapi({ path: '/api/docs' }))
-  .macro({
-    auth: {
-      async resolve({ request, status }) {
-        const session = await auth.api.getSession({ headers: request.headers });
-        if (!session) {
-          return status(401, 'Non authentifié');
-        }
-        return { user: session.user, session: session.session };
-      },
-    },
-  })
   .get('/api/v1/health', () => ({ status: 'ok', service: 'hexamap-api' }))
   .get('/api/v1/health/db', async ({ set }) => {
     try {
@@ -45,19 +52,7 @@ export const app = new Elysia()
       return { status: 'error', database: 'down' };
     }
   })
-  .get(
-    '/api/v1/me',
-    ({ user }) => ({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        pseudo: user.pseudo,
-        currency: user.currency,
-      },
-    }),
-    { auth: true },
-  )
+  .use(protectedRoutes)
   .mount(auth.handler);
 
 export type App = typeof app;
