@@ -6,11 +6,17 @@ import { auth, trustedOrigins } from './auth';
 import { db } from './db';
 import { env } from './env';
 import { authPlugin } from './middleware/auth';
+import { cardRoutes } from './routes/cards';
+import { refRoutes } from './routes/ref';
+import { ticketRoutes } from './routes/tickets';
 
 const isDev = env.NODE_ENV !== 'production';
 
 const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(authPlugin)
+  .use(refRoutes)
+  .use(ticketRoutes)
+  .use(cardRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });

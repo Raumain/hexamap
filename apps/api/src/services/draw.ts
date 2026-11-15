@@ -1,0 +1,336 @@
+import type { CardCategory, Database, Rarity } from '@hexamap/db';
+import {
+  CATEGORY,
+  CATEGORY_WEIGHTS,
+  type Category,
+  departementPopulationBonus,
+  editionScore,
+  RARITY,
+  RARITY_WEIGHTS,
+} from '@hexamap/shared';
+import type { Kysely, Transaction } from 'kysely';
+import { HttpError } from '../lib/http-error';
+import { pickWeighted, type Rng } from './rng';
+
+/** Contexte d'exécution accepté par les services : instance Kysely ou transaction. */
+export type Executor = Kysely<Database> | Transaction<Database>;
+
+export interface DrawnCard {
+  card: { category: CardCategory; ref_code: string; rarity: Rarity };
+  nom: string;
+  score: number;
+  /** 0 pour COMMUNE/RUE et REGION ; bonus de population pour DEPARTEMENT. */
+  editionBonus: number;
+}
+
+export interface CardMeta {
+  nom: string;
+  score: number;
+  editionBonus: number;
+}
+
+function referenceMissing(): HttpError {
+  return new HttpError(503, 'REFERENCE_DATA_MISSING', 'Données de référence indisponibles.');
+}
+
+/** Palier supérieur (plafonné à MYTHIQUE). */
+export function rarityUp(r: Rarity): Rarity {
+  const index = RARITY.indexOf(r);
+  return RARITY[Math.min(index + 1, RARITY.length - 1)] ?? 'MYTHIQUE';
+}
+
+/** Rareté pondérée sur `allowed` (défaut : toutes), poids renormalisés. */
+export function weightedRarity(rng: Rng, allowed?: Rarity[]): Rarity {
+  const pool = allowed ?? [...RARITY];
+  return pickWeighted(
+    pool.map((r) => ({ value: r, weight: RARITY_WEIGHTS[r] })),
+    rng,
+  );
+}
+
+/** Catégorie pondérée sur `allowed` (défaut : toutes), poids renormalisés. */
+export function weightedCategory(rng: Rng, allowed?: Category[]): Category {
+  const pool = allowed ?? [...CATEGORY];
+  return pickWeighted(
+    pool.map((c) => ({ value: c, weight: CATEGORY_WEIGHTS[c] })),
+    rng,
+  );
+}
+
+async function drawRegion(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
+  const countRow = await exec
+    .selectFrom('ref_regions')
+    .select(exec.fn.countAll().as('total'))
+    .executeTakeFirstOrThrow();
+  const total = Number(countRow.total);
+  if (total === 0) {
+    throw referenceMissing();
+  }
+  const offset = Math.min(Math.floor(rng() * total), total - 1);
+  const row = await exec
+    .selectFrom('ref_regions')
+    .select(['code', 'nom'])
+    .orderBy('code')
+    .offset(offset)
+    .limit(1)
+    .executeTakeFirst();
+  if (!row) {
+    throw referenceMissing();
+  }
+  return {
+    card: { category: 'REGION', ref_code: row.code, rarity },
+    nom: row.nom,
+    score: editionScore(rarity),
+    editionBonus: 0,
+  };
+}
+
+async function drawDepartement(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
+  const countRow = await exec
+    .selectFrom('ref_departements')
+    .select(exec.fn.countAll().as('total'))
+    .executeTakeFirstOrThrow();
+  const total = Number(countRow.total);
+  if (total === 0) {
+    throw referenceMissing();
+  }
+  const offset = Math.min(Math.floor(rng() * total), total - 1);
+  const row = await exec
+    .selectFrom('ref_departements')
+    .select(['code', 'nom', 'population'])
+    .orderBy('code')
+    .offset(offset)
+    .limit(1)
+    .executeTakeFirst();
+  if (!row) {
+    throw referenceMissing();
+  }
+  const bonus = departementPopulationBonus(row.population);
+  return {
+    card: { category: 'DEPARTEMENT', ref_code: row.code, rarity },
+    nom: row.nom,
+    score: editionScore(rarity) + bonus,
+    editionBonus: bonus,
+  };
+}
+
+// COMMUNE/RUE : le `score` retourné est le `score_base` intrinsèque du
+// référentiel (une commune/rue possède une seule rareté intrinsèque). Un
+// `rarityUp` ultérieur (panneau RENOVATION) ne change que le *libellé
+// d'édition* de la carte ; le score de tableau est calculé en Phase 8, pas ici.
+async function drawCommune(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
+  const countRow = await exec
+    .selectFrom('ref_communes')
+    .select(exec.fn.countAll().as('total'))
+    .where('rarete', '=', rarity)
+    .executeTakeFirstOrThrow();
+  const total = Number(countRow.total);
+  if (total === 0) {
+    throw referenceMissing();
+  }
+  const offset = Math.min(Math.floor(rng() * total), total - 1);
+  const row = await exec
+    .selectFrom('ref_communes')
+    .select(['code_insee', 'nom', 'score_base'])
+    .where('rarete', '=', rarity)
+    .orderBy('code_insee')
+    .offset(offset)
+    .limit(1)
+    .executeTakeFirst();
+  if (!row) {
+    throw referenceMissing();
+  }
+  return {
+    card: { category: 'COMMUNE', ref_code: row.code_insee, rarity },
+    nom: row.nom,
+    score: row.score_base,
+    editionBonus: 0,
+  };
+}
+
+async function drawRue(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
+  const countRow = await exec
+    .selectFrom('ref_odonymes')
+    .select(exec.fn.countAll().as('total'))
+    .where('rarete', '=', rarity)
+    .executeTakeFirstOrThrow();
+  const total = Number(countRow.total);
+  if (total === 0) {
+    throw referenceMissing();
+  }
+  const offset = Math.min(Math.floor(rng() * total), total - 1);
+  const row = await exec
+    .selectFrom('ref_odonymes')
+    .select(['id', 'nom_affichage', 'score_base'])
+    .where('rarete', '=', rarity)
+    .orderBy('id')
+    .offset(offset)
+    .limit(1)
+    .executeTakeFirst();
+  if (!row) {
+    throw referenceMissing();
+  }
+  return {
+    card: { category: 'RUE', ref_code: row.id, rarity },
+    nom: row.nom_affichage,
+    score: row.score_base,
+    editionBonus: 0,
+  };
+}
+
+/**
+ * Tire une carte d'une catégorie et d'une rareté (optionnelle : pondérée).
+ * REGION/DEPARTEMENT : tirage uniforme, rareté d'édition.
+ * COMMUNE/RUE : tirage uniforme dans le palier `rarete = rarity`.
+ */
+export async function drawCard(
+  exec: Executor,
+  category: CardCategory,
+  rarity: Rarity | undefined,
+  rng: Rng = Math.random,
+): Promise<DrawnCard> {
+  switch (category) {
+    case 'REGION':
+      return drawRegion(exec, rarity ?? weightedRarity(rng), rng);
+    case 'DEPARTEMENT':
+      return drawDepartement(exec, rarity ?? weightedRarity(rng), rng);
+    case 'COMMUNE':
+      return drawCommune(exec, rarity ?? weightedRarity(rng), rng);
+    case 'RUE':
+      return drawRue(exec, rarity ?? weightedRarity(rng), rng);
+  }
+}
+
+/**
+ * Résout les métadonnées (nom, score) d'une carte par clé primaire, pour une
+ * rareté donnée. Utilisé lors de l'octroi depuis une case de grille, qui ne
+ * stocke que `{ category, ref_code, rarity }`.
+ */
+export async function resolveCardMeta(
+  exec: Executor,
+  category: CardCategory,
+  refCode: string,
+  rarity: Rarity,
+): Promise<CardMeta> {
+  switch (category) {
+    case 'REGION': {
+      const row = await exec
+        .selectFrom('ref_regions')
+        .select(['nom'])
+        .where('code', '=', refCode)
+        .executeTakeFirst();
+      if (!row) {
+        throw referenceMissing();
+      }
+      return { nom: row.nom, score: editionScore(rarity), editionBonus: 0 };
+    }
+    case 'DEPARTEMENT': {
+      const row = await exec
+        .selectFrom('ref_departements')
+        .select(['nom', 'population'])
+        .where('code', '=', refCode)
+        .executeTakeFirst();
+      if (!row) {
+        throw referenceMissing();
+      }
+      const bonus = departementPopulationBonus(row.population);
+      return { nom: row.nom, score: editionScore(rarity) + bonus, editionBonus: bonus };
+    }
+    case 'COMMUNE': {
+      const row = await exec
+        .selectFrom('ref_communes')
+        .select(['nom', 'score_base'])
+        .where('code_insee', '=', refCode)
+        .executeTakeFirst();
+      if (!row) {
+        throw referenceMissing();
+      }
+      return { nom: row.nom, score: row.score_base, editionBonus: 0 };
+    }
+    case 'RUE': {
+      const row = await exec
+        .selectFrom('ref_odonymes')
+        .select(['nom_affichage', 'score_base'])
+        .where('id', '=', refCode)
+        .executeTakeFirst();
+      if (!row) {
+        throw referenceMissing();
+      }
+      return { nom: row.nom_affichage, score: row.score_base, editionBonus: 0 };
+    }
+  }
+}
+
+export function cardNomKey(category: CardCategory, refCode: string): string {
+  return `${category}:${refCode}`;
+}
+
+/**
+ * Résout les noms d'une liste de cartes par lots groupés par catégorie
+ * (au plus 4 requêtes). Retourne une map indexée par `category:ref_code`.
+ */
+export async function resolveCardNoms(
+  exec: Executor,
+  cards: ReadonlyArray<{ category: CardCategory; ref_code: string }>,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const byCategory = new Map<CardCategory, string[]>();
+
+  for (const card of cards) {
+    const list = byCategory.get(card.category) ?? [];
+    list.push(card.ref_code);
+    byCategory.set(card.category, list);
+  }
+
+  for (const [category, refs] of byCategory) {
+    const uniqueRefs = [...new Set(refs)];
+    switch (category) {
+      case 'REGION': {
+        const rows = await exec
+          .selectFrom('ref_regions')
+          .select(['code', 'nom'])
+          .where('code', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('REGION', r.code), r.nom);
+        }
+        break;
+      }
+      case 'DEPARTEMENT': {
+        const rows = await exec
+          .selectFrom('ref_departements')
+          .select(['code', 'nom'])
+          .where('code', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('DEPARTEMENT', r.code), r.nom);
+        }
+        break;
+      }
+      case 'COMMUNE': {
+        const rows = await exec
+          .selectFrom('ref_communes')
+          .select(['code_insee', 'nom'])
+          .where('code_insee', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('COMMUNE', r.code_insee), r.nom);
+        }
+        break;
+      }
+      case 'RUE': {
+        const rows = await exec
+          .selectFrom('ref_odonymes')
+          .select(['id', 'nom_affichage'])
+          .where('id', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('RUE', r.id), r.nom_affichage);
+        }
+        break;
+      }
+    }
+  }
+
+  return result;
+}
