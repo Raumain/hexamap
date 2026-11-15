@@ -245,24 +245,36 @@ Services : web `http://localhost:5174` (ou `http://<IP-LAN>:5174`, l'API étant 
 
 ### 6.1 Topologie réseau Docker (durcissement)
 
-Deux réseaux, définis dans `compose.yml` :
+Trois réseaux, définis dans `compose.yml` :
 
 | Réseau | Type | Rôle | Services rattachés |
 | :--- | :--- | :--- | :--- |
 | `frontend` | bord (`internal` absent) | accessible depuis le LAN via les ports publiés ; donne accès à Internet | `web`, `api`, `dev` |
-| `backend` | interne (`internal: true`) | aucune route vers l'extérieur, aucun port publié ; isole PostgreSQL | `db`, `api`, `dev` |
+| `backend` | interne (`internal: true`) | aucune route vers l'extérieur, aucun port publié ; isole PostgreSQL | `db`, `api`, `dev`, `pgadmin` |
+| `admin` | pont, réservé aux outils | permet à Docker de publier des ports (impossible depuis un réseau `internal`), toujours liés à `127.0.0.1` | `db`, `pgadmin` |
 
 Règles :
 
-- **Seuls `web` (5174) et `api` (3000) sont publiés.** PostgreSQL n'est jamais exposé : le port `5432` n'est pas mappé et le réseau `backend` est `internal`.
+- **Seuls `web` (5174), `api` (3000) et, en développement, `db` (5432) / `pgadmin` (5050) sont publiés.** Les deux derniers sont liés à `127.0.0.1` **et** `::1` (boucle locale IPv4 + IPv6, car `localhost` résout souvent uniquement en `::1`) : joignables depuis la machine hôte, jamais depuis le LAN. `POSTGRES_BIND=0.0.0.0` permet de les ouvrir au réseau, ce qui est déconseillé.
 - `api` est sur les deux réseaux : il joint `db` (backend) et est joint par `web` (frontend).
 - `dev` (profil `tools`) est sur les deux réseaux : il a besoin de `db` pour `db:migrate` **et** d'Internet pour `bun install`.
 - `web` est sur `frontend` uniquement : il n'a aucune raison d'atteindre directement PostgreSQL.
+- `pgadmin` (profil `admin`) est sur `backend` pour joindre `db` et sur `admin` pour être publié.
 
-Accès psql (alternative à un client local, puisque `5432` n'est plus publié) :
+Accès psql :
 
 ```sh
+# Depuis l'intérieur du réseau Docker (aucun port publié nécessaire)
 docker compose exec db psql -U hexamap -d hexamap
+
+# Depuis l'hôte, avec le client de son choix (DBeaver, psql, pgAdmin)
+psql postgres://hexamap:hexamap@127.0.0.1:5432/hexamap
+```
+
+Interface web d'administration :
+
+```sh
+docker compose --profile admin up -d pgadmin   # http://localhost:5050
 ```
 
 ---

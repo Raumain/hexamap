@@ -15,10 +15,24 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-    # PostgreSQL est isolé sur le réseau interne : aucun port publié, aucune route
-    # vers le LAN. Accès uniquement depuis les autres services du réseau backend.
+    # PostgreSQL reste isolé sur le réseau interne : aucune route vers le LAN.
+    # Le port n'est publié que sur la boucle locale de l'hôte, pour les outils de
+    # vérification (DBeaver, psql, pgAdmin). `${POSTGRES_HOST_PORT:-}` vide
+    # n'expose rien ; `127.0.0.1:5432` est la valeur par défaut en développement.
+    # `localhost` résout souvent en ::1 : on publie sur l'IPv4 ET l'IPv6 de la
+    # boucle locale. Jamais sur le LAN par défaut.
+    ports:
+      - target: 5432
+        published: "${POSTGRES_HOST_PORT:-5432}"
+        host_ip: "${POSTGRES_BIND:-127.0.0.1}"
+        protocol: tcp
+      - target: 5432
+        published: "${POSTGRES_HOST_PORT:-5432}"
+        host_ip: "::1"
+        protocol: tcp
     networks:
       - backend
+      - admin
 
   # Service utilitaire : toutes les commandes Bun passent par le conteneur.
   # Exemple : docker compose --profile tools run --rm dev bun install
@@ -39,6 +53,39 @@ services:
     networks:
       - frontend
       - backend
+
+  # Interface SQL web, optionnelle, pour inspecter la base en développement.
+  # Démarrage : docker compose --profile admin up -d pgadmin
+  # Accès : http://localhost:5050 (serveur « Hexamap (local) » déjà configuré).
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: ["admin"]
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@hexamap.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-hexamap}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_DISABLE_POSTFIX: "True"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    # Écoute uniquement sur la boucle locale de l'hôte (IPv4 + IPv6) : jamais sur le LAN.
+    ports:
+      - target: 80
+        published: "${PGADMIN_HOST_PORT:-5050}"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+      - target: 80
+        published: "${PGADMIN_HOST_PORT:-5050}"
+        host_ip: "::1"
+        protocol: tcp
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+      - admin
 
   api:
     build:
@@ -94,6 +141,12 @@ networks:
   # n'est joignable que par les services qui y sont rattachés.
   backend:
     internal: true
+  # Réseau de pont réservé aux outils de vérification (pgAdmin, DBeaver).
+  # Docker ne publie pas les ports d'un conteneur présent uniquement sur un
+  # réseau « internal » : ce réseau permet donc la publication, mais les ports
+  # sont explicitement liés à 127.0.0.1 (boucle locale), jamais au LAN.
+  admin:
 
 volumes:
   pgdata:
+  pgadmin:
