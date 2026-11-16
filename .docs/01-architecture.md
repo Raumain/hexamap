@@ -108,6 +108,7 @@ Liens vérifiés par le serveur :
 - **1 case standard est pré-grattée gratuitement** à l'ouverture, avec son panneau kilométrique.
 - Chaque case révélée affiche la distance de Manhattan jusqu'à la Pépite : `|L1-L2| + |C1-C2|`.
 - **Anti-triche** : le serveur ne transmet jamais la position de la Pépite ni le contenu des cases non révélées.
+- **Tolérance aux référentiels incomplets** : un palier de rareté vide ne bloque jamais la génération. Une commune ou une rue est alors tirée dans le palier voisin le plus proche (palier plus bas prioritaire) et porte la rareté réelle de la ligne référentielle, donc un score cohérent. Les jumelés sont cherchés de la commune jusqu'au national, puis complétés par un vivier national. `REFERENCE_DATA_MISSING` reste réservé au cas où le référentiel ne contient aucun candidat pour la catégorie demandée.
 
 ### 2.7 Rareté inversée des rues
 
