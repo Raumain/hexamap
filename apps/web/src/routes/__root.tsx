@@ -41,6 +41,24 @@ function SessionNav() {
   if (user) {
     return (
       <div className="flex items-center gap-4">
+        <Link
+          to="/collection"
+          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+        >
+          Collection
+        </Link>
+        <Link
+          to="/tableaux"
+          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+        >
+          Mes tableaux
+        </Link>
+        <Link
+          to="/tableau"
+          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+        >
+          Tableau
+        </Link>
         <span className="text-sm text-slate-200">Bonjour, {user.pseudo}</span>
         <button
           type="button"

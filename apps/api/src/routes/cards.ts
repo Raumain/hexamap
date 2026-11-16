@@ -70,7 +70,7 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
         return unauthorized;
       }
 
-      const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
+      const limit = Math.min(Math.max(query.limit ?? 20, 1), 5000);
       const offset = query.offset ?? 0;
 
       let builder = db.selectFrom('user_cards').where('user_id', '=', user.id);
@@ -120,7 +120,7 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
       query: t.Object({
         category: t.Optional(categorySchema),
         rarity: t.Optional(raritySchema),
-        limit: t.Optional(t.Integer({ minimum: 1, maximum: 100 })),
+        limit: t.Optional(t.Integer({ minimum: 1, maximum: 5000 })),
         offset: t.Optional(t.Integer({ minimum: 0 })),
       }),
       response: {

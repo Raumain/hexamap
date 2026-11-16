@@ -95,6 +95,13 @@ Liens vérifiés par le serveur :
 2. `département.code === commune.code_departement`
 3. la rue existe réellement dans la commune (`commune_odonymes`)
 
+Règles d'implémentation (Phase 8) :
+
+- Toutes les règles ci-dessus vivent dans `packages/shared/src/tableau.ts` (`evaluateTableauAlignment`, `evaluateTableau`, `rueExistsInCommune`) et `scoring.ts` (`tableauScore`, `alignmentMultiplier`). Le serveur et le client importent les mêmes fonctions ; aucune formule n'est dupliquée.
+- Le score d'un tableau n'est **pas stocké** : il est recalculé à la lecture et à la soumission à partir des `user_cards.score`. Une évolution vers un score figé devrait passer par `.docs/02-database.md`.
+- Les cartes d'un tableau ne passent **pas** à `locked = true` : `locked` reste réservé à la vente. La soumission exige en revanche `locked = false` et refuse (`409`) une carte déjà engagée dans un autre tableau du même joueur.
+- Une carte ne peut occuper que l'emplacement de sa catégorie (`slotMatchesCategory`).
+
 ### 2.6 Ticket à gratter « Le Relevé Topographique »
 
 - Grille de **16 cases** (4 × 4).
