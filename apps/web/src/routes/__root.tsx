@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet, useRouter } from '@tanstack/react-router';
+import { CURRENCY, priceLabel } from '../content/market';
 import { signOut } from '../lib/auth';
 import { useInvalidateSession, useSession } from '../lib/session';
 
@@ -59,6 +60,21 @@ function SessionNav() {
         >
           Tableau
         </Link>
+        <Link
+          to="/market"
+          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+        >
+          Marché
+        </Link>
+        <Link
+          to="/market/mine"
+          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+        >
+          Mes ventes
+        </Link>
+        <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-sm font-medium tabular-nums text-amber-300">
+          {CURRENCY.label} : {priceLabel(user.currency ?? 0)}
+        </span>
         <span className="text-sm text-slate-200">Bonjour, {user.pseudo}</span>
         <button
           type="button"
