@@ -7,118 +7,110 @@
 
 ## Statut
 
-- **Phase** : 8 — Collection & Tableau
-- **État** : Terminé — en attente de revue
+- **Phase** : 9 — Marché V1 (Achat & Vente directe)
+- **État** : Terminée (implémentée, vérifiée, en attente de revue de PR)
 - **Priorité** : P0
 - **Mis à jour** : 2026-11-16
-- **Branche** : `feat/phase-8-collection-tableau` — empilée sur `feat/phase-7-ticket-ui` (la phase 7 n'est pas encore fusionnée dans `main` et la phase 8 en dépend)
+- **Branche** : `feat/phase-9-market-v1`, empilée sur `feat/phase-8-collection-tableau` (la phase 8 n'est pas encore fusionnée dans `main`)
 
 ---
 
 ## Objectif
 
-Créer l'interface de gestion de l'inventaire des cartes du joueur (`/collection`) et le créateur de combos géographiques (`/tableau`), en s'assurant de l'homogénéité des calculs de score entre le client et le serveur.
+Créer un hôtel des ventes sécurisé permettant aux joueurs de lister leurs cartes à un prix fixe et d'acheter les cartes des autres joueurs. Les transactions doivent être atomiques (ACID) pour prévenir la double dépense et la duplication de cartes.
 
 À la fin de cette tâche :
-- Le joueur peut voir toutes ses cartes dans une liste virtualisée et filtrable (par type, rareté, région).
-- Le joueur peut sélectionner 1 Région, 1 Département, 1 Commune et 1 Rue pour former un Tableau.
-- Le score prévisionnel et les liens géographiques s'affichent en temps réel.
-- Le joueur peut soumettre son Tableau (validation serveur).
+- Le joueur peut mettre en vente une carte (qui devient `locked`).
+- Le joueur peut annuler sa vente (la carte est déverrouillée).
+- Le joueur peut acheter la carte d'un autre joueur si son solde `currency` est suffisant.
+- Les mouvements de monnaie mettent à jour le solde des joueurs ET laissent une trace dans `currency_ledger`.
+- Les interfaces `/market` (achat) et `/market/mine` (gestion) sont opérationnelles.
 
 ---
 
 ## À lire avant de coder
 
-1. `.docs/01-architecture.md` (Sections 5.1, 5.2 et 5.7 pour les formules de score et le multiplicateur territorial).
-2. `packages/shared/src/scoring.ts` (ou équivalent) pour y centraliser la logique métier.
+1. `.docs/01-architecture.md` (Section 9 - Périmètre strict V1).
+2. Le schéma Kysely de la table `market_listings` et `currency_ledger`.
 
 ---
 
 ## Étapes
 
-### 1. Logique métier partagée (`packages/shared/`)
-- [x] Créer `packages/shared/src/tableau.ts` (exporté par `src/index.ts`) : `TABLEAU_SLOTS`, `TABLEAU_SLOT_LABELS`, `TABLEAU_LINK_LABELS`, `slotMatchesCategory`, `rueExistsInCommune`, `TableauGeography`, `evaluateTableauAlignment`, `evaluateTableau`.
-- [x] Le multiplicateur d'alignement (1.0x à 5.0x) reste calculé par `alignmentMultiplier` (`scoring.ts`) et le total par `tableauScore` : **aucune formule n'est dupliquée** ni côté API, ni côté web. La décision « la rue existe dans la commune » est dans `rueExistsInCommune` : l'API ne fournit que les lignes de `commune_odonymes`.
-- [x] Spec pure `packages/spec/src/tableau.spec.ts` (bornes 0/1/2/3 liens, sélections partielles, parité `evaluateTableau` ↔ GDD).
+### 1. API - Mise en vente & Annulation (`apps/api/src/routes/market.ts`)
+- [x] `POST /api/v1/market/listings` : Créer l'annonce (status `OPEN` — le contrat DB `0003_game` n'a pas de statut `ACTIVE`). Verrouiller la carte (`UPDATE user_cards SET locked = true WHERE id = ... AND user_id = ...`). Transaction SQL obligatoire.
+- [x] `DELETE /api/v1/market/listings/:id` : Annuler l'annonce (status `CANCELLED`) et déverrouiller la carte (`locked = false`). Autorisé uniquement au vendeur.
+- [x] Empêcher la mise en vente si la carte est déjà `locked` (ex: utilisée dans un Tableau).
 
-### 2. Page Collection (`apps/web/src/routes/collection.tsx`)
-- [x] TanStack Table **v9** (`useTable` + `tableFeatures({ rowSortingFeature, columnFilteringFeature, globalFilteringFeature })`) pour le tri et les filtres.
-- [x] `@tanstack/react-virtual` (`useVirtualizer` sur `table.getRowModel().rows`) : seules les lignes visibles sont dans le DOM, jamais de `.map()` sur l'inventaire.
-- [x] Filtres texte (recherche), Rareté et Catégorie + tri (nom, catégorie, rareté, score, date).
-- [x] `apps/web/src/lib/collection.ts` (query Eden, `CollectionCard`) et `apps/web/src/content/collection.ts` (libellés).
+### 2. API - Achat Transactionnel (`apps/api/src/routes/market.ts`)
+- [x] `POST /api/v1/market/listings/:id/buy` : Exécuter la transaction d'achat entière dans un `db.transaction()` avec verrous (`.forUpdate()`).
+- [x] Étapes internes de la transaction :
+  1. Vérifier que l'acheteur n'est pas le vendeur.
+  2. Débiter l'acheteur (vérifier solde > prix) et créditer le vendeur.
+  3. Insérer 2 lignes d'audit dans `currency_ledger`.
+  4. Changer le propriétaire de la carte (`user_id = acheteur, locked = false`).
+  5. Marquer l'annonce comme `SOLD`.
 
-### 3. Page Tableau (`apps/web/src/routes/tableau.tsx`)
-- [x] 4 emplacements (Région, Département, Commune, Rue) avec bouton d'ouverture et action de retrait.
-- [x] Tiroir accessible (`role="dialog"`, `Échap`, overlay) listant les cartes éligibles, **virtualisé**, avec recherche.
-- [x] Score prévisionnel en temps réel calculé côté client avec `evaluateTableauAlignment` + `tableauScore` de `@hexamap/shared` (géographie fournie par l'API).
-- [x] Multiplicateur mis en valeur : panneau dédié, `×1,0` → `×5,0` en grand, 4 paliers visuels croissants (slate → sky → violet → ambre avec halo), 3 segments de progression, `aria-live` d'annonce. Le palier 3 affiche « Combo géographique complet ».
-- [x] Liens territoriaux affichés via `TABLEAU_LINK_LABELS` + `alignment.breakdown` (✓/✗).
-- [x] Mutation `POST /api/v1/tableaux`, panneau de confirmation, gestion des codes d'erreur en français.
-- [x] `apps/web/src/lib/tableaux.ts` et `apps/web/src/content/tableau.ts`.
+### 3. API - Consultation
+- [x] `GET /api/v1/market/listings` : Lister les cartes en vente (`status = OPEN`) avec pagination, filtres et relations (infos de la carte).
+- [x] `GET /api/v1/market/listings/mine` : Annonces de l'appelant, tous statuts (nécessaire pour `/market/mine`).
+- [x] Utiliser TypeBox (`t.Object`) pour typer les réponses Eden.
 
-### 4. API & Sécurité (`apps/api/src/routes/tableaux.ts`)
-- [x] `GET /api/v1/tableaux/preview` (sélection partielle) : géographie + alignement + total, calculés par `@hexamap/shared`.
-- [x] `GET /api/v1/tableaux` : liste des tableaux du joueur, score et multiplicateur recalculés côté serveur, triée par `total` décroissant. Requêtes batchées (1 `tableaux` + 1 `user_cards` + 4 référentiels + 1 `resolveCardNoms`), aucun N+1.
-- [x] `POST /api/v1/tableaux` transactionnel (`db.transaction()`).
-- [x] **Sécurité vitale** : possession et absence de verrou vérifiées par le prédicat exact `id IN (...) AND user_id = ... AND locked = false` (Kysely + `forUpdate()`), refus si le compte n'est pas 4 → `403 CARD_NOT_OWNED`. Le client ne fournit jamais ni score, ni catégorie, ni géographie.
-- [x] Catégorie = emplacement (`slotMatchesCategory`) → `400 INVALID_CARD_SET` ; doublons → `400` ; carte déjà utilisée dans un autre tableau → `409 CARD_IN_USE`.
-- [x] Le backend recalcule le score, mais **ne l'insère pas** (voir journal : pas de colonne score au contrat DB).
-- [x] Spec d'intégration `packages/spec/src/tableaux.spec.ts` (10 tests, effets de bord en base vérifiés).
+### 4. Frontend (`apps/web/src/routes/market/`)
+- [x] Implémenter `/market` (`market.index.tsx`) et `/market/mine` (`market.mine.tsx`).
+- [x] Gérer l'état de chargement et le rafraîchissement (invalidation TanStack Query) après un achat réussi.
+- [x] Mettre à jour la jauge d'argent (currency) du layout après une transaction.
 
-### 5. Vue « Mes tableaux » (`apps/web/src/routes/tableaux.tsx`)
-- [x] Liste des tableaux créés, classés par **score total décroissant** par défaut, avec tri alternatif par **multiplicateur** (départage au total) et par **date de création**.
-- [x] Rang d'affichage (`#1`, `#2`, …) et mise en avant du premier (anneau ambre).
-- [x] Chaque carte affiche le score total, le badge multiplicateur du palier correspondant, les 4 emplacements (nom, catégorie, rareté, score, état « Emplacement vide »), les 3 liens géographiques (`alignment.breakdown`) et la date.
-- [x] États chargement / erreur / liste vide, CTA vers le constructeur.
-- [x] La liste est invalidée après création d'un tableau (`invalidateQueries({ queryKey: tableauxListQueryKey })`).
-
-### 6. Qualité
-- [x] `bun run typecheck` (5 packages, y compris les imports workspace de `@hexamap/shared` par `api` et `web`)
+### 5. Qualité
+- [x] `bun run typecheck`
 - [x] `bun run lint`
-- [x] `bun test packages/spec` (95 tests)
 - [x] `bun run build`
+- [x] Écrire le test unitaire/intégration `packages/spec/src/market.spec.ts` simulant un double clic d'achat simultané (race condition) pour prouver l'efficacité du `.forUpdate()`.
 
 ---
 
 ## Critères d'acceptation
-
-1. La page Collection reste fluide (60 fps) même si on simule un inventaire de 5000 cartes.
-   → rendu virtualisé : seules les lignes visibles (+ `overscan: 8`) existent dans le DOM.
-2. Le score calculé dans le frontend est strictement identique à celui calculé par le backend (source de vérité partagée).
-   → les deux appellent `evaluateTableauAlignment` / `tableauScore` ; la spec d'intégration compare `total` à `tableauScore(...)` importé.
-3. Impossible de soumettre une carte qu'on ne possède pas en bidouillant l'API.
-   → couvert par les tests 2 (carte d'un autre utilisateur), 3 (carte verrouillée) et 4 (catégorie incohérente) de `tableaux.spec.ts`, avec vérification d'absence d'insertion.
+1. Impossible d'acheter sa propre carte.
+2. Impossible de mettre en vente une carte assignée à un tableau (car `locked = true`).
+3. L'argent est transféré correctement entre les comptes et tracé dans le ledger.
+4. L'achat de la même carte à la même milliseconde par 2 personnes différentes ne génère qu'un seul gagnant ; le second reçoit une erreur 409 Conflict.
 
 ---
 
-## Journal
+## Interdits
+- Pas d'enchères (bidding).
+- Pas de système d'échange direct de cartes (troc).
+- Ne jamais mettre à jour un solde de monnaie sans écrire la justification dans le `currency_ledger` au sein de la même transaction.
 
-### 2026-11-16 — Phase 8 implémentée
+---
 
-**Livré**
-- `packages/shared/src/tableau.ts` + export dans `packages/shared/src/index.ts` — règles pures des Tableaux.
-- `apps/api/src/routes/tableaux.ts` + montage dans `apps/api/src/app.ts`.
-- `apps/web/src/routes/collection.tsx`, `apps/web/src/routes/tableau.tsx`, `apps/web/src/lib/{collection,tableaux}.ts`, `apps/web/src/content/{collection,tableau}.ts`, liens de navigation dans `apps/web/src/routes/__root.tsx`.
-- `apps/web/package.json` : ajout de `@tanstack/react-virtual` (^3.14.26).
-- `packages/spec/src/tableau.spec.ts` (règles pures) et `packages/spec/src/tableaux.spec.ts` (intégration, 10 tests).
+## Journal — 2026-11-16
 
-**Écarts assumés par rapport à la rédaction initiale de la tâche**
-1. **Score non stocké en base.** `.docs/02-database.md` ne définit aucune colonne de score sur `tableaux` (le score est calculé au moment de la lecture). Plutôt que d'inventer une colonne, le serveur recalcule le score à la soumission et le renvoie dans la réponse ; il n'est pas persisté. Aucune migration n'a été nécessaire.
-2. **Les cartes d'un Tableau ne sont pas verrouillées.** Aucune règle documentée ne lie `user_cards.locked` aux tableaux (`.docs/02-database.md` §7.1 réserve `locked` à la vente/suppression, et les FK de `tableaux` sont en `on delete set null`). La soumission **exige** donc `locked = false`, mais ne passe pas les cartes à `true`.
-3. **Unicité d'usage appliquée au niveau applicatif.** L'intention « pas déjà verrouillées dans un autre tableau » est honorée par une vérification `CARD_IN_USE` (409) dans la transaction, sans ajouter de contrainte d'unicité au schéma (le contrat DB n'en prévoit pas). Si une contrainte DB est souhaitée plus tard, elle doit commencer par `.docs/02-database.md` puis une migration.
-4. **`GET /cards` : `limit` max porté de 100 à 5000** pour permettre le tri/filtrage client sur l'inventaire complet. Le défaut reste 20 ; aucun test de spec ne dépendait de l'ancien plafond.
-5. **Pas de pagination sur `GET /tableaux`.** La liste est plafonnée à 200 tableaux et triée côté serveur ; suffisant tant que le nombre de tableaux par joueur reste faible. Paginer exigera de trier en SQL sur un score calculé (vue matérialisée ou score figé — voir point 1).
-6. **Branche `feat/phase-8-collection-tableau` empilée sur `feat/phase-7-ticket-ui`.** La phase 7 n'est pas encore fusionnée dans `main` et la phase 8 en dépend (`apps/web/src/lib/tickets.ts`, routes `/tickets`) : partir de `main` aurait produit un arbre non compilable. La PR de la phase 8 cible donc `feat/phase-7-ticket-ui` et sera rebasée sur `main` après fusion de la phase 7.
+### Livré
+- **API** : `apps/api/src/routes/market.ts` (plugin `routes.market`, préfixe `/market`, monté dans `app.ts`) — `GET /listings`, `GET /listings/mine`, `POST /listings`, `POST /listings/:id/buy`, `DELETE /listings/:id`. Réponses et entrées validées par TypeBox (`response` obligatoire) pour le typage Eden.
+- **Migration** : `packages/db/migrations/0006_market_relist.ts` — remplace la contrainte `unique` globale sur `market_listings.user_card_id` par un index unique partiel `market_listings_open_card_idx ... where status = 'OPEN'`, seul moyen de remettre en vente une carte après annulation tout en conservant l'historique (audit). Enregistrée dans `packages/db/src/migrator.ts`, documentée dans `.docs/02-database.md`.
+- **Spec** : `packages/spec/src/market.spec.ts` — 11 tests (401, verrouillage, carte verrouillée, carte d'autrui, annulation + interdiction, remise en vente, achat de sa propre carte, solde insuffisant, achat réussi avec 2 lignes de grand-livre, course concurrente, listes OPEN/mine).
+- **Front** : `src/content/market.ts`, `src/lib/market.ts`, `src/routes/market.index.tsx`, `src/routes/market.mine.tsx`, plus deux liens de navigation et une jauge de solde dans `src/routes/__root.tsx`.
 
-**Vérifications (Docker, toutes vertes)**
-- `bun run typecheck` : `packages/shared`, `packages/db`, `apps/api`, `apps/web`, `packages/spec`.
-- `bun test packages/spec` : 100 pass / 0 fail (5 fichiers).
-- `bun run lint` : 86 fichiers, aucune erreur ni avertissement.
-- `bun run build` : API + web, chunks `collection-*.js`, `tableau-*.js` et `tableaux-*.js` émis (avertissement préexistant de chunk > 500 kB sur le bundle principal).
+### Sécurité concurrentielle
+`POST /listings/:id/buy` encapsule tout dans `db.transaction().execute(async (trx) => { ... })` :
+1. `SELECT ... FROM market_listings WHERE id = :id FOR UPDATE` — la ligne d'annonce sérialise deux acheteurs ; le second voit `SOLD` et reçoit `409 LISTING_NOT_OPEN`.
+2. Verrou déterministe des deux portefeuilles en une requête (`WHERE id IN (acheteur, vendeur) ORDER BY id FOR UPDATE`) : évite tout interblocage entre achats croisés.
+3. `SELECT ... FROM user_cards WHERE id = :id FOR UPDATE` avant transfert.
+4. Débit acheteur, crédit vendeur, **deux** lignes `currency_ledger` (`MARKET_BUY` −prix, `MARKET_SELL` +prix), transfert de la carte (`user_id`, `locked = false`, `source = 'MARKET'`), annonce `SOLD` + `buyer_id` + `sold_at` : le tout dans la même transaction.
 
-### 2026-11-16 — Ajout de la vue « Mes tableaux »
+### Vérifications (Docker)
+- `bun test packages/spec` → **111 pass / 0 fail** (dont 11 pour le marché).
+- `bun run typecheck` → 0 erreur (5 workspaces).
+- `bun run lint` → `Checked 93 files. No fixes applied.`
+- `bun run build` → API + web OK (`market.index` et `market.mine` présents dans le bundle).
 
-- Nouvelle route `GET /api/v1/tableaux` (`apps/api/src/routes/tableaux.ts`) : expose `id`, `name`, `createdAt`, `complete`, `total`, `alignment` et les 4 `cards`. Le score est recalculé à la volée avec `evaluateTableau` (jamais stocké, cf. écart 1).
-- La résolution de géographie a été factorisée : `buildTableauGeography(cards, refs)` est un helper pur partagé par le POST (`resolveGeography`) et la liste, donc les règles de mapping ne sont écrites qu'une fois. Les 3 liens restent calculés par `evaluateTableauAlignment` / `rueExistsInCommune` de `@hexamap/shared`.
-- Nouvelle page `/tableaux` (`apps/web/src/routes/tableaux.tsx`) + `tableauxQueryOptions`, `TABLEAUX_LIST`, `rankLabel` ; lien « Mes tableaux » ajouté à la navigation ; le panneau de confirmation du constructeur renvoie vers la liste et invalide le cache.
-- 5 tests d'intégration ajoutés à `packages/spec/src/tableaux.spec.ts` (401, liste vide, tri décroissant avec parité `tableauScore`, isolation entre joueurs, tableau partiel) — les 10 tests existants sont inchangés.
+### Écarts assumés par rapport au brief
+1. **Statut `OPEN` et non `ACTIVE`** : `.docs/02-database.md` et la migration `0003_game` imposent `OPEN`/`SOLD`/`CANCELLED` (règle « aucune table/colonne inventée »).
+2. **`DELETE` répond 200 `{ listing }`** au lieu de 204 : le client Eden conserve ainsi le statut `CANCELLED` sans requête supplémentaire. Le code `204` de la convention `apps/api/AGENTS.md` reste applicable aux suppressions sans corps.
+3. **Migration 0006** : nécessaire car la contrainte `unique` initiale interdisait la remise en vente ; le contrat de données a été mis à jour en premier, conformément à la règle de migration.
+4. **Jauge de solde** : elle n'existait nulle part auparavant ; ajoutée dans l'en-tête (`Solde : N crédits`), rafraîchie par invalidation de `sessionQueryKey` après un achat ou une mise en vente.
+
+### Suite
+- Ouvrir la PR vers `main` **après** la fusion de `feat/phase-8-collection-tableau` (empilement), ou rebaser la branche sur `main` une fois la phase 8 fusionnée.
+- Non fait volontairement : aucun commit (consigne « ne pas commiter sans demande explicite »).
