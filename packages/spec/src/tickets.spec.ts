@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { app } from '@hexamap/api/app';
+import { type DrawnCard, drawCard } from '@hexamap/api/services/draw';
+import { generateTicket } from '@hexamap/api/services/ticket';
 import { createDb, runMigrations } from '@hexamap/db';
 import { CATEGORY, type Category, RARITY, type Rarity } from '@hexamap/shared';
 
@@ -672,5 +674,136 @@ describe('Phase 5 — tickets, collection, référentiels', () => {
     if (sawStation) {
       expect(sawScrapesAdded).toBe(true);
     }
+  });
+});
+
+describe('Plan §5.6 — robustesse du tirage', () => {
+  const rng = () => 0.5;
+
+  interface GridCard {
+    category: string;
+    ref_code: string;
+    rarity: string;
+  }
+
+  interface GridCell {
+    kind: string;
+    card?: GridCard;
+  }
+
+  function parseFullGrid(value: unknown): GridCell[] {
+    if (!Array.isArray(value)) return [];
+    return value as GridCell[];
+  }
+
+  it("dessine une carte d'un palier voisin quand le palier demandé est vide", async () => {
+    const results: DrawnCard[] = [];
+    try {
+      await db.transaction().execute(async (trx) => {
+        const mythCodes = (
+          await trx
+            .selectFrom('ref_communes')
+            .select('code_insee')
+            .where('rarete', '=', 'MYTHIQUE')
+            .execute()
+        ).map((c) => c.code_insee);
+        await trx.deleteFrom('commune_odonymes').where('code_insee', 'in', mythCodes).execute();
+        await trx.deleteFrom('ref_communes').where('rarete', '=', 'MYTHIQUE').execute();
+
+        const communeOdoIds = (
+          await trx
+            .selectFrom('ref_odonymes')
+            .select('id')
+            .where('rarete', '=', 'COMMUNE')
+            .execute()
+        ).map((o) => o.id);
+        await trx.deleteFrom('commune_odonymes').where('odonyme_id', 'in', communeOdoIds).execute();
+        await trx.deleteFrom('ref_odonymes').where('rarete', '=', 'COMMUNE').execute();
+
+        results.push(await drawCard(trx, 'COMMUNE', 'MYTHIQUE', rng));
+        results.push(await drawCard(trx, 'RUE', 'COMMUNE', rng));
+        throw new Error('__rollback__');
+      });
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== '__rollback__') throw e;
+    }
+
+    const commune = results[0];
+    const rue = results[1];
+    expect(commune).toBeDefined();
+    expect(rue).toBeDefined();
+    if (!commune || !rue) throw new Error('tirage non défini');
+
+    expect(commune.card.rarity).not.toBe('MYTHIQUE');
+    expect(rue.card.rarity).not.toBe('COMMUNE');
+
+    const communeRow = await db
+      .selectFrom('ref_communes')
+      .select('rarete')
+      .where('code_insee', '=', commune.card.ref_code)
+      .executeTakeFirstOrThrow();
+    expect(commune.card.rarity).toBe(communeRow.rarete);
+
+    const rueRow = await db
+      .selectFrom('ref_odonymes')
+      .select('rarete')
+      .where('id', '=', rue.card.ref_code)
+      .executeTakeFirstOrThrow();
+    expect(rue.card.rarity).toBe(rueRow.rarete);
+  });
+
+  it('une rue unique (N = 1) produit quand même deux jumelés', async () => {
+    const { userId } = await signUp();
+    const grids: unknown[] = [];
+    try {
+      await db.transaction().execute(async (trx) => {
+        const { ticketId } = await generateTicket(trx, userId, () => 0.999999);
+        const row = await trx
+          .selectFrom('tickets')
+          .select('grid')
+          .where('id', '=', ticketId)
+          .executeTakeFirstOrThrow();
+        grids.push(row.grid);
+        throw new Error('__rollback__');
+      });
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== '__rollback__') throw e;
+    }
+
+    const grid = parseFullGrid(grids[0]);
+    expect(grid.length).toBe(16);
+
+    const kinds = grid.map((c) => c.kind);
+    expect(kinds.filter((k) => k === 'TREASURE').length).toBe(1);
+    expect(kinds.filter((k) => k === 'TWIN').length).toBe(2);
+    expect(kinds.filter((k) => k === 'STATION').length).toBe(1);
+    expect(kinds.filter((k) => k === 'BELVEDERE').length).toBe(1);
+    expect(kinds.filter((k) => k === 'RENOVATION').length).toBe(1);
+    expect(kinds.filter((k) => k === 'CARD').length).toBe(10);
+
+    const twinRefs = grid
+      .filter((c) => c.kind === 'TWIN')
+      .map((c) => `${c.card?.category}:${c.card?.ref_code}`);
+    expect(new Set(twinRefs).size).toBe(2);
+  });
+
+  it('un référentiel totalement vide reste une erreur explicite', async () => {
+    const errors: { code: string }[] = [];
+    try {
+      await db.transaction().execute(async (trx) => {
+        await trx.deleteFrom('commune_odonymes').execute();
+        await trx.deleteFrom('ref_odonymes').execute();
+        try {
+          await drawCard(trx, 'RUE', 'RARE', rng);
+        } catch (e) {
+          errors.push({ code: (e as { code?: string }).code ?? '' });
+        }
+        throw new Error('__rollback__');
+      });
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== '__rollback__') throw e;
+    }
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.code).toBe('REFERENCE_DATA_MISSING');
   });
 });
