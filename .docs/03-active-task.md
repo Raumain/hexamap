@@ -7,116 +7,118 @@
 
 ## Statut
 
-- **Phase** : 7 — Interface ticket (Grille & Grattage)
-- **État** : Terminée (typecheck + lint verts)
+- **Phase** : 8 — Collection & Tableau
+- **État** : Terminé — en attente de revue
 - **Priorité** : P0
-- **Mis à jour** : 2026-11-15
-- **Branche conseillée** : `feat/phase-7-ticket-ui`
+- **Mis à jour** : 2026-11-16
+- **Branche** : `feat/phase-8-collection-tableau` — empilée sur `feat/phase-7-ticket-ui` (la phase 7 n'est pas encore fusionnée dans `main` et la phase 8 en dépend)
 
 ---
 
 ## Objectif
 
-Créer l'interface de jeu principale : la vue du ticket à gratter (`/tickets/$ticketId`), la grille 4x4, la mécanique de grattage via Canvas HTML5, et l'intégration avec TanStack Query pour les appels API.
+Créer l'interface de gestion de l'inventaire des cartes du joueur (`/collection`) et le créateur de combos géographiques (`/tableau`), en s'assurant de l'homogénéité des calculs de score entre le client et le serveur.
 
 À la fin de cette tâche :
-- Le joueur voit son ticket actif avec les cases masquées et celles déjà révélées.
-- Le joueur peut gratter une case avec sa souris/doigt.
-- Au bout de 40% de surface grattée, une requête API est envoyée pour révéler le contenu.
-- Le résultat s'affiche (Carte + Distance Radar ou Panneau).
-- L'inventaire de cartes est invalidé en arrière-plan.
+- Le joueur peut voir toutes ses cartes dans une liste virtualisée et filtrable (par type, rareté, région).
+- Le joueur peut sélectionner 1 Région, 1 Département, 1 Commune et 1 Rue pour former un Tableau.
+- Le score prévisionnel et les liens géographiques s'affichent en temps réel.
+- Le joueur peut soumettre son Tableau (validation serveur).
 
 ---
 
 ## À lire avant de coder
 
-1. `.docs/01-architecture.md` (Sections 5.5 et 5.6 pour les effets des cases).
-2. `apps/web/src/lib/api.ts` pour l'utilisation d'Eden Treaty.
+1. `.docs/01-architecture.md` (Sections 5.1, 5.2 et 5.7 pour les formules de score et le multiplicateur territorial).
+2. `packages/shared/src/scoring.ts` (ou équivalent) pour y centraliser la logique métier.
 
 ---
 
 ## Étapes
 
-### 1. Composant Case à Gratter (`ScratchCell`)
-- [x] Créer un composant utilisant `<canvas>` et `useRef` (sans état React pour le mouvement du pinceau).
-- [x] Dessiner un masque opaque (ex: motif de peinture à gratter) sur le canvas.
-- [x] Gérer les événements de souris/touch (`pointerdown`, `pointermove`, `pointerup`) pour rendre les pixels transparents (via `globalCompositeOperation = 'destination-out'`).
-- [x] Calculer le pourcentage d'effacement et déclencher une callback `onScratchComplete` à 40%.
+### 1. Logique métier partagée (`packages/shared/`)
+- [x] Créer `packages/shared/src/tableau.ts` (exporté par `src/index.ts`) : `TABLEAU_SLOTS`, `TABLEAU_SLOT_LABELS`, `TABLEAU_LINK_LABELS`, `slotMatchesCategory`, `rueExistsInCommune`, `TableauGeography`, `evaluateTableauAlignment`, `evaluateTableau`.
+- [x] Le multiplicateur d'alignement (1.0x à 5.0x) reste calculé par `alignmentMultiplier` (`scoring.ts`) et le total par `tableauScore` : **aucune formule n'est dupliquée** ni côté API, ni côté web. La décision « la rue existe dans la commune » est dans `rueExistsInCommune` : l'API ne fournit que les lignes de `commune_odonymes`.
+- [x] Spec pure `packages/spec/src/tableau.spec.ts` (bornes 0/1/2/3 liens, sélections partielles, parité `evaluateTableau` ↔ GDD).
 
-### 2. Page du Ticket (`/tickets/$ticketId`)
-- [x] Utiliser TanStack Query (`useQuery`) pour récupérer l'état du ticket depuis l'API (`GET /api/v1/tickets/current`).
-- [x] Afficher la grille 4x4 (`grid-cols-4`).
-- [x] Afficher le compteur de grattages restants (`scrapes_remaining`).
-- [x] Gérer les cases déjà révélées (les afficher directement sans le canvas de grattage).
+### 2. Page Collection (`apps/web/src/routes/collection.tsx`)
+- [x] TanStack Table **v9** (`useTable` + `tableFeatures({ rowSortingFeature, columnFilteringFeature, globalFilteringFeature })`) pour le tri et les filtres.
+- [x] `@tanstack/react-virtual` (`useVirtualizer` sur `table.getRowModel().rows`) : seules les lignes visibles sont dans le DOM, jamais de `.map()` sur l'inventaire.
+- [x] Filtres texte (recherche), Rareté et Catégorie + tri (nom, catégorie, rareté, score, date).
+- [x] `apps/web/src/lib/collection.ts` (query Eden, `CollectionCard`) et `apps/web/src/content/collection.ts` (libellés).
 
-### 3. Mutations et Synchronisation
-- [x] Utiliser `useMutation` pour appeler `POST /api/v1/tickets/:id/scratch` lors du `onScratchComplete`.
-- [x] En cas de succès, afficher la carte (ou le panneau) et l'indice de distance (radar).
-- [x] Invalider les requêtes correspondantes (`tickets/current`, `collection/stats`) via `queryClient.invalidateQueries`.
+### 3. Page Tableau (`apps/web/src/routes/tableau.tsx`)
+- [x] 4 emplacements (Région, Département, Commune, Rue) avec bouton d'ouverture et action de retrait.
+- [x] Tiroir accessible (`role="dialog"`, `Échap`, overlay) listant les cartes éligibles, **virtualisé**, avec recherche.
+- [x] Score prévisionnel en temps réel calculé côté client avec `evaluateTableauAlignment` + `tableauScore` de `@hexamap/shared` (géographie fournie par l'API).
+- [x] Multiplicateur mis en valeur : panneau dédié, `×1,0` → `×5,0` en grand, 4 paliers visuels croissants (slate → sky → violet → ambre avec halo), 3 segments de progression, `aria-live` d'annonce. Le palier 3 affiche « Combo géographique complet ».
+- [x] Liens territoriaux affichés via `TABLEAU_LINK_LABELS` + `alignment.breakdown` (✓/✗).
+- [x] Mutation `POST /api/v1/tableaux`, panneau de confirmation, gestion des codes d'erreur en français.
+- [x] `apps/web/src/lib/tableaux.ts` et `apps/web/src/content/tableau.ts`.
 
-### 4. Qualité et Accessibilité
-- [x] Gérer l'accessibilité : permettre la révélation d'une case via le clavier (Focus + Entrée) sans Canvas.
-- [x] `bun run typecheck`
+### 4. API & Sécurité (`apps/api/src/routes/tableaux.ts`)
+- [x] `GET /api/v1/tableaux/preview` (sélection partielle) : géographie + alignement + total, calculés par `@hexamap/shared`.
+- [x] `GET /api/v1/tableaux` : liste des tableaux du joueur, score et multiplicateur recalculés côté serveur, triée par `total` décroissant. Requêtes batchées (1 `tableaux` + 1 `user_cards` + 4 référentiels + 1 `resolveCardNoms`), aucun N+1.
+- [x] `POST /api/v1/tableaux` transactionnel (`db.transaction()`).
+- [x] **Sécurité vitale** : possession et absence de verrou vérifiées par le prédicat exact `id IN (...) AND user_id = ... AND locked = false` (Kysely + `forUpdate()`), refus si le compte n'est pas 4 → `403 CARD_NOT_OWNED`. Le client ne fournit jamais ni score, ni catégorie, ni géographie.
+- [x] Catégorie = emplacement (`slotMatchesCategory`) → `400 INVALID_CARD_SET` ; doublons → `400` ; carte déjà utilisée dans un autre tableau → `409 CARD_IN_USE`.
+- [x] Le backend recalcule le score, mais **ne l'insère pas** (voir journal : pas de colonne score au contrat DB).
+- [x] Spec d'intégration `packages/spec/src/tableaux.spec.ts` (10 tests, effets de bord en base vérifiés).
+
+### 5. Vue « Mes tableaux » (`apps/web/src/routes/tableaux.tsx`)
+- [x] Liste des tableaux créés, classés par **score total décroissant** par défaut, avec tri alternatif par **multiplicateur** (départage au total) et par **date de création**.
+- [x] Rang d'affichage (`#1`, `#2`, …) et mise en avant du premier (anneau ambre).
+- [x] Chaque carte affiche le score total, le badge multiplicateur du palier correspondant, les 4 emplacements (nom, catégorie, rareté, score, état « Emplacement vide »), les 3 liens géographiques (`alignment.breakdown`) et la date.
+- [x] États chargement / erreur / liste vide, CTA vers le constructeur.
+- [x] La liste est invalidée après création d'un tableau (`invalidateQueries({ queryKey: tableauxListQueryKey })`).
+
+### 6. Qualité
+- [x] `bun run typecheck` (5 packages, y compris les imports workspace de `@hexamap/shared` par `api` et `web`)
 - [x] `bun run lint`
+- [x] `bun test packages/spec` (95 tests)
+- [x] `bun run build`
 
 ---
 
 ## Critères d'acceptation
-1. Le grattage est fluide (60 FPS) car géré par le DOM/Canvas natif et non par le cycle de rendu de React.
-2. Une case ne lance l'appel réseau qu'une seule fois, même si l'utilisateur continue de gratter frénétiquement.
-3. Le radar kilométrique s'affiche proprement après révélation.
-4. L'UI se met à jour correctement quand les grattages tombent à 0.
 
----
-
-## Commandes
-```sh
-docker compose --profile tools run --rm dev bun run --cwd apps/web typecheck
-```
-
-## Interdits
-- Ne JAMAIS lier les coordonnées (X, Y) du pointeur à un useState React.
-- Ne pas pré-charger les résultats : le composant frontend ne doit pas savoir ce qu'il y a sous la case avant l'appel API.
+1. La page Collection reste fluide (60 fps) même si on simule un inventaire de 5000 cartes.
+   → rendu virtualisé : seules les lignes visibles (+ `overscan: 8`) existent dans le DOM.
+2. Le score calculé dans le frontend est strictement identique à celui calculé par le backend (source de vérité partagée).
+   → les deux appellent `evaluateTableauAlignment` / `tableauScore` ; la spec d'intégration compare `total` à `tableauScore(...)` importé.
+3. Impossible de soumettre une carte qu'on ne possède pas en bidouillant l'API.
+   → couvert par les tests 2 (carte d'un autre utilisateur), 3 (carte verrouillée) et 4 (catégorie incohérente) de `tableaux.spec.ts`, avec vérification d'absence d'insertion.
 
 ---
 
 ## Journal
 
-### 2026-11-15 — Implémentation
+### 2026-11-16 — Phase 8 implémentée
 
-Fichiers créés :
-- `apps/web/src/components/scratch-cell.tsx` — canvas impératif (`useRef`), masque peint au montage (dégradé + hachures + mouchetures), grattage en `destination-out` (trait de 26 px, `pointerdown`/`pointermove`/`pointerup`/`pointercancel`/`pointerleave`, `setPointerCapture`, `touch-none`). Le taux d'effacement est calculé par échantillonnage d'alpha (`getImageData`, `willReadFrequently`) tous les 6 mouvements et au relâchement ; à 40 % un `firedRef` verrouille l'appel. Aucune coordonnée en `useState`.
-- `apps/web/src/components/revealed-cell.tsx` — carte (nom, catégorie, badge de rareté, score `Intl.NumberFormat('fr-FR')`), radar de distance (affiche « Pépite » à 0, jamais masqué par un test de véracité), panneaux Station/Belvédère/Rénovation avec icône et description.
-- `apps/web/src/lib/tickets.ts` — clés `['tickets','current']` et `['collection','stats']`, `fetchCurrentTicket` (404 → `null`, sinon erreur), `createTicket`, `scratchTicketCell`, `currentTicketQueryOptions` (`retry: false`, `staleTime` 15 s), types dérivés d'Eden.
-- `apps/web/src/content/tickets.ts` — libellés français (raretés, catégories, panneaux, états, pluriels, libellés a11y).
-- `apps/web/src/routes/tickets.$ticketId.tsx` — page `/tickets/$ticketId` : garde de session, écrans chargement / erreur / aucun ticket / ticket non courant / épuisé, `fieldset` 4×4, `useMutation` avec verrou par case (`useRef(new Set)`), `setQueryData` du ticket retourné + invalidation de `collection/stats` et `tickets/current`, région `aria-live` pour annoncer la révélation.
+**Livré**
+- `packages/shared/src/tableau.ts` + export dans `packages/shared/src/index.ts` — règles pures des Tableaux.
+- `apps/api/src/routes/tableaux.ts` + montage dans `apps/api/src/app.ts`.
+- `apps/web/src/routes/collection.tsx`, `apps/web/src/routes/tableau.tsx`, `apps/web/src/lib/{collection,tableaux}.ts`, `apps/web/src/content/{collection,tableau}.ts`, liens de navigation dans `apps/web/src/routes/__root.tsx`.
+- `apps/web/package.json` : ajout de `@tanstack/react-virtual` (^3.14.26).
+- `packages/spec/src/tableau.spec.ts` (règles pures) et `packages/spec/src/tableaux.spec.ts` (intégration, 10 tests).
 
-Fichiers modifiés :
-- `apps/web/src/routes/index.tsx` — CTA « Reprendre mon ticket » / « Obtenir un ticket » et branche d'erreur avec « Réessayer ».
+**Écarts assumés par rapport à la rédaction initiale de la tâche**
+1. **Score non stocké en base.** `.docs/02-database.md` ne définit aucune colonne de score sur `tableaux` (le score est calculé au moment de la lecture). Plutôt que d'inventer une colonne, le serveur recalcule le score à la soumission et le renvoie dans la réponse ; il n'est pas persisté. Aucune migration n'a été nécessaire.
+2. **Les cartes d'un Tableau ne sont pas verrouillées.** Aucune règle documentée ne lie `user_cards.locked` aux tableaux (`.docs/02-database.md` §7.1 réserve `locked` à la vente/suppression, et les FK de `tableaux` sont en `on delete set null`). La soumission **exige** donc `locked = false`, mais ne passe pas les cartes à `true`.
+3. **Unicité d'usage appliquée au niveau applicatif.** L'intention « pas déjà verrouillées dans un autre tableau » est honorée par une vérification `CARD_IN_USE` (409) dans la transaction, sans ajouter de contrainte d'unicité au schéma (le contrat DB n'en prévoit pas). Si une contrainte DB est souhaitée plus tard, elle doit commencer par `.docs/02-database.md` puis une migration.
+4. **`GET /cards` : `limit` max porté de 100 à 5000** pour permettre le tri/filtrage client sur l'inventaire complet. Le défaut reste 20 ; aucun test de spec ne dépendait de l'ancien plafond.
+5. **Pas de pagination sur `GET /tableaux`.** La liste est plafonnée à 200 tableaux et triée côté serveur ; suffisant tant que le nombre de tableaux par joueur reste faible. Paginer exigera de trier en SQL sur un score calculé (vue matérialisée ou score figé — voir point 1).
+6. **Branche `feat/phase-8-collection-tableau` empilée sur `feat/phase-7-ticket-ui`.** La phase 7 n'est pas encore fusionnée dans `main` et la phase 8 en dépend (`apps/web/src/lib/tickets.ts`, routes `/tickets`) : partir de `main` aurait produit un arbre non compilable. La PR de la phase 8 cible donc `feat/phase-7-ticket-ui` et sera rebasée sur `main` après fusion de la phase 7.
 
-Choix et écarts :
-- Le conteneur de case est un `<button>` natif (et non un `<div role="button">`) pour satisfaire `a11y/useSemanticElements` ; `onKeyDown` sur Entrée/Espace court-circuite le canvas et révèle directement.
-- `role="group"` remplacé par un `<fieldset aria-label>` ; la grille verrouillée utilise un texte `sr-only` plutôt qu'`aria-label` sur un `div`.
-- Indicateur d'attente par case via `mutation.variables?.cellIndex` : la grille n'est jamais désactivée globalement pendant une requête.
-- En cas d'échec de mutation, la case est retirée du verrou pour autoriser une nouvelle tentative.
+**Vérifications (Docker, toutes vertes)**
+- `bun run typecheck` : `packages/shared`, `packages/db`, `apps/api`, `apps/web`, `packages/spec`.
+- `bun test packages/spec` : 100 pass / 0 fail (5 fichiers).
+- `bun run lint` : 86 fichiers, aucune erreur ni avertissement.
+- `bun run build` : API + web, chunks `collection-*.js`, `tableau-*.js` et `tableaux-*.js` émis (avertissement préexistant de chunk > 500 kB sur le bundle principal).
 
-Vérifications (Docker) :
-- `bun run --cwd apps/web typecheck` → exit 0 (`tsr generate && tsc --noEmit`).
-- `bun run lint` → `Checked 75 files. No fixes applied.`
+### 2026-11-16 — Ajout de la vue « Mes tableaux »
 
-Reste à faire : créer la branche `feat/phase-7-ticket-ui`, commiter et ouvrir la PR (aucun commit effectué).
-
-### 2026-11-16 — Correctif : tirage tolérant aux référentiels incomplets
-
-Symptôme : `POST /api/v1/tickets` renvoyait 503 `REFERENCE_DATA_MISSING` de façon quasi systématique avec l'import `--lite` (Bretagne).
-
-Cause : `drawRue` filtre `ref_odonymes.rarete = rarity` de façon stricte. Le palier `COMMUNE` (rue présente dans plus de 500 communes) est structurellement vide dans un import régional ; les routes communales étant tirées en `RUE` × `COMMUNE`, le tirage échouait. Cas résiduels identifiés même avec un import national : rue `MYTHIQUE` (`N = 1`, une seule commune), rue `LEGENDAIRE` dont les communes sont trop petites pour être jumelées, et Pépite `DEPARTEMENT` = Paris dont l'unique commune est `MYTHIQUE` (aucun jumelé possible).
-
-Correctif :
-- `draw.ts` — `fallbackRarities` ordonne le palier demandé puis les voisins par distance croissante (palier bas prioritaire) ; `drawCommune` / `drawRue` bouclent sur cet ordre et **retournent la rareté réelle de la ligne tirée**, ce qui garde `user_cards.rarity` cohérent avec `score_base`.
-- `ticket.ts` — `drawTwins` élargit la recherche commune → département → région → national, déduplique par `category:ref_code`, puis complète avec un vivier national. `REFERENCE_DATA_MISSING` ne subsiste que si moins de 2 candidats existent dans tout le référentiel.
-- `apps/api/package.json` — export `./services/*` pour permettre les tests de service depuis `packages/spec`.
-
-Spec (écrite avant le code, `packages/spec/src/tickets.spec.ts`) : palier vide → repli et rareté alignée sur la ligne, rue unique `N = 1` → grille 1 Pépite / 2 jumelés distincts / 3 panneaux / 10 cartes, référentiel vide → `REFERENCE_DATA_MISSING`.
-
-Vérifications : `apps/api` et `apps/web` typecheck OK, `bun test packages/spec` → 63 pass / 0 fail, `bun run lint` OK. Contrôle sur la base réelle (`--lite`) : 3 créations consécutives en 201, chacune avec 1 Pépite, 2 jumelés, 3 panneaux et 10 cartes.
+- Nouvelle route `GET /api/v1/tableaux` (`apps/api/src/routes/tableaux.ts`) : expose `id`, `name`, `createdAt`, `complete`, `total`, `alignment` et les 4 `cards`. Le score est recalculé à la volée avec `evaluateTableau` (jamais stocké, cf. écart 1).
+- La résolution de géographie a été factorisée : `buildTableauGeography(cards, refs)` est un helper pur partagé par le POST (`resolveGeography`) et la liste, donc les règles de mapping ne sont écrites qu'une fois. Les 3 liens restent calculés par `evaluateTableauAlignment` / `rueExistsInCommune` de `@hexamap/shared`.
+- Nouvelle page `/tableaux` (`apps/web/src/routes/tableaux.tsx`) + `tableauxQueryOptions`, `TABLEAUX_LIST`, `rankLabel` ; lien « Mes tableaux » ajouté à la navigation ; le panneau de confirmation du constructeur renvoie vers la liste et invalide le cache.
+- 5 tests d'intégration ajoutés à `packages/spec/src/tableaux.spec.ts` (401, liste vide, tri décroissant avec parité `tableauScore`, isolation entre joueurs, tableau partiel) — les 10 tests existants sont inchangés.
