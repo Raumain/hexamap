@@ -351,68 +351,177 @@ async function communesOfRegion(exec: Executor, codeRegion: string): Promise<Com
     .execute();
 }
 
+async function odonymesOfRegion(exec: Executor, codeRegion: string): Promise<OdonymeRef[]> {
+  return exec
+    .selectFrom('ref_communes')
+    .innerJoin('commune_odonymes', 'commune_odonymes.code_insee', 'ref_communes.code_insee')
+    .innerJoin('ref_odonymes', 'ref_odonymes.id', 'commune_odonymes.odonyme_id')
+    .select(['ref_odonymes.id', 'ref_odonymes.rarete'])
+    .where('ref_communes.code_region', '=', codeRegion)
+    .where('ref_odonymes.rarete', 'in', TWIN_RARITIES)
+    .distinct()
+    .execute();
+}
+
+/** Communes liées à l'odonyme, sans filtre de rareté (repli élargi). */
+async function communesWithOdonymeAny(exec: Executor, odonymeId: string): Promise<CommuneRef[]> {
+  return exec
+    .selectFrom('commune_odonymes')
+    .innerJoin('ref_communes', 'ref_communes.code_insee', 'commune_odonymes.code_insee')
+    .select(['ref_communes.code_insee', 'ref_communes.rarete'])
+    .where('commune_odonymes.odonyme_id', '=', odonymeId)
+    .execute();
+}
+
+async function nationalOdonymes(exec: Executor): Promise<OdonymeRef[]> {
+  return exec
+    .selectFrom('ref_odonymes')
+    .select(['id', 'rarete'])
+    .where('rarete', 'in', TWIN_RARITIES)
+    .orderBy('id')
+    .execute();
+}
+
+async function nationalCommunes(exec: Executor): Promise<CommuneRef[]> {
+  return exec
+    .selectFrom('ref_communes')
+    .select(['code_insee', 'rarete'])
+    .where('rarete', 'in', TWIN_RARITIES)
+    .orderBy('code_insee')
+    .execute();
+}
+
 /** Deux cartes INHABITUELLE/RARE géographiquement liées à la Pépite. */
 async function drawTwins(exec: Executor, treasure: DrawnCard, rng: Rng): Promise<TicketCardRef[]> {
-  const twins: TicketCardRef[] = [];
+  const candidates: TicketCardRef[] = [];
+  const seen = new Set<string>();
+
+  const addCommune = (list: CommuneRef[]): void => {
+    for (const c of list) {
+      const key = `COMMUNE:${c.code_insee}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        candidates.push({ category: 'COMMUNE', ref_code: c.code_insee, rarity: c.rarete });
+      }
+    }
+  };
+  const addOdonyme = (list: OdonymeRef[]): void => {
+    for (const o of list) {
+      const key = `RUE:${o.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        candidates.push({ category: 'RUE', ref_code: o.id, rarity: o.rarete });
+      }
+    }
+  };
 
   switch (treasure.card.category) {
     case 'COMMUNE': {
-      let odonymes = await odonymesOfCommune(exec, treasure.card.ref_code);
-      if (odonymes.length < 2) {
-        const commune = await exec
-          .selectFrom('ref_communes')
-          .select('code_departement')
-          .where('code_insee', '=', treasure.card.ref_code)
-          .executeTakeFirst();
-        if (commune) {
-          odonymes = await odonymesOfDepartement(exec, commune.code_departement);
-        }
-      }
-      for (const o of shuffle(odonymes, rng).slice(0, 2)) {
-        twins.push({ category: 'RUE', ref_code: o.id, rarity: o.rarete });
+      const ref = treasure.card.ref_code;
+      addOdonyme(await odonymesOfCommune(exec, ref));
+      const commune = await exec
+        .selectFrom('ref_communes')
+        .select(['code_departement', 'code_region'])
+        .where('code_insee', '=', ref)
+        .executeTakeFirst();
+      if (commune) {
+        addOdonyme(await odonymesOfDepartement(exec, commune.code_departement));
+        addOdonyme(await odonymesOfRegion(exec, commune.code_region));
       }
       break;
     }
     case 'RUE': {
-      const communes = await communesWithOdonyme(exec, treasure.card.ref_code);
-      for (const c of shuffle(communes, rng).slice(0, 2)) {
-        twins.push({ category: 'COMMUNE', ref_code: c.code_insee, rarity: c.rarete });
+      const ref = treasure.card.ref_code;
+      addCommune(await communesWithOdonyme(exec, ref));
+      addCommune(await communesWithOdonymeAny(exec, ref));
+      const first = await exec
+        .selectFrom('commune_odonymes')
+        .innerJoin('ref_communes', 'ref_communes.code_insee', 'commune_odonymes.code_insee')
+        .select('ref_communes.code_departement')
+        .where('commune_odonymes.odonyme_id', '=', ref)
+        .orderBy('ref_communes.code_insee')
+        .limit(1)
+        .executeTakeFirst();
+      if (first) {
+        addCommune(await communesOfDepartement(exec, first.code_departement));
       }
       break;
     }
     case 'DEPARTEMENT': {
-      const commune = shuffle(await communesOfDepartement(exec, treasure.card.ref_code), rng)[0];
-      if (commune) {
-        twins.push({ category: 'COMMUNE', ref_code: commune.code_insee, rarity: commune.rarete });
+      const ref = treasure.card.ref_code;
+      const dept = await exec
+        .selectFrom('ref_departements')
+        .select('code_region')
+        .where('code', '=', ref)
+        .executeTakeFirst();
+      addCommune(await communesOfDepartement(exec, ref));
+      if (dept) {
+        addCommune(await communesOfRegion(exec, dept.code_region));
       }
-      const odonyme = shuffle(await odonymesOfDepartement(exec, treasure.card.ref_code), rng)[0];
-      if (odonyme) {
-        twins.push({ category: 'RUE', ref_code: odonyme.id, rarity: odonyme.rarete });
+      addOdonyme(await odonymesOfDepartement(exec, ref));
+      if (dept) {
+        addOdonyme(await odonymesOfRegion(exec, dept.code_region));
       }
       break;
     }
     case 'REGION': {
+      const ref = treasure.card.ref_code;
+      // Département de la région, sinon n'importe quel département.
       const deptRows = await exec
         .selectFrom('ref_departements')
         .select('code')
-        .where('code_region', '=', treasure.card.ref_code)
+        .where('code_region', '=', ref)
+        .orderBy('code')
         .execute();
-      const deptCode = shuffle(
+      let deptCode = shuffle(
         deptRows.map((d) => d.code),
         rng,
       )[0];
+      if (!deptCode) {
+        const anyDept = await exec
+          .selectFrom('ref_departements')
+          .select('code')
+          .orderBy('code')
+          .execute();
+        deptCode = shuffle(
+          anyDept.map((d) => d.code),
+          rng,
+        )[0];
+      }
       if (deptCode) {
-        twins.push({
+        candidates.push({
           category: 'DEPARTEMENT',
           ref_code: deptCode,
           rarity: weightedRarity(rng, TWIN_RARITIES),
         });
       }
-      const commune = shuffle(await communesOfRegion(exec, treasure.card.ref_code), rng)[0];
-      if (commune) {
-        twins.push({ category: 'COMMUNE', ref_code: commune.code_insee, rarity: commune.rarete });
-      }
+      addCommune(await communesOfRegion(exec, ref));
       break;
+    }
+  }
+
+  const twins = shuffle(candidates, rng).slice(0, 2);
+
+  // Filet de sécurité national : complète depuis un pool global quand les
+  // candidats géographiques sont insuffisants.
+  if (twins.length < 2) {
+    const chosen = new Set(twins.map((t) => `${t.category}:${t.ref_code}`));
+    const pool: TicketCardRef[] = [];
+    for (const c of await nationalCommunes(exec)) {
+      const key = `COMMUNE:${c.code_insee}`;
+      if (!chosen.has(key)) {
+        pool.push({ category: 'COMMUNE', ref_code: c.code_insee, rarity: c.rarete });
+      }
+    }
+    for (const o of await nationalOdonymes(exec)) {
+      const key = `RUE:${o.id}`;
+      if (!chosen.has(key)) {
+        pool.push({ category: 'RUE', ref_code: o.id, rarity: o.rarete });
+      }
+    }
+    for (const p of shuffle(pool, rng)) {
+      if (twins.length >= 2) break;
+      twins.push(p);
     }
   }
 

@@ -57,6 +57,23 @@ export function weightedCategory(rng: Rng, allowed?: Category[]): Category {
   );
 }
 
+/** Palier demandé d'abord, puis les voisins par distance croissante (palier plus bas prioritaire). */
+export function fallbackRarities(requested: Rarity): Rarity[] {
+  const index = RARITY.indexOf(requested);
+  const order: Rarity[] = [];
+  for (let distance = 0; distance < RARITY.length; distance++) {
+    const lower = RARITY[index - distance];
+    const upper = RARITY[index + distance];
+    if (distance === 0) {
+      if (lower) order.push(lower);
+      continue;
+    }
+    if (lower) order.push(lower);
+    if (upper) order.push(upper);
+  }
+  return order;
+}
+
 async function drawRegion(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
   const countRow = await exec
     .selectFrom('ref_regions')
@@ -118,64 +135,72 @@ async function drawDepartement(exec: Executor, rarity: Rarity, rng: Rng): Promis
 // référentiel (une commune/rue possède une seule rareté intrinsèque). Un
 // `rarityUp` ultérieur (panneau RENOVATION) ne change que le *libellé
 // d'édition* de la carte ; le score de tableau est calculé en Phase 8, pas ici.
+// Palier demandé vide : repli sur le palier voisin, la rareté retournée restant
+// celle de la ligne référentielle (pour garder rareté et score_base cohérents).
 async function drawCommune(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
-  const countRow = await exec
-    .selectFrom('ref_communes')
-    .select(exec.fn.countAll().as('total'))
-    .where('rarete', '=', rarity)
-    .executeTakeFirstOrThrow();
-  const total = Number(countRow.total);
-  if (total === 0) {
-    throw referenceMissing();
+  for (const tier of fallbackRarities(rarity)) {
+    const countRow = await exec
+      .selectFrom('ref_communes')
+      .select(exec.fn.countAll().as('total'))
+      .where('rarete', '=', tier)
+      .executeTakeFirstOrThrow();
+    const total = Number(countRow.total);
+    if (total === 0) {
+      continue;
+    }
+    const offset = Math.min(Math.floor(rng() * total), total - 1);
+    const row = await exec
+      .selectFrom('ref_communes')
+      .select(['code_insee', 'nom', 'score_base', 'rarete'])
+      .where('rarete', '=', tier)
+      .orderBy('code_insee')
+      .offset(offset)
+      .limit(1)
+      .executeTakeFirst();
+    if (!row) {
+      continue;
+    }
+    return {
+      card: { category: 'COMMUNE', ref_code: row.code_insee, rarity: row.rarete },
+      nom: row.nom,
+      score: row.score_base,
+      editionBonus: 0,
+    };
   }
-  const offset = Math.min(Math.floor(rng() * total), total - 1);
-  const row = await exec
-    .selectFrom('ref_communes')
-    .select(['code_insee', 'nom', 'score_base'])
-    .where('rarete', '=', rarity)
-    .orderBy('code_insee')
-    .offset(offset)
-    .limit(1)
-    .executeTakeFirst();
-  if (!row) {
-    throw referenceMissing();
-  }
-  return {
-    card: { category: 'COMMUNE', ref_code: row.code_insee, rarity },
-    nom: row.nom,
-    score: row.score_base,
-    editionBonus: 0,
-  };
+  throw referenceMissing();
 }
 
 async function drawRue(exec: Executor, rarity: Rarity, rng: Rng): Promise<DrawnCard> {
-  const countRow = await exec
-    .selectFrom('ref_odonymes')
-    .select(exec.fn.countAll().as('total'))
-    .where('rarete', '=', rarity)
-    .executeTakeFirstOrThrow();
-  const total = Number(countRow.total);
-  if (total === 0) {
-    throw referenceMissing();
+  for (const tier of fallbackRarities(rarity)) {
+    const countRow = await exec
+      .selectFrom('ref_odonymes')
+      .select(exec.fn.countAll().as('total'))
+      .where('rarete', '=', tier)
+      .executeTakeFirstOrThrow();
+    const total = Number(countRow.total);
+    if (total === 0) {
+      continue;
+    }
+    const offset = Math.min(Math.floor(rng() * total), total - 1);
+    const row = await exec
+      .selectFrom('ref_odonymes')
+      .select(['id', 'nom_affichage', 'score_base', 'rarete'])
+      .where('rarete', '=', tier)
+      .orderBy('id')
+      .offset(offset)
+      .limit(1)
+      .executeTakeFirst();
+    if (!row) {
+      continue;
+    }
+    return {
+      card: { category: 'RUE', ref_code: row.id, rarity: row.rarete },
+      nom: row.nom_affichage,
+      score: row.score_base,
+      editionBonus: 0,
+    };
   }
-  const offset = Math.min(Math.floor(rng() * total), total - 1);
-  const row = await exec
-    .selectFrom('ref_odonymes')
-    .select(['id', 'nom_affichage', 'score_base'])
-    .where('rarete', '=', rarity)
-    .orderBy('id')
-    .offset(offset)
-    .limit(1)
-    .executeTakeFirst();
-  if (!row) {
-    throw referenceMissing();
-  }
-  return {
-    card: { category: 'RUE', ref_code: row.id, rarity },
-    nom: row.nom_affichage,
-    score: row.score_base,
-    editionBonus: 0,
-  };
+  throw referenceMissing();
 }
 
 /**

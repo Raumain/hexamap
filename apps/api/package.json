@@ -6,7 +6,8 @@
   "exports": {
     "./app": "./src/app.ts",
     "./auth": "./src/auth.ts",
-    "./type": "./src/type.ts"
+    "./type": "./src/type.ts",
+    "./services/*": "./src/services/*.ts"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
