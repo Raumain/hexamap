@@ -219,7 +219,7 @@ create index tableaux_user_idx on tableaux (user_id);
 create table market_listings (
   id uuid primary key default gen_random_uuid(),
   seller_id text not null references "user" ("id") on delete cascade,
-  user_card_id uuid not null unique references user_cards (id) on delete cascade,
+  user_card_id uuid not null references user_cards (id) on delete cascade,
   price integer not null check (price > 0),
   status text not null default 'OPEN' check (status in ('OPEN', 'SOLD', 'CANCELLED')),
   created_at timestamptz not null default now(),
@@ -228,6 +228,7 @@ create table market_listings (
 );
 
 create index market_listings_status_idx on market_listings (status, created_at desc);
+create unique index market_listings_open_card_idx on market_listings (user_card_id) where status = 'OPEN';
 ```
 
 ### 4.6 Portefeuille
@@ -531,7 +532,7 @@ export interface Database {
 - Un utilisateur a au plus **un ticket `ACTIVE`** (index unique partiel).
 - `treasure_index ∈ [0, 15]`.
 - `distance = |L1 - L2| + |C1 - C2| ∈ [0, 6]`.
-- Une carte ne peut être dans qu'une seule annonce ouverte (`market_listings.user_card_id` unique).
+- Une carte ne peut être dans qu'une seule annonce **ouverte** (index unique partiel `market_listings_open_card_idx`).
 - Un achat est atomique : débit acheteur, crédit vendeur, transfert de `user_cards.user_id`, statut `SOLD`, `buyer_id`, `sold_at`.
 - Les cartes verrouillées (`locked = true`) ne peuvent pas être vendues ou supprimées.
 
