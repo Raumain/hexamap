@@ -5,6 +5,7 @@ import * as auth from '../migrations/0002_auth';
 import * as game from '../migrations/0003_game';
 import * as reference from '../migrations/0004_reference';
 import * as rateLimit from '../migrations/0005_rate_limit';
+import * as marketRelist from '../migrations/0006_market_relist';
 import type { Database } from './index';
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -15,6 +16,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '0003_game': game,
       '0004_reference': reference,
       '0005_rate_limit': rateLimit,
+      '0006_market_relist': marketRelist,
     };
   }
 }

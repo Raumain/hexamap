@@ -7,6 +7,7 @@ import { db } from './db';
 import { env } from './env';
 import { authPlugin } from './middleware/auth';
 import { cardRoutes } from './routes/cards';
+import { marketRoutes } from './routes/market';
 import { refRoutes } from './routes/ref';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
@@ -19,6 +20,7 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(ticketRoutes)
   .use(cardRoutes)
   .use(tableauRoutes)
+  .use(marketRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
