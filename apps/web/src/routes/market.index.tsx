@@ -5,6 +5,7 @@ import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
+import { Card } from '../components/ui/Card';
 import { listingsCountLabel, MARKET, priceLabel } from '../content/market';
 import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
 import { collectionQueryKey } from '../lib/collection';
@@ -214,19 +215,33 @@ function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
   return (
     <li className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-slate-100">{listing.card.nom}</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            {CATEGORY_LABELS[listing.card.category]} · {listing.card.refCode}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <RarityBadge rarity={listing.card.rarity} />
-            <span className="text-sm text-slate-400">
-              {MARKET.scoreLabel} :{' '}
-              <span className="font-semibold tabular-nums text-slate-200">
-                {scoreFormatter.format(listing.card.score)}
+        <div className="flex items-start gap-4">
+          <Card
+            type={listing.card.category}
+            rarity={listing.card.rarity}
+            name={listing.card.nom}
+            score={listing.card.score}
+            refCode={listing.card.refCode}
+            blasonUrl={listing.card.blasonUrl}
+            blasonCredit={listing.card.blasonCredit}
+            variant="detailed"
+            decorative
+            className="w-24 shrink-0"
+          />
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-100">{listing.card.nom}</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {CATEGORY_LABELS[listing.card.category]} · {listing.card.refCode}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <RarityBadge rarity={listing.card.rarity} />
+              <span className="text-sm text-slate-400">
+                {MARKET.scoreLabel} :{' '}
+                <span className="font-semibold tabular-nums text-slate-200">
+                  {scoreFormatter.format(listing.card.score)}
+                </span>
               </span>
-            </span>
+            </div>
           </div>
         </div>
 
