@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
@@ -27,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportStatusRoute = ImportStatusRouteImport.update({
+  id: '/import-status',
+  path: '/import-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -68,6 +74,7 @@ const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/collection'
+    | '/import-status'
     | '/login'
     | '/register'
     | '/tableau'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/collection'
+    | '/import-status'
     | '/login'
     | '/register'
     | '/tableau'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/collection'
+    | '/import-status'
     | '/login'
     | '/register'
     | '/tableau'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CollectionRoute: typeof CollectionRoute
+  ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/import-status': {
+      id: '/import-status'
+      path: '/import-status'
+      fullPath: '/import-status'
+      preLoaderRoute: typeof ImportStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CollectionRoute: CollectionRoute,
+  ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
