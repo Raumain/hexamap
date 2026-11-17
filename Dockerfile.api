@@ -16,6 +16,11 @@ COPY . .
 
 FROM base AS dev
 RUN chmod +x scripts/docker-entrypoint.sh
+# Points de montage des volumes `blasons` et `importstatus` : créés au build avec
+# les droits du runtime (UID/GID 1000, cf. compose) pour que les volumes soient
+# inscriptibles dès leur première initialisation (copy-up Docker). L'API initialise
+# le volume `importstatus` avant que le pipeline d'import n'écrive dedans.
+RUN mkdir -p /data/blasons /data/import-status && chown 1000:1000 /data/blasons /data/import-status
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["bun", "run", "--cwd", "apps/api", "dev"]
 
@@ -28,5 +33,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist
+# Points de montage des volumes `blasons` (lecture seule côté API en prod) et
+# `importstatus` (suivi de l'import).
+RUN mkdir -p /data/blasons /data/import-status && chown 1000:1000 /data/blasons /data/import-status
 EXPOSE 3000
 CMD ["bun", "dist/index.js"]

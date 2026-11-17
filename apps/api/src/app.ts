@@ -6,13 +6,17 @@ import { auth, trustedOrigins } from './auth';
 import { db } from './db';
 import { env } from './env';
 import { authPlugin } from './middleware/auth';
+import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
+import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
 import { refRoutes } from './routes/ref';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
 
 const isDev = env.NODE_ENV !== 'production';
+
+const publicRoutes = new Elysia({ prefix: '/api/v1' }).use(importStatusRoutes);
 
 const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(authPlugin)
@@ -62,7 +66,10 @@ export const app = new Elysia()
       return { status: 'error', database: 'down' };
     }
   })
+  .use(publicRoutes)
   .use(protectedRoutes)
+  // Assets statiques hors du préfixe /api/v1 : servis directement sur /blasons.
+  .use(blasonRoutes)
   .mount(auth.handler);
 
 export type App = typeof app;
