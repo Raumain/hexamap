@@ -205,6 +205,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - Normalisation des odonymes : majuscules, suppression des accents, tirets/apostrophes remplacés par des espaces, espaces compactés.
 - Conserver le nom d'affichage original pour la carte.
 - Documenter l'attribution des sources.
+- Les blasons (SVG) sont des assets statiques générés hors ligne par `scripts/import` et stockés dans le volume Docker `blasons` (monté sur `/data/blasons`). L'API les sert sur `GET /blasons/*` avec un cache immuable (`Cache-Control: public, max-age=2592000, immutable`) ; aucun appel réseau n'est fait au rendu. Les licences et attributions sont stockées en base (`blason_credit`), pas dans les fichiers. L'API expose ces assets sur les cartes (`blasonUrl`, `blasonCredit` sur `/cards` et `/market/listings` ; le `contour_url` sert de repli visuel pour les communes sans armoiries).
 
 ### 4.8 Tests
 

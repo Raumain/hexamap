@@ -1,8 +1,9 @@
 import type { Database, Rarity } from '@hexamap/db';
 import { rueRarity, rueScore } from '@hexamap/shared';
 import type { Kysely } from 'kysely';
-import { BAN_CSV_DIR, parseArgs, usage } from './args';
+import { BAN_CSV_DIR, blasonsUsage, parseArgs, parseBlasonArgs, usage } from './args';
 import { type BanCollectResult, type BanSource, type BanStats, collectOdonymes } from './ban';
+import { type BlasonReport, importBlasons, type LevelReport } from './blasons';
 import {
   connectDatabase,
   INSERT_CHUNK_SIZE,
@@ -20,6 +21,7 @@ import {
   randomDrawBucket,
 } from './gouv';
 import { chunkArray } from './normalize';
+import { createProgress, type ImportProgressWriter } from './progress';
 
 function log(message: string): void {
   console.log(`[import] ${message}`);
@@ -76,9 +78,13 @@ interface OdonymeInsertResult {
 async function insertOdonymes(
   db: Kysely<Database>,
   collected: BanCollectResult,
+  progress?: ImportProgressWriter,
 ): Promise<OdonymeInsertResult> {
   const keys = [...collected.odonymeCommunes.keys()];
   const result: OdonymeInsertResult = { odonymes: 0, links: 0 };
+
+  progress?.begin('odonymes', 'Insertion des odonymes', keys.length);
+  progress?.log(`Insertion — ${keys.length.toLocaleString('fr-FR')} odonymes à créer`);
 
   for (const keyChunk of chunkArray(keys, INSERT_CHUNK_SIZE)) {
     const values: OdonymeInsert[] = [];
@@ -131,7 +137,13 @@ async function insertOdonymes(
       `Odonymes — ${result.odonymes.toLocaleString('fr-FR')} insérés · ` +
         `${result.links.toLocaleString('fr-FR')} liens commune↔odonyme`,
     );
+    progress?.set(result.odonymes, `${result.odonymes.toLocaleString('fr-FR')} odonymes insérés`);
   }
+
+  progress?.log(
+    `Insertion — terminé : ${result.odonymes.toLocaleString('fr-FR')} odonymes et ` +
+      `${result.links.toLocaleString('fr-FR')} liens`,
+  );
 
   return result;
 }
@@ -160,7 +172,82 @@ function resolveBanSources(
   }));
 }
 
+async function runBlasons(argv: readonly string[]): Promise<void> {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(blasonsUsage());
+    return;
+  }
+
+  const options = parseBlasonArgs(argv);
+  const contoursOnly = options.contoursOnly === true;
+  const levelCount = contoursOnly ? 0 : options.only === undefined ? 3 : 1;
+  const contoursCount = contoursOnly
+    ? 1
+    : options.contours && (options.only === undefined || options.only === 'communes')
+      ? 1
+      : 0;
+  const progress = createProgress(levelCount + contoursCount);
+  options.progress = progress;
+  const modeLabel = contoursOnly
+    ? 'reprise contours seuls'
+    : `niveau : ${options.only ?? 'tous'} · contours : ${options.contours ? 'activés' : 'désactivés'}`;
+  progress.log(`Blasons — ${modeLabel}`);
+
+  const db = connectDatabase();
+
+  try {
+    log(`Blasons — ${modeLabel}`);
+    const report = await importBlasons(db, options);
+    printBlasonReport(report);
+    progress.finish('Import des blasons terminé');
+  } catch (error) {
+    progress.fail(error);
+    throw error;
+  } finally {
+    await db.destroy();
+  }
+}
+
+function formatCount(value: number): string {
+  return value.toLocaleString('fr-FR');
+}
+
+function printBlasonReport(report: BlasonReport): void {
+  const seconds = (report.durationMs / 1000).toFixed(1);
+  log(`Blasons — terminé en ${seconds} s`);
+  log(`Communes — ${formatLevelReport(report.communes, 'ignorées', 'absentes', true)}`);
+  log(`Départements — ${formatLevelReport(report.departements, 'ignorés', 'absents', false)}`);
+  log(`Régions — ${formatLevelReport(report.regions, 'ignorées', 'absentes', false)}`);
+}
+
+function formatReasons(reasons: Record<string, number>): string {
+  const top = Object.entries(reasons)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  if (top.length === 0) return '';
+  return ` (${top.map(([reason, count]) => `${reason} ×${formatCount(count)}`).join(', ')})`;
+}
+
+function formatLevelReport(
+  report: LevelReport,
+  ignoredWord: string,
+  missingWord: string,
+  withContours: boolean,
+): string {
+  const parts = [`${formatCount(report.blasons)} blasons`];
+  if (withContours) parts.push(`${formatCount(report.contours)} contours`);
+  parts.push(`${formatCount(report.skipped)} ${ignoredWord}`);
+  parts.push(`${formatCount(report.failed)} échecs${formatReasons(report.reasons)}`);
+  parts.push(`${formatCount(report.missing)} ${missingWord}`);
+  return parts.join(' · ');
+}
+
 export async function main(argv: readonly string[]): Promise<void> {
+  if (argv.includes('--blasons')) {
+    await runBlasons(argv.filter((arg) => arg !== '--blasons'));
+    return;
+  }
+
   const startedAt = performance.now();
   const options = parseArgs(argv);
 
@@ -169,12 +256,16 @@ export async function main(argv: readonly string[]): Promise<void> {
     return;
   }
 
+  const progress = createProgress(options.skipBan ? 1 : 3);
+  progress.begin('reference', 'Référentiel géographique', null);
+
   log(
     `Mode ${options.lite ? 'lite' : 'complet'}` +
       ` · régions : ${options.regionCodes?.join(', ') ?? 'toutes'}` +
       ` · API Gouv : ${options.skipGouv ? 'ignorée' : 'activée'}` +
       ` · BAN : ${options.skipBan ? 'ignorée' : 'activée'}`,
   );
+  progress.log(`Mode ${options.lite ? 'lite' : 'complet'} — démarrage de l'import`);
 
   const db = connectDatabase();
 
@@ -189,6 +280,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           `Référentiel déjà présent (${counts.communes.toLocaleString('fr-FR')} communes · ` +
             `${counts.odonymes.toLocaleString('fr-FR')} odonymes) — import ignoré (--if-empty)`,
         );
+        progress.finish('Référentiel déjà présent');
         return;
       }
 
@@ -200,9 +292,12 @@ export async function main(argv: readonly string[]): Promise<void> {
 
     if (options.skipGouv) {
       await truncateOdonymeTables(db);
+      progress.set(0, 'Tables d’odonymes vidées');
     } else {
       await truncateReferenceTables(db);
       log('Tables de référence vidées (TRUNCATE ... RESTART IDENTITY CASCADE)');
+      progress.set(0, 'Tables de référence vidées');
+      progress.log('Tables de référence vidées');
     }
 
     let communeCodes: Set<string>;
@@ -216,6 +311,7 @@ export async function main(argv: readonly string[]): Promise<void> {
       departementCodes = await readDepartementCodes(db, options.regionCodes);
       log(`Communes existantes réutilisées : ${communeCodes.size.toLocaleString('fr-FR')}`);
     } else {
+      progress.set(0, 'Récupération du référentiel (API Gouv)');
       const gouv = await loadGouvReferenceData(options.regionCodes);
       log(
         `API Gouv — ${gouv.regions.length} régions · ${gouv.departements.length} départements · ` +
@@ -224,11 +320,21 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? ` (${gouv.skippedCommunes.toLocaleString('fr-FR')} ignorées : population nulle ou hors périmètre)`
             : ''),
       );
+      progress.set(
+        gouv.communes.length,
+        `${gouv.communes.length.toLocaleString('fr-FR')} communes récupérées`,
+      );
+      progress.log(
+        `API Gouv — ${gouv.regions.length} régions · ${gouv.departements.length} départements · ` +
+          `${gouv.communes.length.toLocaleString('fr-FR')} communes`,
+      );
 
       await insertRegions(db, gouv.regions);
       await insertDepartements(db, gouv.departements);
       await insertCommunes(db, gouv.communes);
       log('Régions, départements et communes insérés');
+      progress.set(gouv.communes.length, 'Régions, départements et communes insérés');
+      progress.log('Régions, départements et communes insérés');
 
       communeCodes = new Set(gouv.communes.map((commune) => commune.code_insee));
       departementCodes = gouv.departements.map((departement) => departement.code);
@@ -236,6 +342,7 @@ export async function main(argv: readonly string[]): Promise<void> {
 
     if (options.skipBan) {
       log('Étape BAN ignorée (--skip-ban)');
+      progress.log('Étape BAN ignorée');
     } else {
       const sources = resolveBanSources(options, departementCodes);
       log(
@@ -245,10 +352,24 @@ export async function main(argv: readonly string[]): Promise<void> {
         log(`  · ${source.location}`);
       }
 
+      progress.begin('ban', 'Base Adresse Nationale (BAN)', null);
+      progress.log(
+        `Lecture BAN — ${sources.length} fichier(s)` +
+          (sources.length === 1 ? ` : ${sources[0]?.location ?? ''}` : ''),
+      );
+
       const collected = await collectOdonymes({
         sources,
         communeCodes,
-        onProgress: logStats,
+        progressEvery: 2_000,
+        onProgress: (stats, uniqueOdonymes) => {
+          logStats(stats, uniqueOdonymes);
+          progress.set(
+            stats.lines,
+            `BAN : ${stats.lines.toLocaleString('fr-FR')} lignes lues · ` +
+              `${uniqueOdonymes.toLocaleString('fr-FR')} odonymes`,
+          );
+        },
       });
 
       log(
@@ -256,8 +377,13 @@ export async function main(argv: readonly string[]): Promise<void> {
           `${collected.stats.unknownCommunes.toLocaleString('fr-FR')} ignorées (commune hors périmètre) · ` +
           `${collected.stats.emptyStreets.toLocaleString('fr-FR')} sans nom de voie`,
       );
+      progress.set(collected.stats.lines, 'Lecture BAN terminée');
+      progress.log(
+        `BAN — ${collected.stats.lines.toLocaleString('fr-FR')} lignes lues · ` +
+          `${collected.odonymeCommunes.size.toLocaleString('fr-FR')} odonymes uniques`,
+      );
 
-      const inserted = await insertOdonymes(db, collected);
+      const inserted = await insertOdonymes(db, collected, progress);
       log(
         `Odonymes insérés : ${inserted.odonymes.toLocaleString('fr-FR')} · ` +
           `liens : ${inserted.links.toLocaleString('fr-FR')}`,
@@ -266,6 +392,10 @@ export async function main(argv: readonly string[]): Promise<void> {
 
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
     log(`Terminé en ${seconds} s`);
+    progress.finish('Import terminé');
+  } catch (error) {
+    progress.fail(error);
+    throw error;
   } finally {
     await db.destroy();
   }

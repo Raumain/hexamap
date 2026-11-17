@@ -19,6 +19,10 @@ export default defineConfig({
         target: process.env.API_INTERNAL_URL ?? 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/blasons': {
+        target: process.env.API_INTERNAL_URL ?? 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
     watch: {
       usePolling: true,

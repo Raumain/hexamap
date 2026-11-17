@@ -359,3 +359,87 @@ export async function resolveCardNoms(
 
   return result;
 }
+
+/** Assets de blason résolus pour une carte. */
+export interface CardAssets {
+  blasonUrl: string | null;
+  blasonCredit: string | null;
+}
+
+/**
+ * Résout les assets de blason d'une liste de cartes par lots groupés par
+ * catégorie (au plus 3 requêtes ; les rues n'ont pas de blason). Retourne une
+ * map indexée par `category:ref_code`, avec `{ blasonUrl: null, blasonCredit:
+ * null }` pour les codes sans correspondance.
+ */
+export async function resolveCardAssets(
+  exec: Executor,
+  cards: ReadonlyArray<{ category: CardCategory; ref_code: string }>,
+): Promise<Map<string, CardAssets>> {
+  const result = new Map<string, CardAssets>();
+  const byCategory = new Map<CardCategory, string[]>();
+
+  for (const card of cards) {
+    result.set(cardNomKey(card.category, card.ref_code), {
+      blasonUrl: null,
+      blasonCredit: null,
+    });
+    const list = byCategory.get(card.category) ?? [];
+    list.push(card.ref_code);
+    byCategory.set(card.category, list);
+  }
+
+  for (const [category, refs] of byCategory) {
+    const uniqueRefs = [...new Set(refs)];
+    switch (category) {
+      case 'REGION': {
+        const rows = await exec
+          .selectFrom('ref_regions')
+          .select(['code', 'blason_url', 'contour_url', 'blason_credit'])
+          .where('code', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('REGION', r.code), {
+            blasonUrl: r.blason_url ?? r.contour_url,
+            blasonCredit: r.blason_credit,
+          });
+        }
+        break;
+      }
+      case 'DEPARTEMENT': {
+        const rows = await exec
+          .selectFrom('ref_departements')
+          .select(['code', 'blason_url', 'contour_url', 'blason_credit'])
+          .where('code', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('DEPARTEMENT', r.code), {
+            blasonUrl: r.blason_url ?? r.contour_url,
+            blasonCredit: r.blason_credit,
+          });
+        }
+        break;
+      }
+      case 'COMMUNE': {
+        const rows = await exec
+          .selectFrom('ref_communes')
+          .select(['code_insee', 'blason_url', 'contour_url', 'blason_credit'])
+          .where('code_insee', 'in', uniqueRefs)
+          .execute();
+        for (const r of rows) {
+          result.set(cardNomKey('COMMUNE', r.code_insee), {
+            blasonUrl: r.blason_url ?? r.contour_url,
+            blasonCredit: r.blason_credit,
+          });
+        }
+        break;
+      }
+      case 'RUE': {
+        // Pas de blason : la plaque émaillée CSS suffit.
+        break;
+      }
+    }
+  }
+
+  return result;
+}

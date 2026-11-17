@@ -2,7 +2,7 @@ import { CATEGORY, RARITY } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { authPlugin } from '../middleware/auth';
-import { cardNomKey, resolveCardNoms } from '../services/draw';
+import { cardNomKey, resolveCardAssets, resolveCardNoms } from '../services/draw';
 
 const raritySchema = t.Union([
   t.Literal('COMMUNE'),
@@ -26,6 +26,8 @@ const cardSchema = t.Object(
     category: categorySchema,
     refCode: t.String(),
     nom: t.String(),
+    blasonUrl: t.Union([t.String(), t.Null()]),
+    blasonCredit: t.Union([t.String(), t.Null()]),
     rarity: raritySchema,
     score: t.Integer(),
     acquiredAt: t.String(),
@@ -101,18 +103,24 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
         .execute();
 
       const noms = await resolveCardNoms(db, rows);
+      const assets = await resolveCardAssets(db, rows);
 
-      const items = rows.map((r) => ({
-        id: r.id,
-        category: r.category,
-        refCode: r.ref_code,
-        nom: noms.get(cardNomKey(r.category, r.ref_code)) ?? '',
-        rarity: r.rarity,
-        score: r.score,
-        acquiredAt: r.acquired_at.toISOString(),
-        source: r.source,
-        locked: r.locked,
-      }));
+      const items = rows.map((r) => {
+        const asset = assets.get(cardNomKey(r.category, r.ref_code));
+        return {
+          id: r.id,
+          category: r.category,
+          refCode: r.ref_code,
+          nom: noms.get(cardNomKey(r.category, r.ref_code)) ?? '',
+          blasonUrl: asset?.blasonUrl ?? null,
+          blasonCredit: asset?.blasonCredit ?? null,
+          rarity: r.rarity,
+          score: r.score,
+          acquiredAt: r.acquired_at.toISOString(),
+          source: r.source,
+          locked: r.locked,
+        };
+      });
 
       return { items, total };
     },

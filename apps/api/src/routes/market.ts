@@ -3,7 +3,13 @@ import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { HttpError } from '../lib/http-error';
 import { authPlugin } from '../middleware/auth';
-import { cardNomKey, type Executor, resolveCardNoms } from '../services/draw';
+import {
+  type CardAssets,
+  cardNomKey,
+  type Executor,
+  resolveCardAssets,
+  resolveCardNoms,
+} from '../services/draw';
 
 const categorySchema = t.Union([
   t.Literal('REGION'),
@@ -34,6 +40,8 @@ const marketCardSchema = t.Object(
     category: categorySchema,
     refCode: t.String(),
     nom: t.String(),
+    blasonUrl: t.Union([t.String(), t.Null()]),
+    blasonCredit: t.Union([t.String(), t.Null()]),
     rarity: raritySchema,
     score: t.Integer(),
   },
@@ -95,7 +103,8 @@ const LISTING_SELECT = [
 ] as const;
 
 /** Projette une ligne jointe vers la forme publique `listingSchema`. */
-function toListing(row: ListingRow, nom: string) {
+function toListing(row: ListingRow, nom: string, assets: Map<string, CardAssets>) {
+  const asset = assets.get(cardNomKey(row.cardCategory, row.cardRefCode));
   return {
     id: row.id,
     price: row.price,
@@ -109,6 +118,8 @@ function toListing(row: ListingRow, nom: string) {
       category: row.cardCategory,
       refCode: row.cardRefCode,
       nom,
+      blasonUrl: asset?.blasonUrl ?? null,
+      blasonCredit: asset?.blasonCredit ?? null,
       rarity: row.cardRarity,
       score: row.cardScore,
     },
@@ -127,11 +138,11 @@ async function fetchListing(exec: Executor, listingId: string) {
 
   if (!row) return null;
 
-  const noms = await resolveCardNoms(exec, [
-    { category: row.cardCategory, ref_code: row.cardRefCode },
-  ]);
+  const entries = [{ category: row.cardCategory, ref_code: row.cardRefCode }];
+  const noms = await resolveCardNoms(exec, entries);
+  const assets = await resolveCardAssets(exec, entries);
 
-  return toListing(row, noms.get(cardNomKey(row.cardCategory, row.cardRefCode)) ?? '');
+  return toListing(row, noms.get(cardNomKey(row.cardCategory, row.cardRefCode)) ?? '', assets);
 }
 
 interface ListFilters {
@@ -180,13 +191,14 @@ async function queryListings(exec: Executor, filters: ListFilters) {
 
   const countRow = await count.select(exec.fn.countAll().as('total')).executeTakeFirstOrThrow();
 
-  const noms = await resolveCardNoms(
-    exec,
-    rows.map((r) => ({ category: r.cardCategory, ref_code: r.cardRefCode })),
-  );
+  const entries = rows.map((r) => ({ category: r.cardCategory, ref_code: r.cardRefCode }));
+  const noms = await resolveCardNoms(exec, entries);
+  const assets = await resolveCardAssets(exec, entries);
 
   return {
-    items: rows.map((r) => toListing(r, noms.get(cardNomKey(r.cardCategory, r.cardRefCode)) ?? '')),
+    items: rows.map((r) =>
+      toListing(r, noms.get(cardNomKey(r.cardCategory, r.cardRefCode)) ?? '', assets),
+    ),
     total: Number(countRow.total),
   };
 }

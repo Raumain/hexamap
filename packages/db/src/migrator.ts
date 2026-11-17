@@ -6,6 +6,8 @@ import * as game from '../migrations/0003_game';
 import * as reference from '../migrations/0004_reference';
 import * as rateLimit from '../migrations/0005_rate_limit';
 import * as marketRelist from '../migrations/0006_market_relist';
+import * as blasons from '../migrations/0007_blasons';
+import * as entityContours from '../migrations/0008_entity_contours';
 import type { Database } from './index';
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -17,6 +19,8 @@ class StaticMigrationProvider implements MigrationProvider {
       '0004_reference': reference,
       '0005_rate_limit': rateLimit,
       '0006_market_relist': marketRelist,
+      '0007_blasons': blasons,
+      '0008_entity_contours': entityContours,
     };
   }
 }

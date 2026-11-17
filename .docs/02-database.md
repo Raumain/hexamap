@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-15.
+> Dernière mise à jour : 2026-11-16.
 
 ---
 
@@ -28,6 +28,7 @@
 | `user_cards`, `tickets`, `ticket_reveals`, `tableaux`, `market_listings`, `currency_ledger` | **Migrée** | `packages/db/migrations/0003_game.ts` |
 | `ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes` | **Migrée** | `packages/db/migrations/0004_reference.ts` |
 | `rateLimit` | **Migrée** | `packages/db/migrations/0005_rate_limit.ts` |
+| Colonnes blasons : `ref_communes.blason_url`, `ref_communes.contour_url`, `ref_communes.blason_credit`, `ref_departements.blason_credit`, `ref_regions.blason_credit` | **Migrée** | `packages/db/migrations/0007_blasons.ts` |
 
 > Tant qu'une table n'est pas au statut **Migrée**, elle ne doit pas être interrogée en runtime.
 
@@ -254,7 +255,8 @@ create table ref_regions (
   code text primary key,
   nom text not null,
   geom jsonb,
-  blason_url text
+  blason_url text,
+  blason_credit text
 );
 
 create table ref_departements (
@@ -263,7 +265,8 @@ create table ref_departements (
   code_region text not null references ref_regions (code),
   population integer not null default 0,
   geom jsonb,
-  blason_url text
+  blason_url text,
+  blason_credit text
 );
 
 create index ref_departements_region_idx on ref_departements (code_region);
@@ -281,7 +284,10 @@ create table ref_communes (
   ),
   score_base integer not null check (score_base >= 0),
   draw_bucket smallint not null default 0,
-  geom jsonb
+  geom jsonb,
+  blason_url text,
+  contour_url text,
+  blason_credit text
 );
 
 create index ref_communes_rarete_bucket_idx on ref_communes (rarete, draw_bucket);
@@ -309,6 +315,13 @@ create table commune_odonymes (
 
 create index commune_odonymes_odonyme_idx on commune_odonymes (odonyme_id);
 ```
+
+`blason_url` et `contour_url` sont des chemins relatifs servis par l'API sous `/blasons/...`
+(`/blasons/communes/{code}.svg`, `/blasons/contours/communes/{code}.svg`) ; `NULL` quand aucune
+image n'a pu être importée. `blason_credit` est l'attribution obligatoire au format
+`<licence> · <auteur> · Wikimedia Commons`, `NULL` quand aucun blason n'est associé. Les trois
+colonnes sont nullable : Wikidata ne référence pas de blason pour toutes les entités, et
+`contour_url` n'est rempli que pour les communes sans armoiries (repli géographique IGN).
 
 ---
 
@@ -460,6 +473,7 @@ export interface RefRegionTable {
   nom: string;
   geom: unknown | null;
   blason_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefDepartementTable {
@@ -469,6 +483,7 @@ export interface RefDepartementTable {
   population: number;
   geom: unknown | null;
   blason_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefCommuneTable {
@@ -483,6 +498,9 @@ export interface RefCommuneTable {
   score_base: number;
   draw_bucket: Generated<number>;
   geom: unknown | null;
+  blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefOdonymeTable {

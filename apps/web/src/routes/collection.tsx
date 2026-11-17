@@ -24,6 +24,7 @@ import { useRef, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
+import { Card } from '../components/ui/Card';
 import { COLLECTION, cardsShownLabel, collectionTotalLabel } from '../content/collection';
 import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
 import {
@@ -57,7 +58,27 @@ const columns = columnHelper.columns([
   columnHelper.accessor('nom', {
     header: COLLECTION.columns.nom,
     filterFn: 'includesString',
-    cell: (info) => <span className="font-medium text-slate-100">{info.getValue()}</span>,
+    cell: (info) => {
+      const card = info.row.original;
+      return (
+        <div className="flex items-center gap-3">
+          <Card
+            type={card.category}
+            rarity={card.rarity}
+            name={card.nom}
+            score={card.score}
+            refCode={card.refCode}
+            blasonUrl={card.blasonUrl}
+            blasonCredit={card.blasonCredit}
+            locked={card.locked}
+            variant="compact"
+            decorative
+            className="w-10 shrink-0"
+          />
+          <span className="min-w-0 truncate font-medium text-slate-100">{card.nom}</span>
+        </div>
+      );
+    },
   }),
   columnHelper.accessor('category', {
     header: COLLECTION.columns.category,
@@ -179,7 +200,7 @@ function CollectionTable({ items, total }: CollectionTableProps) {
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 60,
+    estimateSize: () => 84,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 8,
   });

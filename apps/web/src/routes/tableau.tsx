@@ -15,6 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
+import { Card } from '../components/ui/Card';
 import {
   drawerTitleLabel,
   linksLabel,
@@ -285,6 +286,19 @@ function Slot({ slot, card, onOpen, onRemove }: SlotProps) {
       >
         {card ? (
           <>
+            <Card
+              type={card.category}
+              rarity={card.rarity}
+              name={card.nom}
+              score={card.score}
+              refCode={card.refCode}
+              blasonUrl={card.blasonUrl}
+              blasonCredit={card.blasonCredit}
+              locked={card.locked}
+              variant="detailed"
+              decorative
+              className="w-28 shrink-0"
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-slate-100">{card.nom}</p>
               <p className="text-xs text-slate-400">
@@ -519,6 +533,19 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                     className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 text-left transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
+                    <Card
+                      type={card.category}
+                      rarity={card.rarity}
+                      name={card.nom}
+                      score={card.score}
+                      refCode={card.refCode}
+                      blasonUrl={card.blasonUrl}
+                      blasonCredit={card.blasonCredit}
+                      locked={card.locked}
+                      variant="compact"
+                      decorative
+                      className="w-8 shrink-0"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-slate-100">{card.nom}</p>
                       <p className="truncate text-xs text-slate-400">

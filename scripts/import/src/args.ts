@@ -1,6 +1,7 @@
+import type { BlasonOptions } from './blasons';
+
 /** Répertoire des CSV BAN (un fichier par département + un fichier national). */
 export const BAN_CSV_DIR = 'https://adresse.data.gouv.fr/data/ban/adresses/latest/csv';
-
 export const DEFAULT_BAN_URL = `${BAN_CSV_DIR}/adresses-france.csv.gz`;
 
 /** Régions importées par défaut en mode `--lite` (Bretagne). */
@@ -112,4 +113,58 @@ function splitCodes(raw: string): string[] {
 
   if (codes.length === 0) throw new Error('--regions attend au moins un code région');
   return codes;
+}
+
+const BLASONS_USAGE = `Usage : bun run --cwd scripts/import blasons [options]
+
+Options :
+  --only=communes|departements|regions   Limite l'import à un niveau (défaut : les trois).
+  --limit=<n>           Ne traite que n entités par niveau (développement).
+  --contours            Génère les contours IGN pour les communes sans blason.
+  --contours-only       Reprise : génère uniquement les contours manquants, sans
+                        réimporter les blasons (aucun appel SPARQL/Commons).
+  --force               Réécrit les fichiers SVG déjà présents.
+  --help                Affiche cette aide.`;
+
+export function parseBlasonArgs(argv: readonly string[]): BlasonOptions {
+  const options: BlasonOptions = { contours: false };
+
+  for (const arg of argv) {
+    if (arg === '--contours') {
+      options.contours = true;
+      continue;
+    }
+    if (arg === '--contours-only') {
+      options.contoursOnly = true;
+      options.contours = true;
+      continue;
+    }
+    if (arg === '--force') {
+      options.force = true;
+      continue;
+    }
+    if (arg.startsWith('--only=')) {
+      const value = arg.slice('--only='.length).trim();
+      if (value !== 'communes' && value !== 'departements' && value !== 'regions') {
+        throw new Error(`--only attend communes, departements ou regions (reçu : ${value})`);
+      }
+      options.only = value;
+      continue;
+    }
+    if (arg.startsWith('--limit=')) {
+      const value = Number(arg.slice('--limit='.length).trim());
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error('--limit attend un entier positif ou nul');
+      }
+      options.limit = value;
+      continue;
+    }
+    throw new Error(`Argument inconnu : ${arg}\n\n${BLASONS_USAGE}`);
+  }
+
+  return options;
+}
+
+export function blasonsUsage(): string {
+  return BLASONS_USAGE;
 }
