@@ -128,6 +128,8 @@ export interface RefRegionTable {
   nom: string;
   geom: unknown | null;
   blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefDepartementTable {
@@ -137,6 +139,8 @@ export interface RefDepartementTable {
   population: number;
   geom: unknown | null;
   blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefCommuneTable {
@@ -151,6 +155,9 @@ export interface RefCommuneTable {
   score_base: number;
   draw_bucket: Generated<number>;
   geom: unknown | null;
+  blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
 }
 
 export interface RefOdonymeTable {
