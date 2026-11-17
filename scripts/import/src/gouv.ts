@@ -44,12 +44,23 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+const BODY_PREVIEW_LENGTH = 120;
+
 async function fetchJson(url: string): Promise<unknown> {
   const response = await fetch(url);
+  const text = await response.text();
   if (!response.ok) {
     throw new Error(`GET ${url} → HTTP ${response.status} ${response.statusText}`);
   }
-  return (await response.json()) as unknown;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    const contentType = response.headers.get('content-type') ?? 'content-type absent';
+    const preview = text.slice(0, BODY_PREVIEW_LENGTH).replace(/\s+/g, ' ').trim();
+    throw new Error(
+      `GET ${url} → réponse non JSON (HTTP ${response.status}, ${contentType}) — «${preview}»`,
+    );
+  }
 }
 
 async function fetchArray(url: string): Promise<RawRecord[]> {
