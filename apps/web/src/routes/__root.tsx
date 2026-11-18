@@ -9,14 +9,14 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800">
+    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+      <header className="border-b border-border">
         <nav className="mx-auto flex w-full max-w-5xl items-center justify-between gap-6 px-4 py-4">
           <div className="flex items-center gap-6">
             <Link to="/" className="text-lg font-semibold tracking-tight">
               Hexamap
             </Link>
-            <span className="text-sm text-slate-400">TCG géographique français</span>
+            <span className="text-sm text-ink-secondary">TCG géographique français</span>
           </div>
           <SessionNav />
         </nav>
@@ -24,8 +24,8 @@ function RootLayout() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
         <Outlet />
       </main>
-      <footer className="border-t border-slate-800">
-        <div className="mx-auto max-w-5xl px-4 py-6 text-sm text-slate-500">
+      <footer className="border-t border-border">
+        <div className="mx-auto max-w-5xl px-4 py-6 text-sm text-ink-muted">
           Hexamap — TCG géographique français · {new Date().getFullYear()}
         </div>
       </footer>
@@ -44,38 +44,38 @@ function SessionNav() {
       <div className="flex items-center gap-4">
         <Link
           to="/collection"
-          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+          className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
         >
           Collection
         </Link>
         <Link
           to="/tableaux"
-          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+          className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
         >
           Mes tableaux
         </Link>
         <Link
           to="/tableau"
-          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+          className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
         >
           Tableau
         </Link>
         <Link
           to="/market"
-          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+          className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
         >
           Marché
         </Link>
         <Link
           to="/market/mine"
-          className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+          className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
         >
           Mes ventes
         </Link>
-        <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-sm font-medium tabular-nums text-amber-300">
+        <span className="rounded-full border-2 border-sign-gold bg-amber-100 px-3 py-1 font-mono text-sm font-medium tabular-nums text-sign-ochre">
           {CURRENCY.label} : {priceLabel(user.currency ?? 0)}
         </span>
-        <span className="text-sm text-slate-200">Bonjour, {user.pseudo}</span>
+        <span className="text-sm text-ink">Bonjour, {user.pseudo}</span>
         <button
           type="button"
           onClick={async () => {
@@ -83,7 +83,7 @@ function SessionNav() {
             invalidateSession();
             await router.navigate({ to: '/login' });
           }}
-          className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:bg-slate-800"
+          className="rounded-md border-2 border-border bg-surface px-3 py-1.5 text-sm text-ink shadow-tactile-sm transition-colors duration-150 hover:bg-muted"
         >
           Déconnexion
         </button>
@@ -93,12 +93,15 @@ function SessionNav() {
 
   return (
     <div className="flex items-center gap-4">
-      <Link to="/login" className="text-sm text-slate-200 transition-colors hover:text-amber-400">
+      <Link
+        to="/login"
+        className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
+      >
         Connexion
       </Link>
       <Link
         to="/register"
-        className="rounded-md bg-amber-400 px-3 py-1.5 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+        className="rounded-md border-2 border-border bg-sign-blue px-3 py-1.5 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
       >
         S'inscrire
       </Link>

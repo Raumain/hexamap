@@ -1,5 +1,4 @@
-import type { Rarity } from '@hexamap/shared';
-import { CATEGORY, RARITY } from '@hexamap/shared';
+import { CATEGORY, RARITY, RARITY_LABELS } from '@hexamap/shared';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table';
@@ -25,8 +24,9 @@ import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
 import { Card } from '../components/ui/Card';
+import { RarityBadge } from '../components/ui/rarity-badge';
 import { COLLECTION, cardsShownLabel, collectionTotalLabel } from '../content/collection';
-import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
+import { CATEGORY_LABELS } from '../content/tickets';
 import {
   type CollectionCard,
   collectionErrorMessage,
@@ -75,7 +75,7 @@ const columns = columnHelper.columns([
             decorative
             className="w-10 shrink-0"
           />
-          <span className="min-w-0 truncate font-medium text-slate-100">{card.nom}</span>
+          <span className="min-w-0 truncate font-medium text-ink">{card.nom}</span>
         </div>
       );
     },
@@ -92,12 +92,18 @@ const columns = columnHelper.columns([
   }),
   columnHelper.accessor('score', {
     header: COLLECTION.columns.score,
-    cell: (info) => scoreFormatter.format(info.getValue()),
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{scoreFormatter.format(info.getValue())}</span>
+    ),
   }),
   columnHelper.accessor('acquiredAt', {
     header: COLLECTION.columns.acquiredAt,
     sortFn: 'datetime',
-    cell: (info) => dateFormatter.format(new Date(info.getValue())),
+    cell: (info) => (
+      <span className="font-mono tabular-nums">
+        {dateFormatter.format(new Date(info.getValue()))}
+      </span>
+    ),
   }),
   columnHelper.accessor('locked', {
     header: COLLECTION.columns.state,
@@ -117,7 +123,7 @@ function CollectionPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-slate-400">{COLLECTION.loadingSession}</p>;
+    return <p className="text-ink-secondary">{COLLECTION.loadingSession}</p>;
   }
 
   if (!session.data?.user) {
@@ -127,11 +133,11 @@ function CollectionPage() {
   return (
     <section className="space-y-8">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
           {COLLECTION.eyebrow}
         </p>
         <h1 className="text-4xl font-bold tracking-tight">{COLLECTION.title}</h1>
-        <p className="text-slate-400">{COLLECTION.subtitle}</p>
+        <p className="text-ink-secondary">{COLLECTION.subtitle}</p>
       </header>
       <CollectionBody />
     </section>
@@ -142,12 +148,12 @@ function CollectionBody() {
   const collectionQuery = useQuery(collectionQueryOptions);
 
   if (collectionQuery.isPending) {
-    return <p className="text-slate-400">{COLLECTION.loading}</p>;
+    return <p className="text-ink-secondary">{COLLECTION.loading}</p>;
   }
 
   if (collectionQuery.isError) {
     return (
-      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <FormError message={collectionErrorMessage(collectionQuery.error)} />
         <Button onClick={() => void collectionQuery.refetch()}>{COLLECTION.retry}</Button>
       </div>
@@ -159,12 +165,12 @@ function CollectionBody() {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-10 text-center">
-        <h2 className="text-xl font-semibold text-slate-100">{COLLECTION.emptyTitle}</h2>
-        <p className="mt-1 text-slate-400">{COLLECTION.emptyDescription}</p>
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-10 text-center">
+        <h2 className="text-xl font-semibold text-ink">{COLLECTION.emptyTitle}</h2>
+        <p className="mt-1 text-ink-secondary">{COLLECTION.emptyDescription}</p>
         <Link
           to="/"
-          className="mt-6 inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="mt-6 inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           {COLLECTION.goHome}
         </Link>
@@ -254,17 +260,17 @@ function CollectionTable({ items, total }: CollectionTableProps) {
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-secondary">
         <p>{cardsShownLabel(filteredCount, total)}</p>
         <p>{collectionTotalLabel(total)}</p>
       </div>
 
       <div
         ref={scrollRef}
-        className="h-[32rem] overflow-auto rounded-xl border border-slate-800 bg-slate-900/60"
+        className="h-[32rem] overflow-auto rounded-md border-2 border-border bg-surface shadow-tactile"
       >
         <table aria-label={COLLECTION.scrollAriaLabel} className="w-full">
-          <thead className="sticky top-0 z-10 block border-b border-slate-800 bg-slate-900">
+          <thead className="sticky top-0 z-10 block border-b border-border bg-surface">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className={`${gridTemplate} py-2`}>
                 {headerGroup.headers.map((header) => {
@@ -277,15 +283,15 @@ function CollectionTable({ items, total }: CollectionTableProps) {
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="inline-flex items-center gap-1 rounded text-left font-medium text-slate-200 transition-colors hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                          className="inline-flex items-center gap-1 rounded text-left font-medium text-ink transition-colors duration-150 hover:text-sign-ochre focus:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
                         >
                           <table.FlexRender header={header} />
-                          <span aria-hidden="true" className="text-amber-400">
+                          <span aria-hidden="true" className="text-sign-ochre">
                             {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : ''}
                           </span>
                         </button>
                       ) : (
-                        <span className="font-medium text-slate-200">
+                        <span className="font-medium text-ink">
                           <table.FlexRender header={header} />
                         </span>
                       )}
@@ -307,7 +313,7 @@ function CollectionTable({ items, total }: CollectionTableProps) {
                   key={row.id}
                   ref={rowVirtualizer.measureElement}
                   data-index={item.index}
-                  className={`${gridTemplate} absolute top-0 left-0 w-full border-b border-slate-800/50`}
+                  className={`${gridTemplate} absolute top-0 left-0 w-full border-b border-border/50`}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   {row.getAllCells().map((cell) => (
@@ -336,14 +342,14 @@ interface FilterSelectProps {
 function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-slate-200">
+      <label htmlFor={id} className="text-sm font-medium text-ink">
         {label}
       </label>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+        className="rounded-sm border-2 border-border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
       >
         <option value="">{COLLECTION.allValues}</option>
         {options.map((option) => (
@@ -356,19 +362,9 @@ function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps
   );
 }
 
-function RarityBadge({ rarity }: { rarity: Rarity }) {
-  return (
-    <span
-      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${RARITY_STYLES[rarity]}`}
-    >
-      {RARITY_LABELS[rarity]}
-    </span>
-  );
-}
-
 function LockedBadge() {
   return (
-    <span className="inline-flex w-fit rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
+    <span className="inline-flex w-fit rounded-sm border border-border bg-muted px-2 py-0.5 text-xs font-medium text-ink-secondary">
       {COLLECTION.locked}
     </span>
   );

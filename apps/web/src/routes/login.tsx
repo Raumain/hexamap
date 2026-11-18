@@ -44,7 +44,7 @@ function LoginPage() {
     <section className="mx-auto max-w-md space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Connexion</h1>
-        <p className="text-slate-400">Accédez à votre collection et à vos tickets.</p>
+        <p className="text-ink-secondary">Accédez à votre collection et à vos tickets.</p>
       </div>
 
       <FormError message={formError} />
@@ -117,9 +117,9 @@ function LoginPage() {
         </form.Subscribe>
       </form>
 
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-ink-secondary">
         Pas encore de compte ?{' '}
-        <Link to="/register" className="text-amber-400 hover:underline">
+        <Link to="/register" className="text-sign-ochre hover:underline">
           Créer un compte
         </Link>
       </p>

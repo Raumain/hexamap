@@ -1,17 +1,18 @@
-import type { Rarity } from '@hexamap/shared';
+import { RARITY_LABELS } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
+import { RarityBadge } from '../components/ui/rarity-badge';
 import {
   LISTING_STATUS_LABELS,
   LISTING_STATUS_STYLES,
   MARKET_MINE,
   priceLabel,
 } from '../content/market';
-import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
+import { CATEGORY_LABELS } from '../content/tickets';
 import {
   collectionErrorMessage,
   collectionQueryKey,
@@ -40,7 +41,7 @@ function MarketMinePage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-slate-400">{MARKET_MINE.loadingSession}</p>;
+    return <p className="text-ink-secondary">{MARKET_MINE.loadingSession}</p>;
   }
 
   if (!session.data?.user) {
@@ -50,11 +51,11 @@ function MarketMinePage() {
   return (
     <section className="space-y-8">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
           {MARKET_MINE.eyebrow}
         </p>
         <h1 className="text-4xl font-bold tracking-tight">{MARKET_MINE.title}</h1>
-        <p className="text-slate-400">{MARKET_MINE.subtitle}</p>
+        <p className="text-ink-secondary">{MARKET_MINE.subtitle}</p>
       </header>
       <SellForm />
       <MyListings />
@@ -86,13 +87,13 @@ function SellForm() {
   });
 
   if (collectionQuery.isPending) {
-    return <p className="text-slate-400">{MARKET_MINE.loading}</p>;
+    return <p className="text-ink-secondary">{MARKET_MINE.loading}</p>;
   }
 
   if (collectionQuery.isError) {
     return (
-      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-        <h2 className="text-xl font-semibold text-slate-100">{MARKET_MINE.sellTitle}</h2>
+      <section className="space-y-4 rounded-sm border-2 border-border bg-surface shadow-tactile p-6">
+        <h2 className="text-xl font-semibold text-ink">{MARKET_MINE.sellTitle}</h2>
         <FormError message={collectionErrorMessage(collectionQuery.error)} />
         <Button onClick={() => void collectionQuery.refetch()}>{MARKET_MINE.retry}</Button>
       </section>
@@ -103,11 +104,14 @@ function SellForm() {
 
   if (unlocked.length === 0) {
     return (
-      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-        <h2 className="text-xl font-semibold text-slate-100">{MARKET_MINE.sellTitle}</h2>
-        <p className="text-slate-400">
+      <section className="space-y-4 rounded-sm border-2 border-border bg-surface shadow-tactile p-6">
+        <h2 className="text-xl font-semibold text-ink">{MARKET_MINE.sellTitle}</h2>
+        <p className="text-ink-secondary">
           {MARKET_MINE.noUnlockedCards}{' '}
-          <Link to="/collection" className="text-amber-400 transition-colors hover:text-amber-300">
+          <Link
+            to="/collection"
+            className="text-sign-ochre transition-colors duration-150 hover:text-sign-ochre"
+          >
             {MARKET_MINE.seeCollection}
           </Link>
         </p>
@@ -116,19 +120,19 @@ function SellForm() {
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-      <h2 className="text-xl font-semibold text-slate-100">{MARKET_MINE.sellTitle}</h2>
+    <section className="space-y-4 rounded-sm border-2 border-border bg-surface shadow-tactile p-6">
+      <h2 className="text-xl font-semibold text-ink">{MARKET_MINE.sellTitle}</h2>
 
       <div className="space-y-4">
         <div className="flex flex-col gap-1">
-          <label htmlFor="sell-card" className="text-sm font-medium text-slate-200">
+          <label htmlFor="sell-card" className="text-sm font-medium text-ink">
             {MARKET_MINE.cardLabel}
           </label>
           <select
             id="sell-card"
             value={cardId}
             onChange={(event) => setCardId(event.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            className="rounded-sm border-2 border-border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
           >
             <option value="">{MARKET_MINE.selectCard}</option>
             {unlocked.map((card) => (
@@ -182,12 +186,12 @@ function MyListings() {
   });
 
   if (myListingsQuery.isPending) {
-    return <p className="text-slate-400">{MARKET_MINE.loading}</p>;
+    return <p className="text-ink-secondary">{MARKET_MINE.loading}</p>;
   }
 
   if (myListingsQuery.isError) {
     return (
-      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <FormError message={marketErrorMessage(myListingsQuery.error)} />
         <Button onClick={() => void myListingsQuery.refetch()}>{MARKET_MINE.retry}</Button>
       </div>
@@ -198,16 +202,16 @@ function MyListings() {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-10 text-center">
-        <h2 className="text-xl font-semibold text-slate-100">{MARKET_MINE.emptyTitle}</h2>
-        <p className="mt-1 text-slate-400">{MARKET_MINE.emptyDescription}</p>
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-10 text-center">
+        <h2 className="text-xl font-semibold text-ink">{MARKET_MINE.emptyTitle}</h2>
+        <p className="mt-1 text-ink-secondary">{MARKET_MINE.emptyDescription}</p>
       </div>
     );
   }
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-slate-100">{MARKET_MINE.listingsTitle}</h2>
+      <h2 className="text-xl font-semibold text-ink">{MARKET_MINE.listingsTitle}</h2>
 
       {cancelMutation.error ? (
         <FormError message={marketErrorMessage(cancelMutation.error)} />
@@ -235,18 +239,18 @@ interface MyListingCardProps {
 
 function MyListingCard({ listing, cancelPending, onCancel }: MyListingCardProps) {
   return (
-    <li className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+    <li className="rounded-sm border-2 border-border bg-surface shadow-tactile p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold text-slate-100">{listing.card.nom}</h3>
-          <p className="mt-1 text-sm text-slate-400">
+          <h3 className="text-lg font-semibold text-ink">{listing.card.nom}</h3>
+          <p className="mt-1 text-sm text-ink-secondary">
             {CATEGORY_LABELS[listing.card.category]} · {listing.card.refCode}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <RarityBadge rarity={listing.card.rarity} />
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-ink-secondary">
               {MARKET_MINE.scoreLabel} :{' '}
-              <span className="font-semibold tabular-nums text-slate-200">
+              <span className="font-mono font-semibold tabular-nums text-ink">
                 {scoreFormatter.format(listing.card.score)}
               </span>
             </span>
@@ -254,16 +258,16 @@ function MyListingCard({ listing, cancelPending, onCancel }: MyListingCardProps)
         </div>
 
         <div className="text-right">
-          <p className="text-sm font-bold tabular-nums text-amber-400">
+          <p className="text-sm font-mono font-bold tabular-nums text-sign-ochre">
             {priceLabel(listing.price)}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 font-mono text-xs tabular-nums text-ink-muted">
             {dateFormatter.format(new Date(listing.createdAt))}
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800 pt-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
         <StatusBadge status={listing.status} />
         {listing.status === 'OPEN' ? (
           <Button variant="ghost" isPending={cancelPending} onClick={onCancel}>
@@ -278,19 +282,9 @@ function MyListingCard({ listing, cancelPending, onCancel }: MyListingCardProps)
 function StatusBadge({ status }: { status: MarketListing['status'] }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${LISTING_STATUS_STYLES[status]}`}
+      className={`inline-flex w-fit rounded-sm border px-2 py-0.5 text-xs font-medium ${LISTING_STATUS_STYLES[status]}`}
     >
       {LISTING_STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-function RarityBadge({ rarity }: { rarity: Rarity }) {
-  return (
-    <span
-      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${RARITY_STYLES[rarity]}`}
-    >
-      {RARITY_LABELS[rarity]}
     </span>
   );
 }
