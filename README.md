@@ -17,7 +17,13 @@ Toutes les commandes Bun sont exécutées **dans un conteneur**. Aucun outil n'e
 
 Le script crée `.env` si nécessaire, installe les dépendances dans le conteneur, démarre PostgreSQL, applique les migrations, puis construit et démarre l'API et le web.
 
-- Web : http://localhost:5174
+**Le développement reste à deux conteneurs, par choix** : `api` (Elysia) et `web`
+(serveur de développement Vite) séparés, pour conserver le HMR et le proxy `/api`
+de Vite. La production fait l'inverse : **un seul conteneur** sert l'API et le SPA
+construit (voir « Déploiement »). Les deux services de développement sont bâtis
+depuis le `Dockerfile` racine, `target: dev`.
+
+- Web (Vite, HMR) : http://localhost:5174
 - API : http://localhost:3000
 - Documentation OpenAPI : http://localhost:3000/api/docs
 
@@ -30,14 +36,73 @@ docker compose --profile tools run --rm dev bun run typecheck
 docker compose --profile tools run --rm dev bun run test
 docker compose --profile tools run --rm dev bun run db:migrate
 docker compose --profile tools run --rm dev bun run build
+docker compose --profile tools run --rm dev bun run ci:check
 ```
+
+## Vérification avant PR
+
+```sh
+docker compose --profile tools run --rm dev bun run ci:check
+```
+
+`bun run ci:check` (`scripts/ci-check.ts`) est le garde-fou unique : quatre étapes
+séquentielles, arrêt à la première en échec.
+
+| Étape | Commande |
+| :--- | :--- |
+| `1/4 Lint` | `biome check .` |
+| `2/4 Typecheck` | `bun run typecheck` |
+| `3/4 Base de données` | `bun run --cwd packages/db ping` |
+| `4/4 Spécifications` | `bun test packages/spec` |
+
+La suite de spécifications tourne **toujours sur une base de test dédiée**, jamais
+sur la base de développement. Le script impose `TEST_DATABASE_URL` et refuse de
+démarrer dans trois cas :
+
+1. `NODE_ENV=production` ;
+2. `TEST_DATABASE_URL` absent ;
+3. `TEST_DATABASE_URL` identique à `DATABASE_URL`.
+
+```sh
+# .env
+TEST_DATABASE_URL=postgres://hexamap:hexamap@db:5432/hexamap_test
+```
+
+C'est exactement ce qu'exécute la CI (`.github/workflows/ci.yml` :
+`oven-sh/setup-bun@v2`, service `postgres:16-alpine`, `bun install --frozen-lockfile`,
+puis un unique `bun run ci:check`), et la seule case à cocher de la pull request.
 
 ## Déploiement (production)
 
-`docker-compose.prod.yml` décrit la pile définitive : PostgreSQL, API
-(`oven/bun:alpine`, bundle autonome) et web (build Bun → Nginx Alpine).
-L'API et la base ne sont joignables que sur le réseau interne Docker ; seul le
-web publie un port.
+`docker-compose.prod.yml` décrit la pile définitive : PostgreSQL et **un unique
+conteneur applicatif**. L'API sert elle-même le SPA construit : `apps/web/dist` est
+embarqué dans l'image sous `/app/public`. Il n'y a plus de conteneur web, plus de
+Nginx, plus de proxy inverse interne. La base n'est joignable que sur le réseau
+interne Docker ; seul le conteneur `api` publie un port.
+
+| Conteneur | Image | Rôle | Port publié |
+| :--- | :--- | :--- | :--- |
+| `api` | `Dockerfile`, `target: prod` | API Elysia **et** SPA statique | `${WEB_HOST_PORT:-8080}` → `3000` |
+| `db` | `postgres:16-alpine` | PostgreSQL | aucun (réseau `backend`, `internal: true`) |
+
+`api` est rattaché à **deux** réseaux : `backend` (interne, pour joindre `db`) et
+`public` (pour publier le port). Un rattachement au seul réseau `internal`
+interdit la publication de port ; la séparation reste néanmoins réelle, `db`
+n'étant jamais exposée.
+
+### `Dockerfile` — quatre étapes
+
+| Étape | Contenu |
+| :--- | :--- |
+| `deps` | manifestes des workspaces + `bun install --frozen-lockfile` |
+| `dev` | image des deux services de développement (`api` et Vite `web`) |
+| `build` | build API, build web, et `packages/db/src/migrate.ts` groupé en `dist-db/migrate.js` |
+| `prod` | `oven/bun:alpine` ; `dist/index.js`, `db-migrate.js`, `apps/web/dist` monté en `/app/public` |
+
+L'image finale tourne en `USER bun`, avec
+`ENV WEB_DIST_DIR=/app/public SERVE_WEB=true` et un `HEALTHCHECK` doté d'un
+`--start-period=30s` (le temps des migrations). Le bundle API est autonome : aucun
+`node_modules` n'est copié dans l'étape `prod`.
 
 ```sh
 # 1. Secrets et origine publique (32 caractères minimum pour le secret)
@@ -48,7 +113,7 @@ cp .env.example .env
 #   PROD_BETTER_AUTH_URL=https://hexamap.example.com
 
 # 2. Démarrage (migrations appliquées par l'API)
-docker compose -f docker-compose.prod.yml up --build
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Les variables de production propres au frontend utilisent le préfixe `PROD_`
@@ -60,9 +125,14 @@ pour ne pas hériter des valeurs de développement de `.env` :
 > `POSTGRES_PASSWORD` et `PROD_FRONTEND_URL` (les valeurs par défaut de `.env`
 > sont celles du développement local).
 
-- Web : http://localhost:8080 (`WEB_HOST_PORT`)
+- Application (API + web) : http://localhost:8080 (`WEB_HOST_PORT`).
 - L'API applique les migrations au démarrage (`RUN_MIGRATIONS=0` pour désactiver).
-- Sonde de santé du conteneur API : `GET /api/v1/health`.
+- Sonde de santé du conteneur : `GET /api/v1/health`.
+- Le SPA est servi dès que `SERVE_WEB=true` **ou** `NODE_ENV=production` ;
+  `WEB_DIST_DIR` (défaut `./public`) désigne le dossier des fichiers construits.
+- **Cache** : `/assets/*` (noms hachés) est servi `public, max-age=31536000,
+  immutable` ; `index.html` est `no-cache` ; le reste est `public, max-age=0,
+  must-revalidate`. Les réponses portent un ETag fort (`If-None-Match` → `304`).
 - **CORS** : en production (`NODE_ENV=production`), seules les origines de
   `FRONTEND_URL` et de `TRUSTED_ORIGINS` obtiennent un en-tête CORS ; toute autre
   origine est refusée. `credentials: true` est nécessaire aux cookies Better Auth.
@@ -75,10 +145,17 @@ Le banc E2E utilise **sa propre base** (`hexamap_e2e`, volume dédié) : il ne t
 jamais `hexamap_pgdata` ni aux référentiels importés en développement.
 
 ```sh
-docker compose -f docker-compose.e2e.yml up -d --build db api web
+docker compose -f docker-compose.e2e.yml up -d --build db api
 docker compose -f docker-compose.e2e.yml run --rm playwright
 docker compose -f docker-compose.e2e.yml down -v
 ```
+
+Comme en production, le banc E2E n'a **qu'un conteneur applicatif** : `api` sert
+l'API et le SPA, et porte l'alias `hexamap.test`. Il écoute sur **`3000`** — Nginx
+écoutait sur `80` avant la Phase 12 —, donc l'origine du banc est
+`http://hexamap.test:3000` pour `E2E_BASE_URL`, `FRONTEND_URL`, `APP_URL` et
+`BETTER_AUTH_URL`. Playwright attend qu'il soit `healthy` et que la tâche `seed`
+soit terminée avant de démarrer.
 
 Le parcours couvert est `packages/e2e/tests/core-loop.spec.ts` : inscription,
 génération d'un ticket, grattage complet, inventaire, marché. Les sélecteurs sont

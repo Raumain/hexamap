@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { app } from '@hexamap/api/app';
 import { type DrawnCard, drawCard } from '@hexamap/api/services/draw';
 import { generateTicket } from '@hexamap/api/services/ticket';
-import { createDb, runMigrations } from '@hexamap/db';
+import { createDb, runMigrations, sql } from '@hexamap/db';
 import { CATEGORY, type Category, RARITY, type Rarity } from '@hexamap/shared';
 
 const db = createDb(process.env.DATABASE_URL ?? '');
@@ -791,8 +791,11 @@ describe('Plan §5.6 — robustesse du tirage', () => {
     const errors: { code: string }[] = [];
     try {
       await db.transaction().execute(async (trx) => {
-        await trx.deleteFrom('commune_odonymes').execute();
-        await trx.deleteFrom('ref_odonymes').execute();
+        // TRUNCATE plutôt qu'un DELETE ligne à ligne : sur un référentiel importé
+        // (≈1 M odonymes, ≈2,2 M liens) le DELETE dépasse le délai de 5 s de bun:test.
+        // TRUNCATE est transactionnel et indépendant du volume. Aucun autre tableau ne
+        // référence ces deux tables, donc pas de CASCADE.
+        await sql`truncate table commune_odonymes, ref_odonymes`.execute(trx);
         try {
           await drawCard(trx, 'RUE', 'RARE', rng);
         } catch (e) {

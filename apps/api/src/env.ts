@@ -24,6 +24,11 @@ const envSchema = z
     // Répertoire du fichier d'état partagé avec le pipeline d'import (volume Docker
     // `importstatus`), lu par la page de suivi temporaire.
     IMPORT_STATUS_DIR: z.string().default('/data/import-status'),
+    // Répertoire contenant le front construit (`dist` de Vite), servi par l'API.
+    WEB_DIST_DIR: z.string().default('./public'),
+    // Interrupteur explicite : autorise l'API à servir le front hors production.
+    // En production, le service est toujours actif.
+    SERVE_WEB: z.enum(['true', 'false']).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === 'production' && !value.FRONTEND_URL) {

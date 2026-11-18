@@ -1,9 +1,10 @@
-# Stack de production Hexamap : PostgreSQL + API (oven/bun:alpine) + Web (Nginx).
+# Stack de production Hexamap : PostgreSQL + un unique conteneur de bordure
+# (oven/bun:alpine) qui sert l'API ET la SPA compilée.
 #
 #   docker compose -f docker-compose.prod.yml up --build
 #
-# Ports publiés : uniquement le web (8080 par défaut). L'API et la base ne sont
-# joignables que sur le réseau interne Docker.
+# Ports publiés : uniquement celui de l'application (8080 par défaut). La base
+# n'est joignable que sur le réseau interne Docker.
 name: hexamap-prod
 
 services:
@@ -29,12 +30,20 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile
       target: prod
     restart: unless-stopped
+    # Seul service publié : l'API sert aussi la SPA (WEB_DIST_DIR).
+    ports:
+      - target: 3000
+        published: "${WEB_HOST_PORT:-8080}"
+        protocol: tcp
     environment:
       NODE_ENV: production
       PORT: 3000
+      # SPA compilée, copiée en `./public` dans l'image.
+      WEB_DIST_DIR: /app/public
+      SERVE_WEB: "true"
       DATABASE_URL: ${DATABASE_URL:-postgres://hexamap:hexamap@db:5432/hexamap}
       # Origine publique du frontend : seule origine autorisée par CORS.
       # `PROD_*` évite la collision avec les valeurs de développement de `.env`.
@@ -52,33 +61,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Deux réseaux obligatoires : `backend` pour joindre `db`, `public` pour que
+    # le port publié soit réellement exposé. Un conteneur rattaché uniquement à
+    # un réseau `internal: true` ne peut pas publier de port.
     networks:
       - backend
-
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      target: prod
-    restart: unless-stopped
-    ports:
-      - target: 80
-        published: "${WEB_HOST_PORT:-8080}"
-        protocol: tcp
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
       - public
-      - backend
 
 networks:
   # Réseau interne : la base et l'API ne sont pas joignables depuis l'extérieur.
-  # Nginx relaie /api et /blasons vers l'API.
   backend:
     internal: true
-  # Réseau de publication : seul `web` y est rattaché, ce qui permet d'exposer
-  # son port sur l'hôte (Docker ne publie pas les ports d'un réseau « internal »).
+  # Réseau de publication : rattaché à `api` en plus de `backend`, ce qui permet
+  # d'exposer son port sur l'hôte (Docker ne publie pas les ports d'un réseau
+  # « internal »).
   public:
 
 volumes:
