@@ -7,6 +7,198 @@
 
 ## Statut
 
+- **Phase** : 13 — Design system IGN & signalétique routière française
+- **État** : Terminé — couverture E2E écrite, exécution à valider sur la pile Docker
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-18
+- **Branche** : `feat/phase-13-design-system`
+
+---
+
+## Objectif
+
+Passer l'interface d'un thème sombre « SaaS » à la direction **cartographie IGN + panneaux
+routiers français** décrite par `DESIGN_SYSTEM.md`, sans toucher au domaine ni aux contrats
+de l'API. Les jetons, les polices, les quatre gabarits de carte, le tableau de combo et
+l'ensemble des routes web sont repris ; la rareté reste une donnée du domaine partagé.
+
+À la fin de cette phase :
+- `apps/web/src/styles.css` porte l'unique bloc `@theme`, les quatre `@font-face` et le
+  `@layer base` ; les classes `card-foil` / `card-glow` / `card-holo` / `card-glitch` ont
+  disparu, avec leurs keyframes et le bloc `prefers-reduced-motion`.
+- Les polices sont auto-hébergées sous `apps/web/public/fonts/`, sans CDN au runtime.
+- Six paliers de rareté dans `packages/shared`, un seul `RarityBadge`, quatre gabarits
+  procéduraux mesurés sous 12 nœuds.
+- Le tableau de combo lit l'alignement du serveur et ne recalcule rien.
+- Toute l'application est passée en mode papier clair : plus de dégradé, de mode de fusion,
+  de `backdrop-blur`, d'ombre floutée ni de `transition-all`.
+
+Cette phase **n'écrit pas de nouveau comportement métier** : elle change l'habillage et
+extrait des composants, à comportement constant.
+
+---
+
+## À lire avant de coder
+
+1. `DESIGN_SYSTEM.md` — §3 (jetons, polices), §3.2 (rareté), §5 (gabarits et budget),
+   §6.3 (tableau de combo).
+2. `.docs/01-architecture.md` §4.5 (frontend), §4.9 (design system) et §6.1 (une seule origine).
+3. `packages/shared/src/rarity.ts` et `packages/shared/src/tableau.ts`.
+
+---
+
+## Étapes
+
+### 1. Jetons et polices
+- [x] Remplacer le thème sombre de `apps/web/src/styles.css` par un unique bloc `@theme` (surfaces, encres, accents `sign-*`, trois `--shadow-tactile-*` à 0 px de flou).
+- [x] Ajouter `@layer base` (`body` sur `--color-canvas`, `--color-ink`, `--font-sans`) et les pseudo-éléments `.rue-plaque::before/::after`.
+- [x] Supprimer `.card-foil`, `.card-glow`, `.card-holo`, `.card-glitch`, leurs keyframes et le bloc `prefers-reduced-motion` devenu inutile.
+- [x] Poser quatre `@font-face` : Space Grotesk et JetBrains Mono, chacune en `latin` + `latin-ext` avec `unicode-range`, `font-display: swap`.
+- [x] Versionner les cinq fichiers sous `apps/web/public/fonts/` (`SpaceGrotesk-latin.woff2`, `SpaceGrotesk-latin-ext.woff2`, `JetBrainsMono-latin.woff2`, `JetBrainsMono-latin-ext.woff2`, `OFL.txt` — SIL OFL, sous-ensembles Fontsource).
+- [x] Précharger les deux fichiers `latin` seulement depuis `apps/web/index.html`. Aucun CDN.
+- [x] Activer `css.parser.tailwindDirectives: true` dans `biome.json` : sans quoi Biome 2.6 ne parse pas `@theme` et l'étape 1 de `ci:check` échoue.
+
+### 2. Rareté et thème
+- [x] `packages/shared/src/rarity.ts` : exporter `RARITY_LABELS` (`INHABITUELLE` = « Peu commune ») et `RARITY_ACCENT_HEX`.
+- [x] `packages/spec/src/rarity.spec.ts` : parité six paliers, libellés exacts, format hexadécimal, `RARITY_WEIGHTS` somme à 100.
+- [x] Créer `apps/web/src/lib/rarity-theme.ts` (`RARITY_THEME`, libellé et accent réexportés depuis shared).
+- [x] Créer `apps/web/src/lib/category-theme.ts` : il absorbe `CATEGORY_ACCENT` et les anciens motifs SVG par catégorie.
+- [x] Supprimer `apps/web/src/components/ui/card-styles.ts` et les cinq copies locales de `RarityBadge`.
+- [x] Créer `apps/web/src/components/ui/rarity-badge.tsx` : l'unique badge de rareté.
+
+### 3. Gabarits de carte
+- [x] Créer le châssis commun `apps/web/src/components/ui/cards/card-shell.ts`.
+- [x] `region-card.tsx` : courbes de niveau IGN en SVG, `bg-paper`, blason en calque de fond.
+- [x] `departement-card.tsx` : bouclier octogonal en `clip-path`, code en filigrane, blason en calque de fond, pied `DÉP. · {score} pts`.
+- [x] `commune-card.tsx` : cartouche EB10 à liseré rouge, puce population, un `<img>` de blason.
+- [x] `rue-card.tsx` : plaque émaillée, `bg-sign-blue` pour `COMMUNE`/`INHABITUELLE`, `bg-sign-green` à partir de `RARE`, deux rivets en pseudo-éléments.
+- [x] Transformer `apps/web/src/components/ui/Card.tsx` en aiguilleur sur `type`, en conservant `CardProps` (`variant` ne pilote que le pied).
+- [x] Mesurer les quatre gabarits : Région 11, Département 9, Commune 10 (11 avec le blason), Rue 6.
+
+### 4. Tableau de combo
+- [x] Extraire `apps/web/src/components/tableau/combo-board.tsx` (`grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4`).
+- [x] Extraire `alignment-connector.tsx` : ligne SVG entre cases à partir de `lg`, badges `✓ Aligné` / `✗ Hors-zone`, plus `AlignmentLinkList` pour le rendu sous `lg`.
+- [x] Extraire `multiplier-panel.tsx` : `×N` en `font-mono tabular-nums`, `aria-live`.
+- [x] Dériver chaque état de `alignment.breakdown[].valid` et `alignment.multiplier` ; ne jamais itérer `alignment.links`, qui est un nombre.
+- [x] Retirer les halos floutés et le `scale-[1.02]` de `MULTIPLIER_TIERS` ; quatre paliers conservés.
+
+### 5. Balayage de l'application
+- [x] Migrer toutes les routes et les composants partagés (`button`, `text-field`, `form-error`, `revealed-cell`, `scratch-cell`) du slate sombre vers les jetons clairs.
+- [x] Supprimer dégradés, modes de fusion, `backdrop-blur`, ombres floutées, `rounded-2xl/3xl`, `transition-all` et `animate-pulse`.
+- [x] Remplacer les couleurs littérales des composants par les jetons de `styles.css`.
+
+### 6. E2E et qualité
+- [x] Écrire `packages/e2e/tests/design-system.spec.ts` : fond papier, aucun dégradé ni `backdrop-filter`, chiffres mono tabulaires, quatre gabarits distincts, budget ≤ 12 nœuds (internes SVG exclus), multiplicateur piloté par le serveur.
+- [ ] Exécuter la suite Playwright dans le conteneur : à valider sur la pile Docker.
+- [ ] `bun run lint`, `bun run typecheck`, `bun test packages/spec`, `bun run build` : à rejouer dans le conteneur après la phase.
+
+### 7. Documentation
+- [x] `.docs/01-architecture.md` §4.9 : jetons, rareté, gabarits, budget, blason, tableau, interdits.
+- [x] `DESIGN_SYSTEM.md` : Revision 3 (comptes mesurés, deux rivets, politique du blason, sous-ensembles de police, `alignment.links`).
+- [x] `README.md` : sous-section « Design system ».
+- [x] `.docs/03-active-task.md` : cette entrée.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Un seul bloc `@theme` et quatre `@font-face` dans `styles.css` ; aucun fichier de configuration Tailwind.
+2. [x] Les polices sont servies depuis `apps/web/public/fonts/` ; aucune requête tierce au runtime.
+3. [x] Six paliers de rareté alignés entre `packages/shared`, `rarity-theme.ts` et les specs.
+4. [x] Les quatre gabarits rendent des structures distinctes, tous à ≤ 12 nœuds (racine + non-SVG).
+5. [x] Aucun dégradé, mode de fusion, `backdrop-blur`, ombre floutée ni `transition-all` dans `apps/web`.
+6. [x] Le tableau de combo n'a aucun calcul d'alignement ni de multiplicateur côté navigateur.
+7. [ ] La suite `design-system.spec.ts` est verte dans le conteneur Playwright.
+
+---
+
+## Journal
+
+### 2026-11-18 — Phase 13 exécutée : design system IGN livré
+
+**Jetons et polices**
+- `apps/web/src/styles.css` : un `@theme` (surfaces `surface`/`paper`/`muted`/`border`, encres
+  `ink`/`ink-secondary`/`ink-muted`/`ink-inverse`, accents `sign-blue|green|red|ochre|gold`,
+  `--shadow-tactile-sm|tactile|tactile-lg` à 0 px de flou), quatre `@font-face` en deux
+  sous-ensembles (`latin`, `latin-ext`) avec `unicode-range`, un `@layer base` et les rivets
+  `.rue-plaque::before/::after`.
+- Suppression de `.card-foil`, `.card-glow`, `.card-holo`, `.card-glitch`, de leurs keyframes et
+  du bloc `prefers-reduced-motion`.
+- `apps/web/public/fonts/` : quatre `woff2` (Space Grotesk, JetBrains Mono, chacun `latin` +
+  `latin-ext`) et `OFL.txt`. `index.html` précharge les deux `latin` uniquement.
+- `biome.json` : `css.parser.tailwindDirectives: true`, indispensable pour que Biome 2.6 parse
+  `@theme`.
+
+**Domaine et thème**
+- `packages/shared/src/rarity.ts` : `RARITY_LABELS` et `RARITY_ACCENT_HEX` exportés ;
+  `packages/spec/src/rarity.spec.ts` verrouille six paliers, libellés, hex et poids à 100.
+- `apps/web/src/lib/rarity-theme.ts` et `apps/web/src/lib/category-theme.ts` remplacent
+  `card-styles.ts` (supprimé). Un seul `rarity-badge.tsx` remplace cinq copies locales.
+
+**Gabarits**
+- `cards/card-shell.ts` plus `region-card.tsx`, `departement-card.tsx`, `commune-card.tsx`,
+  `rue-card.tsx` ; `Card.tsx` devient un aiguilleur sur `type`, `CardProps` inchangé.
+- Budget mesuré, racine incluse et internes SVG exclus : Région **11**, Département **9**,
+  Commune **10** (**11** avec le blason), Rue **6**. Les 10/7/9/6 du §5 d'origine étaient faux
+  pour le Département et la Commune.
+- Blason : calque `background-image` pour Région et Département (zéro nœud), un `<img>` dans le
+  cartouche EB10 pour la Commune, aucun pour la Rue.
+
+**Tableau de combo**
+- `components/tableau/` : `combo-board.tsx`, `alignment-connector.tsx` (ligne SVG + `✓ Aligné` /
+  `✗ Hors-zone`, `AlignmentLinkList`), `multiplier-panel.tsx` (`×N` en `font-mono tabular-nums`,
+  `aria-live`). Connecteurs à partir de `lg` seulement ; sous `lg`, la liste `✓`/`✗` par case.
+- `alignment.links` est un **nombre** ; le détail vient de `alignment.breakdown[].valid` et le
+  multiplicateur de `alignment.multiplier`, tous produits par le serveur.
+- `MULTIPLIER_TIERS` garde ses quatre paliers, sans halo flouté ni `scale-[1.02]`.
+
+**Balayage**
+- Toutes les routes et les composants partagés (`button`, `text-field`, `form-error`,
+  `revealed-cell`, `scratch-cell`) sont passés sur les jetons clairs. Plus de dégradé, de mode
+  de fusion, de `backdrop-blur`, d'ombre floutée, de `rounded-2xl/3xl`, de `transition-all` ni
+  d'`animate-pulse`.
+
+**Écarts assumés**
+- **Deux rivets** sur la plaque de rue, pas quatre : CSS ne positionne pas un `box-shadow`
+  relativement au coin opposé sans unités de conteneur, et l'astuce `999px` du §5.4 dessinait un
+  trait hors cadre. Quatre rivets coûteraient deux nœuds de plus.
+- Le pied du Département lit **`DÉP. · {score} pts`** pour que le score reste visible.
+- La carte Rue **n'affiche pas de score**, conformément au §5.4.
+- La **population de la Commune** et le **nombre de communes de la Rue** restent masqués tant que
+  la charge utile ne porte pas `ref_commune.population` et `ref_odonyme.nb_communes`.
+
+**Vérification**
+- `packages/e2e/tests/design-system.spec.ts` **écrit** : fond papier, absence de dégradé et de
+  `backdrop-filter`, chiffres mono tabulaires, quatre gabarits distincts, budget ≤ 12 nœuds
+  (internes SVG exclus), multiplicateur serveur.
+- Aucun résultat de test n'est consigné ici : la suite Playwright et `ci:check` sont **à exécuter**
+  dans le conteneur. Ne pas lire cette entrée comme une validation verte.
+
+**Portée**
+- Aucune modification de domaine métier, de migration ou de contrat d'API. Aucun commit.
+
+---
+
+## Suite
+
+Deux suivis, hors phase 13 :
+- **Champs de charge utile (spec-first).** Exposer `ref_commune.population` et
+  `ref_odonyme.nb_communes` dans les réponses de cartes pour remplir la puce population et le
+  compteur d'occurrences. Commencer par `.docs/02-database.md` et `packages/spec`, ensuite le
+  select et le type Eden.
+- **Phase 14 — coquille mobile.** `app-shell`, barre latérale, barre d'onglets basse et
+  `env(safe-area-inset-*)` : le §6.1 de `DESIGN_SYSTEM.md` décrit la cible, pas le code livré.
+
+---
+---
+
+# Historique — Phase 12 — Documentation de la production mono-conteneur
+
+> Archive. La phase 12 a documenté la production à un seul conteneur ; la phase 13 a repris
+> la branche pour le design system. Le journal ci-dessous décrit l'état au 2026-11-18.
+
+## Statut
+
 - **Phase** : 12 — Documentation de la production mono-conteneur
 - **État** : Terminé
 - **Priorité** : P1

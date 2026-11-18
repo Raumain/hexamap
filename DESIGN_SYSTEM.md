@@ -9,6 +9,15 @@
 > CSS-first** with no config file. Read §3 before touching any rarity or token. See `ROADMAP.md`
 > Phase 13 for the migration plan.
 
+> **Revision 3 — mise en œuvre (phase 13, branche `feat/phase-13-design-system`).**
+> Ce document est désormais la description de ce qui est **livré**, pas une cible.
+> Quatre corrections de spec : les budgets DOM du §5 sont les **comptes mesurés** (§5 dit
+> « racine + descendants non-SVG ≤ 12 », les internes d'un `<svg>` ne comptent pas) ; la
+> plaque de rue n'a que **deux rivets** (l'astuce `999px` du §5.4 était invalide en CSS, voir
+> §5.4) ; les polices sont livrées en **deux sous-ensembles** par famille (§3.1) ; et
+> `alignment.links` est un **nombre**, pas un tableau (§6.3). Les écarts assumés sont listés
+> au §9.
+
 ---
 
 ## 1. Visual Direction & Core Philosophy
@@ -92,23 +101,45 @@ Declare tokens once, in `apps/web/src/styles.css`:
 
 ### 3.1 Self-hosted fonts
 
+Each family ships **two static subset files**, split by `unicode-range` — not one variable
+file. Four `@font-face` rules, declared next to the `@theme` block in `styles.css`:
+
 ```css
+/* Space Grotesk — latin */
 @font-face {
   font-family: "Space Grotesk";
-  src: url("/fonts/SpaceGrotesk-Variable.woff2") format("woff2-variations");
+  src: url("/fonts/SpaceGrotesk-latin.woff2") format("woff2");
   font-weight: 300 700;
   font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Space Grotesk — latin-ext (français accentué) */
 @font-face {
-  font-family: "JetBrains Mono";
-  src: url("/fonts/JetBrainsMono-Variable.woff2") format("woff2-variations");
-  font-weight: 100 800;
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk-latin-ext.woff2") format("woff2");
+  font-weight: 300 700;
   font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 ```
 
-Files live in `apps/web/public/fonts/` and are preloaded from `index.html` with `<link rel="preload" as="font" type="font/woff2" crossorigin>`. Subset must cover `latin` + `latin-ext` (French accents). No Google Fonts, no CDN.
+Les mêmes deux règles existent pour `JetBrains Mono` (`JetBrainsMono-latin.woff2` et
+`JetBrainsMono-latin-ext.woff2`, `font-weight: 100 800`).
+
+Les cinq fichiers (`SpaceGrotesk-latin.woff2`, `SpaceGrotesk-latin-ext.woff2`,
+`JetBrainsMono-latin.woff2`, `JetBrainsMono-latin-ext.woff2`, `OFL.txt`) vivent dans
+`apps/web/public/fonts/` et sont versionnés. Ils viennent des sous-ensembles Fontsource ;
+`OFL.txt` porte la licence **SIL Open Font License** et doit rester à côté des fichiers.
+
+`apps/web/index.html` précharge les **deux fichiers `latin` seulement** avec
+`<link rel="preload" as="font" type="font/woff2" crossorigin>` : le `latin-ext` n'est
+téléchargé que si un caractère le réclame. Aucune Google Fonts, aucun CDN, aucune requête
+réseau tierce au runtime.
 
 ### 3.2 Deterministic Rarity Theme Map
 
@@ -215,12 +246,47 @@ Do not introduce a seventh treatment (glow, foil sweep, holo shift). Those were 
 
 All cards share a strict outer container: `aspect-[3/4] w-full rounded-md border-2 bg-surface p-2.5 flex flex-col justify-between select-none relative overflow-hidden`.
 
-Each of the four templates MUST stay at or below 12 DOM nodes. The node count for each is stated below and is asserted by `packages/e2e/tests/design-system.spec.ts`.
+### 5.0. Budget DOM — règle de comptage
 
-### 5.1. Carte « Région » — IGN topography · **10 nodes**
+**Le budget se mesure sur l'élément racine plus tous ses descendants non-SVG : ≤ 12 nœuds.**
+Les enfants internes d'un `<svg>` (`path`, `line`, `circle`…) ne sont **pas** des nœuds du
+budget : ce sont des instructions de dessin, pas des boîtes de layout, et
+`@tanstack/react-virtual` ne paie pas leur coût. Le `<svg>` lui-même compte pour un nœud.
+
+`packages/e2e/tests/design-system.spec.ts` applique exactement cette règle : il compte les
+nœuds sous la carte et exclut le sous-arbre d'un `<svg>`. Les quatre comptes ci-dessous sont
+les valeurs **mesurées** dans le DOM rendu, racine incluse :
+
+| Modèle | Racine + descendants non-SVG | Avec le blason `<img>` |
+| :--- | :--- | :--- |
+| Région | **11** | — (blason en fond CSS) |
+| Département | **9** | — (blason en fond CSS) |
+| Commune | **10** | **11** (blason dans le cartouche EB10) |
+| Rue | **6** | aucun blason |
+
+Aucun gabarit ne dépasse 12. Rivets, filets et cadres internes restent en `::before` /
+`::after`, en `border` ou en `background`, jamais en éléments supplémentaires.
+
+### 5.0.1. Politique du blason
+
+Le blason réel n'est **jamais** un nœud décoratif libre. Trois traitements, un par famille :
+
+- **Région et Département : calque de fond CSS.** Le blason est posé en
+  `background-image` / `background-position` sur un conteneur existant. Il ne crée aucun
+  nœud et ne peut pas casser le budget. Il est décoratif : pas de texte alternatif, il ne
+  participe pas à l'information accessible (le nom de la carte la porte déjà).
+- **Commune : un seul `<img>`**, à l'intérieur du cartouche EB10, avec `alt` vide et
+  `aria-hidden` (même raison). C'est le seul blason qui coûte un nœud : 11 au lieu de 10.
+- **Rue : aucun blason.** Une plaque de rue n'en porte pas.
+
+Le blason est un asset statique servi par l'API sur `/blasons/*` (§4.7 de
+`.docs/01-architecture.md`) ; `blasonUrl` et `blasonCredit` viennent de la charge utile. Une
+carte sans armoiries retombe sur `contour_url`.
+
+### 5.1. Carte « Région » — IGN topography · **11 nœuds mesurés**
 
 - **Visual Identity:** Ochre topographic contour lines (`--color-sign-ochre`) on aged map paper (`bg-paper`).
-- **DOM Structure:** `div` → `div.header` → `span.badge` → `span.rarity` → `svg` → 3 × `path` → `div.center` → `div.insee` → `h3` → `div.footer` → 2 × `span`.
+- **DOM Structure:** `div` (racine) → `div.header` → `span.badge` → `span.rarity` → `svg` → `div.center` → `div.insee` → `h3` → `div.footer` → 2 × `span`. Les trois `path` du SVG sont internes et hors budget. **Total : 11.**
   To stay inside the budget, the header/category labels share one element and the footer metrics share one element.
 
 ```tsx
@@ -249,11 +315,12 @@ Each of the four templates MUST stay at or below 12 DOM nodes. The node count fo
 </div>
 ```
 
-### 5.2. Carte « Département » — milestone & shield · **7 nodes**
+### 5.2. Carte « Département » — milestone & shield · **9 nœuds mesurés**
 
 - **Visual Identity:** A highway milestone. A large watermark department code (`01`–`976`, including Corsica `2A`/`2B` and overseas `971`–`976`) sits behind a geometric shield holding the code again at reading size.
 - **Shield geometry:** produced with `clip-path` on a bordered box — **not** an extra SVG node, and never a raster asset.
-- **DOM Structure:** `div` → `div.watermark` → `div.shield` → `h3` → `div.code` → `div.footer` → 2 × `span`.
+- **DOM Structure:** `div` (racine) → `div.watermark` → `div` (enveloppe du bouclier) → `div` (face `clip-path`) → `div` (enveloppe du nom) → `h3` → `div.footer` → 2 × `span`. **Total : 9.**
+- **Pied de carte : `DÉP. · {score} pts`.** La mention de catégorie et le score partagent un seul `span` de gauche ; le badge de rareté occupe le `span` de droite. Sans cette fusion, le score du département serait invisible sur la carte, alors qu'il est visible sur les trois autres gabarits.
 
 ```tsx
 <div className={`aspect-[3/4] rounded-md border-2 ${rarity.borderClass} bg-surface p-2.5 flex flex-col justify-between relative overflow-hidden shadow-tactile-sm`}>
@@ -282,10 +349,11 @@ Each of the four templates MUST stay at or below 12 DOM nodes. The node count fo
 </div>
 ```
 
-### 5.3. Carte « Commune » — French EB10 city-entry sign · **9 nodes**
+### 5.3. Carte « Commune » — French EB10 city-entry sign · **10 nœuds mesurés** (11 avec le blason)
 
 - **Visual Identity:** The iconic French municipal boundary plate: white rectangular field, thick red inner rule (`border-2 border-sign-red`), heavy uppercase black typography.
-- **DOM Structure:** card → header(2 spans → the header itself counts 1) → `div.sign` → `h3` → `div.population` → `div.footer` → `span.score` → `span.insee`.
+- **DOM Structure:** `div` (racine) → `div.header` → `span.badge` → `span.rarity` → `div.sign` → `h3` → `div.population` → `div.footer` → `span.score` → `span.insee`. **Total : 10**, plus un `<img>` de blason dans le cartouche EB10 quand `blasonUrl` existe : **11**. Le blason est le seul nœud supplémentaire toléré, et il reste sous le plafond de 12.
+- **Population :** la puce `{population} hab.` ne s'affiche que si la charge utile expose `ref_commune.population` ; en son absence le nœud reste présent mais vide, pour ne pas changer le compte de nœuds entre deux rendus.
 
 ```tsx
 <div className={`aspect-[3/4] rounded-md border-2 ${rarity.borderClass} bg-surface p-2.5 flex flex-col justify-between shadow-tactile-sm`}>
@@ -308,12 +376,13 @@ Each of the four templates MUST stay at or below 12 DOM nodes. The node count fo
 </div>
 ```
 
-### 5.4. Carte « Rue » — French enameled street plaque · **6 nodes**
+### 5.4. Carte « Rue » — French enameled street plaque · **6 nœuds mesurés**
 
 - **Visual Identity:** Enameled metal street sign — deep blue (`bg-sign-blue`) or green (`bg-sign-green` for `RARE` and above) — with a thin white inner frame and white uppercase typography.
-- **Rivets:** four corner rivets are drawn with **`::before` / `::after` + `box-shadow`**, never with elements. This is what keeps the template at 6 nodes.
+- **Rivets — deux, pas quatre.** Quatre rivets exigeraient de placer un `box-shadow` par rapport au coin opposé de l'élément, ce que CSS ne sait pas faire sans unités de conteneur (`cqw`/`cqi`) : l'astuce `999px` de la Revision 2 était invalide (elle dessine un trait, pas un point, et sort du cadre en `overflow-hidden`). L'implémentation livrée pose donc **deux rivets**, en haut à gauche et en bas à droite, via `::before` / `::after`. C'est un écart assumé, documenté au §9.
 - **Plate color:** `bg-sign-blue` for `COMMUNE` / `INHABITUELLE`, `bg-sign-green` for `RARE` and above — i.e. `isHighRarity = RARITY.indexOf(rarity) >= RARITY.indexOf('RARE')`.
-- **DOM Structure:** `div` → `div.inner` → `h3` → `div.footer` → `span.occurrences` → `span.rarity`.
+- **No score.** La plaque ne porte pas de score, contrairement aux trois autres gabarits ; le score reste lisible sur la fiche et dans la collection.
+- **DOM Structure:** `div` (racine) → `div.inner` → `h3` → `div.footer` → `span.occurrences` → `span.rarity`. **Total : 6.** Le `span.occurrences` ne se remplit que si la charge utile expose `ref_odonyme.nb_communes` ; il reste dans le DOM sinon, pour ne pas changer le compte de nœuds.
 
 ```tsx
 <div className={`aspect-[3/4] rounded-md border-2 ${rarity.borderClass} p-2 ${isHighRarity ? 'bg-sign-green' : 'bg-sign-blue'} flex flex-col justify-between relative shadow-tactile-sm rue-plaque`}>
@@ -329,7 +398,8 @@ Each of the four templates MUST stay at or below 12 DOM nodes. The node count fo
 ```
 
 ```css
-/* apps/web/src/styles.css — rivets without extra DOM nodes */
+/* apps/web/src/styles.css — deux rivets, sans nœud DOM supplémentaire.
+   Un point 4×4 px + un anneau d'encre de 1 px, rien de flouté. */
 .rue-plaque::before,
 .rue-plaque::after {
   content: "";
@@ -340,9 +410,13 @@ Each of the four templates MUST stay at or below 12 DOM nodes. The node count fo
   background: rgba(255, 255, 255, 0.75);
   box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
 }
-.rue-plaque::before { top: 6px; left: 6px; box-shadow: 0 0 0 1px rgba(15,23,42,.35), 999px 0 0 -0 rgba(255,255,255,.75); }
-.rue-plaque::after  { bottom: 6px; right: 6px; box-shadow: 0 0 0 1px rgba(15,23,42,.35), -999px 0 0 -0 rgba(255,255,255,.75); }
+.rue-plaque::before { top: 6px; left: 6px; }
+.rue-plaque::after  { bottom: 6px; right: 6px; }
 ```
+
+Pas de troisième et quatrième rivet sans wrapper dédié : ce serait deux nœuds de plus (8 au
+lieu de 6) pour un détail décoratif. La diagonale de deux rivets suffit à lire la plaque
+comme un panneau émaillé.
 
 ---
 
@@ -380,12 +454,12 @@ Three regions, one shell. Implemented in Phase 14.
 ### 6.3. Combo Board View (4-Card Geographic Alignment)
 
 - Displays the 4 active slots in strict hierarchical order: **1. Région** → **2. Département** → **3. Commune** → **4. Rue**.
-- **Layout:** `grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-stretch`. Connectors are drawn *between* slots on `lg` and collapse into per-slot badges below `lg`.
-- **Validation source:** the connector state comes **only** from `GET /api/v1/tableaux/preview` → `alignment.links[].valid`. Never recompute geographic alignment or the multiplier in the browser — import `evaluateTableauAlignment` / `tableauScore` / `TABLEAU_LINK_LABELS` from `@hexamap/shared` when a label is needed.
+- **Layout:** `grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-stretch`. Connecteurs dessinés *entre* les cases **uniquement à partir de `lg`** ; en dessous de `lg` (`grid-cols-2`), la ligne SVG et ses poignées sont masquées et chaque case porte son propre badge `✓` / `✗`. Aucun connecteur ne se dessine dans une grille à deux colonnes : la géométrie ne le permet pas.
+- **Validation source:** the connector state comes **only** from the server response of `GET /api/v1/tableaux/preview`. `alignment.links` est un **nombre** (le nombre de liens valides), pas un tableau : ne jamais l'itérer. Le détail par lien est dans `alignment.breakdown[]` — `alignment.breakdown[i].valid` pilote le `✓`/`✗`, `alignment.multiplier` porte le multiplicateur final. Rien de tout cela n'est recalculé dans le navigateur ; importer `TABLEAU_LINK_LABELS` / `TABLEAU_LINK_RULES` depuis `@hexamap/shared` seulement pour un libellé.
 - **Link badges:**
   - Valid: `bg-emerald-100 text-emerald-900 border border-emerald-700 font-mono text-xs px-2 py-0.5` — `✓ Aligné`
   - Broken: `bg-slate-200 text-slate-600 border border-slate-400 font-mono text-xs px-2 py-0.5` — `✗ Hors-zone`
-- **Multiplier callout:** a high-contrast scoreboard box showing `Score de base × Multiplicateur (×1,0 – ×5,0) = Score Final` in `font-mono tabular-nums text-lg md:text-2xl font-black`, wrapped in `aria-live="polite"`.
+- **Multiplier callout:** a high-contrast scoreboard box showing `Score de base × Multiplicateur (×1,0 – ×5,0) = Score Final` in `font-mono tabular-nums text-lg md:text-2xl font-black`, wrapped in `aria-live="polite"`. `MULTIPLIER_TIERS` conserve ses **quatre paliers** mais n'a plus de halo flouté ni de `scale-[1.02]` : le palier actif se distingue par la bordure et le fond, pas par une animation.
 
 ### 6.4. Virtualized Collection & Market
 
@@ -430,3 +504,28 @@ Enforcement lives in `packages/e2e/tests/design-system.spec.ts` (tokens, no-grad
 | Collection layout | 2/3/4/5-column card grid | virtualized row table, condensed on mobile |
 | Fonts | implied CDN usage | self-hosted `woff2` under `apps/web/public/fonts/` |
 | `paper` surface | hardcoded `bg-[#FAF8F5]` | `--color-paper` token |
+
+---
+
+## 9. Écarts assumés — Revision 3 (mise en œuvre de la phase 13)
+
+Quatre points où le code livré s'écarte volontairement de la Revision 2. Aucun n'est un
+raccourci : chacun est une contrainte technique ou une décision produit.
+
+1. **Deux rivets au lieu de quatre sur la plaque de rue** (§5.4). CSS ne place pas un
+   `box-shadow` par rapport au coin opposé d'un élément sans unités de conteneur ;
+   l'astuce `999px` produisait un trait et débordait du cadre `overflow-hidden`. Quatre
+   rivets coûteraient deux nœuds de plus, donc 8 au lieu de 6.
+2. **Pied de la carte Département : `DÉP. · {score} pts`** (§5.2). Le libellé de catégorie
+   et le score partagent un seul élément, sinon le score du département disparaît.
+3. **La carte Rue n'affiche pas de score** (§5.4), alors que les trois autres gabarits
+   l'affichent. C'est la lecture du panneau : une plaque émaillée ne porte pas de points.
+4. **La population de la Commune et le nombre de communes de la Rue sont masqués** tant que
+   la charge utile de l'API ne porte pas `ref_commune.population` et
+   `ref_odonyme.nb_communes`. Les deux nœuds existent (le budget est stable), mais restent
+   vides. C'est un suivi **spec-first** hors phase 13 : d'abord `.docs/02-database.md` et
+   `packages/spec`, ensuite le select de l'API.
+
+Deux règles de contrat complètent ces écarts : `alignment.links` est un **nombre** (§6.3), et
+le budget DOM se mesure **racine + descendants non-SVG** (§5.0), les internes d'un `<svg>`
+étant exclus.
