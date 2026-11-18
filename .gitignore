@@ -13,3 +13,6 @@ dist
 **/.vite
 packages/db/src/types.generated.ts
 coverage
+test-results
+playwright-report
+blob-report
