@@ -5,6 +5,7 @@ node_modules
 .gitignore
 .docs
 docs
+ROADMAP.md
 AGENTS.md
 **/AGENTS.md
 opencode.json
@@ -14,6 +15,8 @@ opencode.json
 dist
 **/dist
 **/.vite
+apps/web/dev-dist
+.cache
 test-results
 playwright-report
 **/test-results

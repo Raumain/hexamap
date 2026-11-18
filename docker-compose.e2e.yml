@@ -1,11 +1,12 @@
 # Banc E2E isolé : base dédiée, jamais la base de développement.
 #
-#   docker compose -f docker-compose.e2e.yml up -d --build db api web
+#   docker compose -f docker-compose.e2e.yml up -d --build db api
 #   docker compose -f docker-compose.e2e.yml run --rm playwright
 #   docker compose -f docker-compose.e2e.yml down -v
 #
-# L'API tourne dans son image de production (NODE_ENV=production), donc la
-# liste blanche CORS est réellement appliquée. Les cookies `Secure` sont
+# Pas de service web : l'API est la bordure du banc et sert aussi la SPA
+# compilée. L'API tourne dans son image de production (NODE_ENV=production),
+# donc la liste blanche CORS est réellement appliquée. Les cookies `Secure` sont
 # désactivés uniquement ici : le banc est servi en HTTP simple dans le réseau
 # Docker (`AUTH_COOKIE_SECURE=false`).
 name: hexamap-e2e
@@ -31,15 +32,20 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile
       target: prod
     environment:
       NODE_ENV: production
       PORT: 3000
+      WEB_DIST_DIR: /app/public
+      SERVE_WEB: "true"
       DATABASE_URL: postgres://hexamap:hexamap@db:5432/hexamap_e2e
-      APP_URL: http://hexamap.test
-      BETTER_AUTH_URL: http://hexamap.test
-      FRONTEND_URL: http://hexamap.test
+      # Origine unique du banc : l'API écoute sur 3000 et sert elle-même la SPA
+      # (Nginx écoutait sur 80 avant la Phase 12). Les trois valeurs doivent
+      # rester identiques pour que Better Auth et CORS voient la même origine.
+      APP_URL: http://hexamap.test:3000
+      BETTER_AUTH_URL: http://hexamap.test:3000
+      FRONTEND_URL: http://hexamap.test:3000
       BETTER_AUTH_SECRET: e2e-secret-e2e-secret-e2e-secret-32
       AUTH_COOKIE_SECURE: "false"
       TRUSTED_ORIGINS: ""
@@ -48,13 +54,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # L'API est la bordure du banc : elle porte l'alias `hexamap.test` et sert
+    # aussi la SPA compilée.
     networks:
-      - e2e
+      e2e:
+        aliases:
+          - hexamap.test
 
   seed:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile
       target: dev
     command: ["bun", "run", "--cwd", "scripts/import", "e2e:seed"]
     environment:
@@ -66,19 +76,6 @@ services:
     networks:
       - e2e
 
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      target: prod
-    networks:
-      e2e:
-        aliases:
-          - hexamap.test
-    depends_on:
-      api:
-        condition: service_healthy
-
   playwright:
     image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["tools"]
@@ -88,9 +85,9 @@ services:
     environment:
       CI: "1"
       HOME: /tmp
-      E2E_BASE_URL: http://hexamap.test
+      E2E_BASE_URL: http://hexamap.test:3000
       E2E_API_URL: http://api:3000
-      E2E_FRONTEND_URL: http://hexamap.test
+      E2E_FRONTEND_URL: http://hexamap.test:3000
     volumes:
       # Dépendances installées dans le conteneur de dev (`bun install`) : la
       # version de @playwright/test et celle des navigateurs de l'image sont
@@ -99,7 +96,7 @@ services:
       - .:/app
     command: ["npx", "--no-install", "playwright", "test"]
     depends_on:
-      web:
+      api:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
