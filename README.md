@@ -32,6 +32,58 @@ docker compose --profile tools run --rm dev bun run db:migrate
 docker compose --profile tools run --rm dev bun run build
 ```
 
+## Déploiement (production)
+
+`docker-compose.prod.yml` décrit la pile définitive : PostgreSQL, API
+(`oven/bun:alpine`, bundle autonome) et web (build Bun → Nginx Alpine).
+L'API et la base ne sont joignables que sur le réseau interne Docker ; seul le
+web publie un port.
+
+```sh
+# 1. Secrets et origine publique (32 caractères minimum pour le secret)
+cp .env.example .env
+#   BETTER_AUTH_SECRET=<secret de production>
+#   PROD_FRONTEND_URL=https://hexamap.example.com
+#   PROD_APP_URL=https://hexamap.example.com
+#   PROD_BETTER_AUTH_URL=https://hexamap.example.com
+
+# 2. Démarrage (migrations appliquées par l'API)
+docker compose -f docker-compose.prod.yml up --build
+```
+
+Les variables de production propres au frontend utilisent le préfixe `PROD_`
+pour ne pas hériter des valeurs de développement de `.env` :
+`PROD_FRONTEND_URL`, `PROD_APP_URL`, `PROD_BETTER_AUTH_URL`
+(défaut : `http://localhost:${WEB_HOST_PORT}`).
+
+> **Avant toute mise en production réelle** : remplacer `BETTER_AUTH_SECRET`,
+> `POSTGRES_PASSWORD` et `PROD_FRONTEND_URL` (les valeurs par défaut de `.env`
+> sont celles du développement local).
+
+- Web : http://localhost:8080 (`WEB_HOST_PORT`)
+- L'API applique les migrations au démarrage (`RUN_MIGRATIONS=0` pour désactiver).
+- Sonde de santé du conteneur API : `GET /api/v1/health`.
+- **CORS** : en production (`NODE_ENV=production`), seules les origines de
+  `FRONTEND_URL` et de `TRUSTED_ORIGINS` obtiennent un en-tête CORS ; toute autre
+  origine est refusée. `credentials: true` est nécessaire aux cookies Better Auth.
+- **Cookies** : `Secure` est forcé en production. Le banc E2E le désactive
+  explicitement via `AUTH_COOKIE_SECURE=false` (HTTP simple dans Docker).
+
+## Tests de bout en bout (Playwright)
+
+Le banc E2E utilise **sa propre base** (`hexamap_e2e`, volume dédié) : il ne touche
+jamais `hexamap_pgdata` ni aux référentiels importés en développement.
+
+```sh
+docker compose -f docker-compose.e2e.yml up -d --build db api web
+docker compose -f docker-compose.e2e.yml run --rm playwright
+docker compose -f docker-compose.e2e.yml down -v
+```
+
+Le parcours couvert est `packages/e2e/tests/core-loop.spec.ts` : inscription,
+génération d'un ticket, grattage complet, inventaire, marché. Les sélecteurs sont
+orientés utilisateur (`getByRole`, `getByLabel`) : aucun sélecteur CSS fragile.
+
 ## Inspecter la base de données
 
 - **pgAdmin** (web) : `docker compose --profile admin up -d pgadmin` → http://localhost:5050
@@ -66,6 +118,34 @@ runtime.
 
 Détail des options : [`scripts/import/README.md`](scripts/import/README.md).
 
+## Mentions légales et Open Data
+
+Hexamap exploite des données publiques ouvertes. Leur réutilisation est soumise à
+attribution, conformément à la **Licence Ouverte v2.0 (Etalab)**.
+
+> **Attribution obligatoire.** Les données d'adressage proviennent de la **Base Adresse
+> Nationale (BAN)**, produite par l'IGN, La Poste et Etalab/DINUM, et diffusée sous
+> **Licence Ouverte v2.0 (Etalab)**. Les données administratives et démographiques
+> (régions, départements, communes, populations, codes officiels géographiques)
+> proviennent de l'**Institut National de la Statistique et des Études Économiques
+> (INSEE)**, via l'API Découpage administratif `geo.api.gouv.fr`, également diffusée sous
+> **Licence Ouverte v2.0 (Etalab)**. Les contours administratifs proviennent de
+> **IGN Admin Express** (Licence Ouverte v2.0). Les blasons et armoiries proviennent de
+> **Wikimedia Commons** et de **Wikidata** : leurs licences sont hétérogènes
+> (CC BY-SA, CC0, domaine public…) et chaque visuel conserve son auteur, sa licence et
+> l'URL de sa page source (`blason_credit`).
+
+| Donnée | Source | Licence / attribution |
+| :--- | :--- | :--- |
+| Régions, départements, communes, population, centroïde | [INSEE](https://www.insee.fr) via [`geo.api.gouv.fr`](https://geo.api.gouv.fr) | Licence Ouverte v2.0 (Etalab) — « © Etalab / INSEE, base des codes officiels géographiques » |
+| Voies et adresses | [Base Adresse Nationale](https://adresse.data.gouv.fr) | Licence Ouverte v2.0 (Etalab) — « © Base Adresse Nationale (BAN) / IGN / Etalab » |
+| Contours, formes de secours | [IGN Admin Express](https://geoservices.ign.fr) | Licence Ouverte v2.0 (Etalab) — « © IGN » |
+| Blasons, armoiries | [Wikimedia Commons](https://commons.wikimedia.org) / [Wikidata](https://www.wikidata.org) | Licences Commons hétérogènes, attribution par visuel |
+
+Hexamap n'est ni affilié à l'IGN, ni à l'INSEE, ni à Etalab. Les données sont
+retraitées (normalisation, agrégation, calcul de rareté et de score) et ne doivent pas
+être considérées comme une source officielle.
+
 ## Architecture
 
 ```text
@@ -76,6 +156,7 @@ packages/
   shared/             scoring, rareté, constantes partagées
   db/                 création Kysely, migrations, codegen
   spec/               tests de spécification issus du GDD
+  e2e/                parcours Playwright (banc Docker dédié)
 scripts/
   import/             pipeline Open Data (Phase 3)
 ```
@@ -83,7 +164,3 @@ scripts/
 ## Méthode
 
 Les tests de `packages/spec` sont la source de vérité. Une implémentation doit faire passer la spécification, jamais l'inverse.
-
-## Données
-
-Les données géographiques proviennent de sources ouvertes : `geo.api.gouv.fr`, Base Adresse Nationale / FANTOIR, IGN / Etalab et Wikidata. L'attribution sera documentée avec le pipeline d'import.
