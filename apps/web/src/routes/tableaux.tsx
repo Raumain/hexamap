@@ -1,10 +1,12 @@
-import type { Rarity, TableauSlot } from '@hexamap/shared';
+import type { TableauSlot } from '@hexamap/shared';
 import { TABLEAU_SLOT_LABELS, TABLEAU_SLOTS } from '@hexamap/shared';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
+import { AlignmentLinkList } from '../components/tableau/alignment-connector';
+import { RarityBadge } from '../components/ui/rarity-badge';
 import {
   linksLabel,
   MULTIPLIER_TIERS,
@@ -13,7 +15,7 @@ import {
   TABLEAUX_LIST,
   tableauxCountLabel,
 } from '../content/tableau';
-import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
+import { CATEGORY_LABELS } from '../content/tickets';
 import { useSession } from '../lib/session';
 import { type TableauListItem, tableauErrorMessage, tableauxQueryOptions } from '../lib/tableaux';
 
@@ -43,7 +45,7 @@ function TableauxPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-slate-400">{TABLEAUX_LIST.loadingSession}</p>;
+    return <p className="text-ink-secondary">{TABLEAUX_LIST.loadingSession}</p>;
   }
 
   if (!session.data?.user) {
@@ -53,14 +55,14 @@ function TableauxPage() {
   return (
     <section className="space-y-8">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
           {TABLEAUX_LIST.eyebrow}
         </p>
         <h1 className="text-4xl font-bold tracking-tight">{TABLEAUX_LIST.title}</h1>
-        <p className="text-slate-400">{TABLEAUX_LIST.subtitle}</p>
+        <p className="text-ink-secondary">{TABLEAUX_LIST.subtitle}</p>
         <Link
           to="/tableau"
-          className="inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           {TABLEAUX_LIST.create}
         </Link>
@@ -74,12 +76,12 @@ function TableauxBody() {
   const tableauxQuery = useQuery(tableauxQueryOptions);
 
   if (tableauxQuery.isPending) {
-    return <p className="text-slate-400">{TABLEAUX_LIST.loading}</p>;
+    return <p className="text-ink-secondary">{TABLEAUX_LIST.loading}</p>;
   }
 
   if (tableauxQuery.isError) {
     return (
-      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <FormError message={tableauErrorMessage(tableauxQuery.error)} />
         <Button onClick={() => void tableauxQuery.refetch()}>{TABLEAUX_LIST.retry}</Button>
       </div>
@@ -90,12 +92,12 @@ function TableauxBody() {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-10 text-center">
-        <h2 className="text-xl font-semibold text-slate-100">{TABLEAUX_LIST.emptyTitle}</h2>
-        <p className="mt-1 text-slate-400">{TABLEAUX_LIST.emptyDescription}</p>
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-10 text-center">
+        <h2 className="text-xl font-semibold text-ink">{TABLEAUX_LIST.emptyTitle}</h2>
+        <p className="mt-1 text-ink-secondary">{TABLEAUX_LIST.emptyDescription}</p>
         <Link
           to="/tableau"
-          className="mt-6 inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="mt-6 inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           {TABLEAUX_LIST.viewBuilder}
         </Link>
@@ -128,7 +130,7 @@ function TableauxList({ items }: { items: TableauListItem[] }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-slate-400">{tableauxCountLabel(sorted.length)}</p>
+        <p className="text-sm text-ink-secondary">{tableauxCountLabel(sorted.length)}</p>
         <fieldset className="flex flex-wrap gap-2 border-0 p-0">
           <legend className="sr-only">{TABLEAUX_LIST.sortLabel}</legend>
           {SORT_OPTIONS.map((option) => {
@@ -139,10 +141,10 @@ function TableauxList({ items }: { items: TableauListItem[] }) {
                 type="button"
                 aria-pressed={active}
                 onClick={() => setSortKey(option.key)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
+                className={`rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue ${
                   active
-                    ? 'border-amber-400 bg-amber-400/10 text-amber-300'
-                    : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'
+                    ? 'border-sign-gold bg-amber-100 text-sign-ochre'
+                    : 'border-border bg-surface text-ink-secondary hover:bg-muted'
                 }`}
               >
                 {option.label}
@@ -168,39 +170,39 @@ function TableauCard({ tableau, rank }: { tableau: TableauListItem; rank: number
 
   return (
     <li
-      className={`rounded-2xl border p-6 ${
+      className={`rounded-sm border-2 p-6 ${
         isFirst
-          ? 'border-amber-400/60 bg-amber-400/5 ring-2 ring-amber-400/40'
-          : 'border-slate-800 bg-slate-900/60'
+          ? 'border-sign-gold/60 bg-paper ring-2 ring-sign-gold/40'
+          : 'border-border bg-surface shadow-tactile'
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <span
-            className={`mt-0.5 inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-sm font-bold tabular-nums ${
+            className={`mt-0.5 inline-flex h-8 min-w-8 items-center justify-center rounded-sm border px-2 font-mono text-sm font-bold tabular-nums ${
               isFirst
-                ? 'border-amber-400 bg-amber-400 text-slate-950'
-                : 'border-slate-700 bg-slate-800 text-slate-300'
+                ? 'border-sign-gold bg-sign-gold text-ink-inverse'
+                : 'border-border bg-muted text-ink-secondary'
             }`}
           >
             <span aria-hidden="true">{rankLabel(rank)}</span>
             <span className="sr-only">Rang {rank}</span>
           </span>
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-100">
+            <h2 className="text-lg font-semibold text-ink">
               {tableau.name || TABLEAUX_LIST.unnamed}
             </h2>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-ink-secondary">
               {dateFormatter.format(new Date(tableau.createdAt))}
             </p>
           </div>
         </div>
 
         <div className="text-right">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
             {TABLEAUX_LIST.scoreLabel}
           </p>
-          <p className="text-3xl font-bold tabular-nums text-amber-400">
+          <p className="text-3xl font-mono font-bold tabular-nums text-sign-ochre">
             {scoreFormatter.format(tableau.total)}
           </p>
         </div>
@@ -208,19 +210,15 @@ function TableauCard({ tableau, rank }: { tableau: TableauListItem; rank: number
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex rounded-full border px-2.5 py-1 text-sm font-bold tabular-nums ${
+          className={`inline-flex rounded-sm border px-2.5 py-1 font-mono text-sm font-bold tabular-nums ${
             tier.badgeClass
-          } ${
-            links === 3
-              ? 'ring-2 ring-amber-400/60 shadow-[0_0_24px_-6px_rgba(251,191,36,0.7)]'
-              : ''
-          }`}
+          } ${links === 3 ? 'ring-2 ring-sign-gold' : ''}`}
         >
           {multiplierLabel(tableau.alignment.multiplier)}
         </span>
-        <span className="text-sm text-slate-300">{linksLabel(links)}</span>
+        <span className="text-sm text-ink-secondary">{linksLabel(links)}</span>
         {tableau.complete ? null : (
-          <span className="text-xs text-slate-500">{TABLEAUX_LIST.incomplete}</span>
+          <span className="text-xs text-ink-muted">{TABLEAUX_LIST.incomplete}</span>
         )}
       </div>
 
@@ -230,26 +228,11 @@ function TableauCard({ tableau, rank }: { tableau: TableauListItem; rank: number
         ))}
       </div>
 
-      <div className="mt-5 border-t border-slate-800 pt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <div className="mt-5 border-t-2 border-border pt-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
           {TABLEAUX_LIST.linksTitle}
         </p>
-        <ul className="mt-2 space-y-1.5">
-          {tableau.alignment.breakdown.map((link) => (
-            <li key={link.key} className="flex items-start justify-between gap-2 text-sm">
-              <span className="text-slate-300">{link.label}</span>
-              <span
-                aria-hidden="true"
-                className={link.valid ? 'text-emerald-400' : 'text-slate-600'}
-              >
-                {link.valid ? '✓' : '✗'}
-              </span>
-              <span className="sr-only">
-                {link.valid ? TABLEAUX_LIST.linkValid : TABLEAUX_LIST.linkInvalid}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <AlignmentLinkList breakdown={tableau.alignment.breakdown} className="mt-2" />
       </div>
     </li>
   );
@@ -262,36 +245,26 @@ interface SlotCardProps {
 
 function SlotCard({ slot, card }: SlotCardProps) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+    <div className="rounded-md border border-border bg-muted p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-sign-ochre">
         {TABLEAU_SLOT_LABELS[slot]}
       </p>
       {card ? (
         <>
-          <p className="mt-1 truncate text-sm font-medium text-slate-100">{card.nom}</p>
-          <p className="text-xs text-slate-400">
+          <p className="mt-1 truncate text-sm font-medium text-ink">{card.nom}</p>
+          <p className="text-xs text-ink-secondary">
             {CATEGORY_LABELS[card.category]} · {card.refCode}
           </p>
           <div className="mt-2 flex items-center justify-between gap-2">
             <RarityBadge rarity={card.rarity} />
-            <span className="text-sm font-semibold tabular-nums text-slate-200">
+            <span className="text-sm font-semibold tabular-nums text-ink">
               {scoreFormatter.format(card.score)}
             </span>
           </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-slate-500">{TABLEAUX_LIST.emptySlot}</p>
+        <p className="mt-2 text-sm text-ink-muted">{TABLEAUX_LIST.emptySlot}</p>
       )}
     </div>
-  );
-}
-
-function RarityBadge({ rarity }: { rarity: Rarity }) {
-  return (
-    <span
-      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${RARITY_STYLES[rarity]}`}
-    >
-      {RARITY_LABELS[rarity]}
-    </span>
   );
 }
