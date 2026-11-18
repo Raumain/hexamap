@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"],
     "types": ["bun"]
   },
-  "include": ["tests/**/*.ts", "playwright.config.ts"]
+  "include": ["tests/**/*.ts", "global-setup.ts", "playwright.config.ts"]
 }
