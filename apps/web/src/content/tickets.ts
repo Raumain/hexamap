@@ -1,22 +1,7 @@
-import type { Category, Rarity } from '@hexamap/shared';
+import type { Category } from '@hexamap/shared';
 
-export const RARITY_LABELS: Record<Rarity, string> = {
-  COMMUNE: 'Commune',
-  INHABITUELLE: 'Inhabituelle',
-  RARE: 'Rare',
-  EPIQUE: 'Épique',
-  LEGENDAIRE: 'Légendaire',
-  MYTHIQUE: 'Mythique',
-};
-
-export const RARITY_STYLES: Record<Rarity, string> = {
-  COMMUNE: 'border-slate-600 bg-slate-700 text-slate-200',
-  INHABITUELLE: 'border-green-700 bg-green-900/60 text-green-300',
-  RARE: 'border-blue-700 bg-blue-900/60 text-blue-300',
-  EPIQUE: 'border-violet-700 bg-violet-900/60 text-violet-300',
-  LEGENDAIRE: 'border-amber-600 bg-amber-900/60 text-amber-300',
-  MYTHIQUE: 'border-rose-700 bg-rose-900/60 text-rose-300',
-};
+/** Les libellés de rareté appartiennent au domaine : une seule source. */
+export { RARITY_LABELS } from '@hexamap/shared';
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   REGION: 'Région',

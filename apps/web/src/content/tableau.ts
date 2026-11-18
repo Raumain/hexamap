@@ -60,31 +60,30 @@ export const MULTIPLIER_TIERS: readonly [
   {
     title: 'Aucun lien',
     hint: 'Reliez vos cartes pour augmenter le multiplicateur.',
-    badgeClass: 'border-slate-600 bg-slate-800 text-slate-300',
-    panelClass: 'border-slate-800 bg-slate-900/60',
-    surfaceClass: 'text-slate-400',
+    badgeClass: 'border-border bg-muted text-ink-secondary',
+    panelClass: 'border-border bg-surface shadow-tactile',
+    surfaceClass: 'text-ink',
   },
   {
     title: 'Premier lien',
     hint: 'Une première connexion géographique validée.',
-    badgeClass: 'border-sky-600 bg-sky-900/60 text-sky-300',
-    panelClass: 'border-sky-700/60 bg-sky-900/20',
-    surfaceClass: 'text-sky-300',
+    badgeClass: 'border-border bg-muted text-ink-secondary',
+    panelClass: 'border-border bg-surface shadow-tactile',
+    surfaceClass: 'text-sign-ochre',
   },
   {
     title: 'Deux liens',
     hint: 'Deux connexions validées, le multiplicateur grimpe.',
-    badgeClass: 'border-violet-600 bg-violet-900/60 text-violet-300',
-    panelClass: 'border-violet-700/60 bg-violet-900/20',
-    surfaceClass: 'text-violet-300',
+    badgeClass: 'border-border bg-muted text-ink-secondary',
+    panelClass: 'border-border bg-surface shadow-tactile',
+    surfaceClass: 'text-sign-ochre',
   },
   {
     title: 'Combo géographique complet',
     hint: 'Les quatre cartes forment un ensemble parfait.',
-    badgeClass: 'border-amber-400 bg-amber-400/10 text-amber-300',
-    panelClass:
-      'border-amber-400/60 bg-amber-400/10 ring-2 ring-amber-400/60 shadow-[0_0_50px_-12px_rgba(251,191,36,0.8)] scale-[1.02]',
-    surfaceClass: 'text-amber-300',
+    badgeClass: 'border-sign-gold bg-amber-100 text-amber-950',
+    panelClass: 'border-sign-gold bg-surface shadow-tactile ring-1 ring-sign-gold',
+    surfaceClass: 'text-sign-gold',
   },
 ];
 
@@ -100,6 +99,16 @@ export function linksLabel(links: number): string {
 export function multiplierAnnouncement(multiplier: number, links: number): string {
   const linksText = links === 1 ? '1 lien géographique' : `${links} liens géographiques`;
   return `Multiplicateur ${multiplierLabel(multiplier)} — ${linksText} sur 3`;
+}
+
+/** Libellé visible d'un lien géographique (DS §6.3). */
+export function linkStatusLabel(valid: boolean): string {
+  return valid ? '✓ Aligné' : '✗ Hors-zone';
+}
+
+/** Texte lecteur d'écran du connecteur — le glyphe visible reste décoratif. */
+export function connectorAriaLabel(label: string, valid: boolean): string {
+  return `${label} — ${valid ? 'aligné' : 'hors-zone'}`;
 }
 
 export function drawerTitleLabel(slotLabel: string): string {
