@@ -2,7 +2,7 @@
 
 > **Source de vérité produit et technique.**
 > À lire avant toute implémentation. En cas de contradiction avec un autre document, ce fichier gagne.
-> Dernière mise à jour : 2026-11-15.
+> Dernière mise à jour : 2026-11-18.
 
 ---
 
@@ -185,7 +185,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - Utiliser TanStack Router en mode file-based. Ne jamais éditer `routeTree.gen.ts` à la main.
 - Utiliser TanStack Query pour tout état serveur. Pas de `useEffect` pour fetcher.
 - Le client API est Eden Treaty, importé avec `import type { App }` uniquement.
-- **Le navigateur ne parle qu'à l'origine du web.** Le client Eden est initialisé sur `window.location.origin` (`treaty(window.location.origin)`) : les requêtes partent vers `<origine>/api/...`, donc sur le même host et le même port que le front, quelle que soit l'adresse d'accès (localhost ou IP LAN). **Ne jamais passer une chaîne vide** : Eden la préfixe par `https://` et produit `https://api/v1/health`, où `api` devient le nom de domaine. En dev, **Vite relaye `/api` vers l'API Docker** (`server.proxy` → `API_INTERNAL_URL`, par défaut `http://api:3000`). Aucune URL absolue `localhost:3000` ne doit fuiter côté navigateur.
+- **Le navigateur ne parle qu'à l'origine du web.** Le client Eden est initialisé sur `window.location.origin` (`treaty(window.location.origin)`) : les requêtes partent vers `<origine>/api/...`, donc sur le même host et le même port que le front, quelle que soit l'adresse d'accès (localhost ou IP LAN). **Ne jamais passer une chaîne vide** : Eden la préfixe par `https://` et produit `https://api/v1/health`, où `api` devient le nom de domaine. En dev, **Vite relaye `/api` vers l'API Docker** (`server.proxy` → `API_INTERNAL_URL`, par défaut `http://api:3000`). Aucune URL absolue `localhost:3000` ne doit fuiter côté navigateur. En production, il n'y a plus de proxy : **l'API sert elle-même le SPA** sur la même origine, donc `/api/...` reste un chemin relatif au même host et au même port (voir §6.1).
 - Les composants sont en français, accessibles (rôles, labels, `aria-live`), et stylés avec Tailwind.
 - Les libellés réutilisables sont centralisés dans `apps/web/src/content/`. Pas de dépendance i18n.
 
@@ -214,6 +214,8 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - Tests statistiques : RNG injecté et seedé pour être déterministes.
 - Tests d'intégration : vrai PostgreSQL, schéma isolé par worker.
 - E2E : Playwright, sélecteurs par rôle et libellés français.
+- **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db ping`, dossier `packages/db/src/ping.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
+- **Base de test dédiée, imposée par le garde-fou.** `ci:check` exige `TEST_DATABASE_URL` et refuse de démarrer si elle est absente, si elle égale `DATABASE_URL`, ou si `NODE_ENV=production`. La suite de spécifications ne touche donc jamais les référentiels importés en développement. `packages/db` réexporte `sql` de Kysely pour que les specs puissent lancer du SQL brut sans dépendance propre.
 
 ---
 
@@ -229,6 +231,7 @@ packages/
   spec/               tests de spécification (source de vérité)
 scripts/
   import/             pipeline Open Data
+Dockerfile            image unique : cibles deps, dev, build, prod
 .docs/
   01-architecture.md  ce fichier
   02-database.md      schéma SQL + types Kysely
@@ -248,13 +251,23 @@ docker compose --profile tools run --rm dev bun run typecheck
 docker compose --profile tools run --rm dev bun run test
 docker compose --profile tools run --rm dev bun run db:migrate
 docker compose --profile tools run --rm dev bun run build
+docker compose --profile tools run --rm dev bun run ci:check
 ```
 
-Services : web `http://localhost:5174` (ou `http://<IP-LAN>:5174`, l'API étant alors relayée par Vite), API `http://localhost:3000`, OpenAPI `http://localhost:3000/api/docs`.
+Services : web `http://localhost:5174` (ou `http://<IP-LAN>:5174`, l'API étant alors relayée par Vite), API `http://localhost:3000`, OpenAPI `http://localhost:3000/api/docs`. En production, une seule origine : `http://localhost:${WEB_HOST_PORT:-8080}`.
+
+`ci:check` enchaîne lint, typecheck, ping PostgreSQL et spécifications ; il exige
+`TEST_DATABASE_URL` et refuse `NODE_ENV=production` (voir §4.8).
 
 ### 6.1 Topologie réseau Docker (durcissement)
 
-Trois réseaux, définis dans `compose.yml` :
+Deux topologies, volontairement différentes : **deux conteneurs applicatifs en
+développement** (API + Vite pour le HMR), **un seul en production** (l'API sert le
+SPA).
+
+#### Développement — `compose.yml`
+
+Trois réseaux :
 
 | Réseau | Type | Rôle | Services rattachés |
 | :--- | :--- | :--- | :--- |
@@ -270,7 +283,92 @@ Règles :
 - `web` est sur `frontend` uniquement : il n'a aucune raison d'atteindre directement PostgreSQL.
 - `pgadmin` (profil `admin`) est sur `backend` pour joindre `db` et sur `admin` pour être publié.
 
-Accès psql :
+Cette séparation est un choix de développement, pas un reste de l'ancienne pile :
+le serveur Vite n'existe qu'en dev, et les deux services (`api`, `web`) sont bâtis
+depuis le `Dockerfile` racine, `target: dev`.
+
+#### Production — un seul conteneur de bord
+
+`docker-compose.prod.yml` n'a que deux services : `db` sur le réseau `backend`
+(`internal: true`) et `api`, unique service publié. Le conteneur `web` et son
+`apps/web/nginx.conf` ont disparu.
+
+| Service | Image | Réseaux | Port |
+| :--- | :--- | :--- | :--- |
+| `api` | `Dockerfile`, `target: prod` | `backend` + `public` | `${WEB_HOST_PORT:-8080}` → `3000` |
+| `db` | `postgres:16-alpine` | `backend` | aucun |
+
+`api` porte les deux réseaux pour une raison mécanique : un service rattaché au
+seul réseau `internal` ne peut pas publier de port. Le port publié est celui du
+SPA et de l'API, servis par la même origine ; `db` reste invisible de l'extérieur.
+
+Le `Dockerfile` racine décrit quatre étapes :
+
+| Étape | Rôle |
+| :--- | :--- |
+| `deps` | manifestes des workspaces + `bun install --frozen-lockfile` |
+| `dev` | image partagée des deux services de développement |
+| `build` | build API, build web, `packages/db/src/migrate.ts` groupé en `dist-db/migrate.js` |
+| `prod` | `oven/bun:alpine`, `dist/index.js` + `db-migrate.js` + `apps/web/dist` dans `/app/public` |
+
+L'étape `prod` tourne en `USER bun`, déclare
+`ENV WEB_DIST_DIR=/app/public SERVE_WEB=true` et un `HEALTHCHECK` avec
+`--start-period=30s` (le temps des migrations). Aucun `node_modules` n'est copié :
+le bundle API est autonome.
+
+#### Servir le SPA depuis l'API — `apps/api/src/static.ts`
+
+Le plugin `webRoutes(root)` enregistre une route attrape-tout qui sert les
+fichiers de `WEB_DIST_DIR` et retombe sur `index.html` **uniquement** pour une
+navigation. Il reprend ce que faisait Nginx, sans Nginx.
+
+- `/api`, `/api/*` et `/blasons/*` **ne retombent jamais sur du HTML** : ces
+  chemins répondent `404` avec le corps JSON `ROUTE_NOT_FOUND`.
+- **Exception obligatoire — `/api/auth/*` est délégué à Better Auth.** Better Auth
+  est monté par `app.mount(auth.handler)`, ce qu'Elysia enregistre comme une route
+  `ALL /*`. Une route `GET /*` étant plus spécifique par la méthode, elle capterait
+  les lectures de session (`GET /api/auth/get-session`) : l'inscription réussirait
+  mais l'application resterait bloquée sur l'écran de connexion. `webRoutes` reçoit
+  donc le handler d'authentification et lui rend explicitement les chemins
+  `/api/auth/*`. Ne jamais retirer cette délégation sans rejouer le parcours E2E.
+- Cette exclusion est **vérifiée dans le handler, pas par l'ordre des routes**.
+  Le repli SPA est une décision prise requête par requête, pas une position dans
+  la pile : un `GET /api/v1/healths` mal orthographié doit rendre un 404 JSON, et
+  non `index.html` (le client Eden parserait du HTML comme du JSON et l'erreur
+  deviendrait incompréhensible). La garde reste donc vraie quel que soit l'ordre
+  d'enregistrement des plugins, y compris si le montage du SPA passe avant les
+  modules métier.
+- Le chemin est filtré comme dans `routes/blasons.ts` : refus des `..`, des
+  antislashes, des chemins absolus, des segments `.` ou vides, puis revérification
+  du préfixe avec `resolve()`. Seules les extensions d'une liste blanche sont
+  servies.
+- `apps/api/src/env.ts` ajoute `WEB_DIST_DIR` (défaut `./public`) et `SERVE_WEB`
+  (`'true' | 'false'`, optionnel). Le SPA est servi si `SERVE_WEB=true` **ou** si
+  `NODE_ENV=production` : l'image de production n'a donc rien à recevoir en plus,
+  et un conteneur de dev reste sur l'API seule.
+- `apps/api/src/app.ts` expose `createApp(options?: { webDistDir?, serveWeb? })`
+  en plus de `app` et du type `App` inchangés. Un gestionnaire global de
+  « not found » rend un 404 JSON (`ROUTE_NOT_FOUND`) **en développement aussi** :
+  un chemin inconnu ne renvoie plus jamais du HTML.
+
+Politique de cache, portée par le plugin :
+
+| Chemin | `Cache-Control` | Justification |
+| :--- | :--- | :--- |
+| `/assets/*` | `public, max-age=31536000, immutable` | noms hachés par Vite, contenu immuable |
+| `index.html` | `no-cache` | doit pointer vers les nouveaux hashs à chaque déploiement |
+| le reste | `public, max-age=0, must-revalidate` | revalidation systématique |
+
+Chaque réponse porte un ETag fort `"<taille>-<mtime>"` et honore `If-None-Match`
+par un `304 Not Modified`. Le plugin ajoute enfin
+`X-Content-Type-Options: nosniff` et `Referrer-Policy:
+strict-origin-when-cross-origin`, deux en-têtes auparavant fournis par Nginx.
+
+Comportement couvert par `packages/spec/src/static.spec.ts` (11 cas, libellés
+`Archi §6.1 — `) avec des fixtures versionnées dans
+`packages/spec/fixtures/web-dist/`.
+
+#### Accès psql (développement)
 
 ```sh
 # Depuis l'intérieur du réseau Docker (aucun port publié nécessaire)

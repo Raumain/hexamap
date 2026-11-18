@@ -7,6 +7,139 @@
 
 ## Statut
 
+- **Phase** : 12 — Documentation de la production mono-conteneur
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-18
+- **Branche** : `docs/phase-12-production-mono-conteneur`
+
+---
+
+## Objectif
+
+Aligner la mémoire projet sur ce qui est réellement livré : la production tient dans
+**un seul conteneur applicatif** qui sert l'API et le SPA construit, et le garde-fou
+local est `bun run ci:check`. C'est une phase de **documentation uniquement**.
+
+À la fin de cette tâche :
+- `README.md` ne décrit plus de conteneur web ni de Nginx, et documente les quatre
+  étapes du `Dockerfile`, `ci:check` et sa base de test dédiée.
+- `.docs/01-architecture.md` §6.1 décrit les deux topologies : deux conteneurs en
+  développement, un seul en production.
+- `.docs/03-active-task.md` consigne la phase et son journal.
+
+L'implémentation est déjà faite et vérifiée ; cette phase n'écrit que de la prose.
+
+---
+
+## À lire avant de coder
+
+1. `README.md` (sections « Démarrage », « Vérification avant PR », « Déploiement »).
+2. `.docs/01-architecture.md` §4.5 (origine unique), §4.8 (tests) et §6.1 (topologie réseau).
+
+---
+
+## Étapes
+
+### 1. `README.md`
+- [x] Remplacer la topologie de production (db + api + web derrière Nginx) par le conteneur de bord unique.
+- [x] Ajouter le tableau des quatre étapes du `Dockerfile` : `deps`, `dev`, `build`, `prod`.
+- [x] Ajouter la section `bun run ci:check` : les quatre étapes, l'exigence `TEST_DATABASE_URL` et les trois refus.
+- [x] Dire explicitement que **le développement reste à deux conteneurs** (API + Vite pour le HMR) et que **la production en a un**.
+- [x] Corriger la commande du banc E2E (`db api`, plus de `web`) et documenter `docker compose -f docker-compose.prod.yml up -d --build` avec le port 8080.
+
+### 2. `.docs/01-architecture.md`
+- [x] §6.1 scindée en « Développement — `compose.yml` » et « Production — un seul conteneur de bord ».
+- [x] Documenter la règle d'exclusion `/api`, `/api/*`, `/blasons/*` et pourquoi elle est vérifiée dans le handler plutôt que par l'ordre des routes.
+- [x] Documenter `apps/api/src/static.ts` : garde de chemin, liste blanche d'extensions, politique de cache, ETag, en-têtes de sécurité.
+- [x] Documenter `WEB_DIST_DIR` / `SERVE_WEB` et `createApp(options)`.
+- [x] Documenter le garde-fou `ci:check` et sa base de test dédiée (§4.8), et rappeler qu'en production l'API et le SPA partagent l'origine (§4.5).
+- [x] Mettre à jour la date du document.
+
+### 3. `.docs/03-active-task.md`
+- [x] Entrée Phase 12 (checklist + journal), Phase 11 conservée en historique.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Aucune instruction restante qui fasse passer par un conteneur `web` ou par Nginx en production.
+2. [x] Les trois documents décrivent la même topologie : un conteneur applicatif, port 8080.
+3. [x] `ci:check`, ses quatre étapes et ses trois refus sont décrits.
+4. [x] La distinction développement (deux conteneurs) / production (un seul) est explicite.
+5. [x] Aucun fichier de code, `Dockerfile`, compose, `.github/`, `scripts/`, `apps/` ou `packages/` modifié.
+
+---
+
+## Journal
+
+### 2026-11-18 — Phase 12 exécutée : documentation alignée
+
+**Ce qui était faux**
+- `README.md` décrivait encore db + api + web derrière Nginx, avec `Dockerfile.api`,
+  `Dockerfile.web`, et un `up -d --build db api web` pour le banc E2E.
+
+**Ce qui a été écrit**
+- `README.md` : conteneur de bord unique (`api` publie `${WEB_HOST_PORT:-8080}` →
+  `3000`, rattaché à `backend` + `public`), tableau des étapes
+  `deps`/`dev`/`build`/`prod`, section « Vérification avant PR » (`ci:check`, quatre
+  étapes, `TEST_DATABASE_URL`, refus de `NODE_ENV=production` et d'une base de test
+  égale à `DATABASE_URL`), et la règle « dev = deux conteneurs, prod = un ».
+- `.docs/01-architecture.md` §6.1 : deux topologies, le pourquoi du plugin
+  `static.ts`, l'exclusion `/api` et `/blasons` vérifiée dans le handler, le
+  partage de cache (assets hachés immuables / `index.html` `no-cache`),
+  `WEB_DIST_DIR` et `SERVE_WEB`, et `createApp(options)` avec un 404 JSON global.
+  §4.8 porte désormais `ci:check`.
+
+**Vérification**
+- Les deux cas `Plan §5.6` qui échouaient à la phase 11 sont **verts** : le fixture
+  remplace la suppression de 1,0 M / 2,2 M lignes dans la transaction par un
+  `TRUNCATE` transactionnel.
+- Suite de spécifications : **122 tests verts**, dont les 11 cas `Archi §6.1 — `
+  de `packages/spec/src/static.spec.ts`.
+- `bun run ci:check` : `1/4 Lint`, `2/4 Typecheck`, `3/4 Base de données`,
+  `4/4 Spécifications` — 4/4 vertes.
+
+**Portée**
+- Aucune modification de code, `Dockerfile`, compose, `.github/`, `scripts/`,
+  `apps/` ou `packages/`. Aucun commit.
+
+---
+
+## Commandes
+
+```sh
+docker compose --profile tools run --rm dev bun run ci:check
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.e2e.yml run --rm playwright
+```
+
+## Interdits
+- Ne jamais réintroduire un conteneur `web` en production : le SPA est servi par l'API (`SERVE_WEB=true`).
+- Ne pas faire pointer `TEST_DATABASE_URL` sur `DATABASE_URL` : `ci:check` le refuse, et le contourner détruirait les référentiels de développement.
+- Ne JAMAIS utiliser une image Docker node:XX pour l'API. Utiliser exclusivement oven/bun.
+- Ne pas désactiver le CSRF ou alléger le CORS "pour que ça marche plus vite".
+
+---
+
+## Suite
+
+La V1 est complète et tient dans un conteneur de production.
+- Réduire le bundle web (> 500 kB, avertissement Vite) par découpage dynamique.
+- Ajouter le TLS (reverse proxy HTTPS) devant `api` : `useSecureCookies` l'exige en
+  production réelle, et `PROD_FRONTEND_URL` doit alors être en `https://`.
+
+---
+---
+
+# Historique — Phase 11 — Durcissement, E2E, Déploiement, Release
+
+> Archive. `Dockerfile.api`, `Dockerfile.web` et `apps/web/nginx.conf` ont depuis été
+> fusionnés dans le `Dockerfile` racine (phase 12) ; le journal ci-dessous décrit
+> l'état du dépôt au 2026-11-18, avant cette fusion.
+
+## Statut
+
 - **Phase** : 11 — Durcissement, E2E, Déploiement, Release
 - **État** : Terminé
 - **Priorité** : P0
@@ -120,26 +253,3 @@ Finaliser la préparation pour la production. Configurer les conteneurs Docker d
 - `bun test packages/spec` : 110 pass, 2 échecs **préexistants**
   (`Plan §5.6 — un référentiel totalement vide reste une erreur explicite` et son hook,
   timeout 5 s) ; reproduits à l'identique sur le commit de référence avant modification.
-
----
-
-## Commandes
-
-```sh
-docker compose --profile tools run --rm dev bun run lint
-docker compose -f docker-compose.e2e.yml run --rm playwright
-```
-
-## Interdits
-- Ne JAMAIS utiliser une image Docker node:XX pour l'API. Utiliser exclusivement oven/bun.
-- Ne pas désactiver le CSRF ou alléger le CORS "pour que ça marche plus vite".
-
----
-
-## Suite
-
-V1 achevée (phase 11 terminée). Prochaines phases possibles :
-- Réduire le bundle web (> 500 kB, avertissement Vite) par découpage dynamique.
-- Traiter le test de spec `Plan §5.6` instable (timeout 5 s) — défaut préexistant.
-- Ajouter le TLS (reverse proxy HTTPS) devant `web` : `useSecureCookies` l'exige en
-  production réelle, et `PROD_FRONTEND_URL` doit alors être en `https://`.
