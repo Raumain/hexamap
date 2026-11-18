@@ -21,12 +21,24 @@ const extraOrigins = env.TRUSTED_ORIGINS.split(',')
   .filter(Boolean);
 
 // Origines de confiance partagées par Better Auth et le middleware CORS.
+// En production, `FRONTEND_URL` est la référence : c'est l'origine publique
+// réellement servie au navigateur.
+const knownOrigins = [env.FRONTEND_URL, env.APP_URL]
+  .filter((value): value is string => Boolean(value))
+  .map((value) => new URL(value).origin);
+
 export const trustedOrigins = [
-  env.APP_URL,
-  new URL(env.BETTER_AUTH_URL).origin,
-  ...devLanOrigins,
-  ...extraOrigins,
+  ...new Set([
+    ...knownOrigins,
+    new URL(env.BETTER_AUTH_URL).origin,
+    ...devLanOrigins,
+    ...extraOrigins,
+  ]),
 ];
+
+// Cookies `Secure` obligatoires en production (HTTPS). Le banc E2E, servi en
+// HTTP simple à l'intérieur du réseau Docker, peut les désactiver explicitement.
+const useSecureCookies = env.AUTH_COOKIE_SECURE ?? env.NODE_ENV === 'production';
 
 export const auth = betterAuth({
   database: {
@@ -53,10 +65,12 @@ export const auth = betterAuth({
       },
     },
   },
+  // Le rate limiter Better Auth persiste ses compteurs en base : ils survivent
+  // aux redémarrages et sont partagés par toutes les instances de l'API.
   rateLimit: {
     storage: 'database',
   },
   advanced: {
-    useSecureCookies: env.NODE_ENV === 'production',
+    useSecureCookies,
   },
 });
