@@ -1,4 +1,5 @@
 node_modules
+**/node_modules
 .bun
 .git
 .gitignore
@@ -13,5 +14,10 @@ opencode.json
 dist
 **/dist
 **/.vite
+test-results
+playwright-report
+**/test-results
+**/playwright-report
+.blob-report
 *.log
 coverage
