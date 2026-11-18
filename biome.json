@@ -6,6 +6,9 @@
       "!**/node_modules",
       "!**/dist",
       "!**/.bun",
+      "!**/test-results",
+      "!**/playwright-report",
+      "!**/.blob-report",
       "!**/*.md",
       "!apps/web/src/routeTree.gen.ts",
       "!packages/db/src/types.generated.ts"

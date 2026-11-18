@@ -8,10 +8,7 @@ Décrire le besoin et la référence GDD concernée.
 
 ## Vérifications
 
-- [ ] `bun run lint`
-- [ ] `bun run typecheck`
-- [ ] `bun test packages/spec`
-- [ ] `bun run build`
+- [ ] `bun run ci:check`
 
 ## Issue liée
 
