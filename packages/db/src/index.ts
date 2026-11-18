@@ -3,6 +3,7 @@ import { PostgresJSDialect } from 'kysely-postgres-js';
 import postgres from 'postgres';
 import type { Database } from './schema';
 
+export { sql } from 'kysely';
 export { runMigrations } from './migrator';
 export * from './schema';
 
