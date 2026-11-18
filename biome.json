@@ -9,6 +9,7 @@
       "!**/test-results",
       "!**/playwright-report",
       "!**/.blob-report",
+      "!packages/e2e/.auth",
       "!**/*.md",
       "!apps/web/src/routeTree.gen.ts",
       "!packages/db/src/types.generated.ts"
@@ -31,6 +32,12 @@
       "quoteStyle": "single",
       "semicolons": "always",
       "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "cssModules": false,
+      "tailwindDirectives": true
     }
   }
 }
