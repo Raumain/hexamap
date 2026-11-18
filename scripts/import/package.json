@@ -8,6 +8,7 @@
     "import": "bun src/index.ts",
     "import:lite": "bun src/index.ts --lite",
     "blasons": "bun src/index.ts --blasons",
+    "e2e:seed": "bun src/e2e-seed.ts",
     "repair:svgs": "bun src/repair-svgs.ts",
     "typecheck": "tsc --noEmit"
   },

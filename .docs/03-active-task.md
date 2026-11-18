@@ -7,103 +7,139 @@
 
 ## Statut
 
-- **Phase** : 10 — Direction artistique procédurale
+- **Phase** : 11 — Durcissement, E2E, Déploiement, Release
 - **État** : Terminé
 - **Priorité** : P0
-- **Mis à jour** : 2026-11-16
-- **Branche conseillée** : `feat/phase-10-procedural-art`
+- **Mis à jour** : 2026-11-18
+- **Branche** : `chore/phase-11-release`
 
 ---
 
 ## Objectif
 
-Créer le composant React `<Card />` unique et réutilisable qui génère visuellement les 4 types de cartes (Région, Département, Commune, Rue) et les 6 paliers de rareté en utilisant uniquement du CSS (Tailwind) et du SVG.
+Finaliser la préparation pour la production. Configurer les conteneurs Docker définitifs (multi-stage avec Bun), écrire les tests de bout en bout (E2E) avec Playwright, verrouiller la sécurité (CORS, Rate Limit, Cookies) et rédiger la documentation légale de distribution des données.
 
 À la fin de cette tâche :
-- Les cartes "Rue" ressemblent à de vraies plaques émaillées bleues françaises (100% CSS).
-- Les cartes géographiques utilisent des formes SVG ou des blasons locaux (pré-téléchargés, pas d'appels externes).
-- Chaque palier de rareté possède un effet visuel distinct (ex: brillance, bordure animée, effet holographique) géré par des `keyframes` CSS légères.
-- L'affichage de 50 cartes simultanées ne fait pas chuter les FPS.
+- Les fichiers `Dockerfile.api` et `Dockerfile.web` sont créés et optimisés.
+- Un `docker-compose.prod.yml` permet de lancer la stack complète (DB + API + Web) simulée en production.
+- Les tests Playwright valident le parcours critique (Inscription -> Ticket -> Grattage -> Collection -> Marché).
+- Le `README.md` inclut les mentions légales obligatoires pour l'utilisation de la BAN et de l'INSEE.
 
 ---
 
 ## À lire avant de coder
 
-1. `.docs/01-architecture.md` (Sections 5.1 et 10 sur les raretés et la DA).
+1. `.docs/01-architecture.md` (Sections 11 et 12 pour les risques, mitigations et la Definition of Done globale).
+
+> Note : le document s'arrête à la section 7 dans sa version actuelle. Les règles de
+> durcissement effectivement suivies sont la section 6.1 (topologie réseau Docker) et
+> les règles d'architecture 4.x.
 
 ---
 
 ## Étapes
 
-### 1. Composant Core (`apps/web/src/components/ui/Card.tsx`)
-- [x] Créer le squelette du composant acceptant les props : `type`, `rarity`, `name`, `score`, et des métadonnées (ex: population ou blason).
-- [x] Prévoir un mode "compact" (pour l'inventaire) et un mode "détaillé" (pour l'inspection).
+### 1. Dockerisation de Production
+- [x] Créer `Dockerfile.api` : Image de base `oven/bun:alpine`, multi-stage (install, build, run).
+- [x] Créer `Dockerfile.web` : Build Vite avec Bun, puis servir statiquement avec Caddy ou Nginx dans un second stage.
+- [x] Créer `docker-compose.prod.yml` orchestrant PostgreSQL, l'API et le Web.
+- [x] Ajouter les scripts de santé (`healthcheck`) sur le conteneur API (`GET /api/v1/health`).
 
-### 2. Design des Types
-- [x] **Rues :** Implémenter le design plaque émaillée (fond bleu nuit, bordure verte/blanche, texte centré en blanc, 4 points pour les vis).
-- [x] **Territoires (Région/Dép/Commune) :** Créer un gabarit épuré avec l'espace pour le blason ou la forme géographique, la hiérarchie et le score bien visible.
+### 2. Sécurité & Production Better Auth
+- [x] Dans `apps/api/src/auth.ts`, forcer `useSecureCookies: true` si `NODE_ENV === 'production'`.
+- [x] Vérifier que le middleware CORS (`@elysiajs/cors`) est strictement limité au domaine du frontend en production, avec `credentials: true`.
+- [x] S'assurer que le stockage du Rate Limiter Better Auth est bien configuré sur la base de données.
 
-### 3. Effets de Rareté (Tailwind/CSS)
-- [x] Créer un fichier ou des classes utilitaires pour les 6 paliers de rareté (Commune = gris/neutre, Inhabituelle = vert, Rare = bleu, Epique = violet, Légendaire = or/brillant, Mythique = holographique/glitch).
-- [x] Utiliser des pseudo-éléments (`::before`, `::after`) avec `mix-blend-mode` et `linear-gradient` pour les effets de reflets métalliques ou holographiques sans surcharger le DOM.
+### 3. Tests End-to-End (Playwright)
+- [x] Installer Playwright dans un nouveau paquet `packages/e2e` ou directement à la racine.
+- [x] Écrire `core-loop.spec.ts` : Inscription, génération d'un ticket, grattage complet, vérification de l'inventaire. Utiliser des sélecteurs liés à l'accessibilité (`getByRole`, `getByText` en français).
+- [x] Tous les tests sont joués dans une base de données dédiée, jamais sur la base de donnée locale pour éviter de supprimer tous les imports des scripts
 
-### 4. Intégration globale
-- [x] Remplacer les affichages temporaires dans `/collection`, `/tableau` et `/market` par ce nouveau composant `<Card />`.
-- [x] S'assurer que le composant est `memoized` (`React.memo`) si nécessaire pour éviter les re-rendus inutiles dans les listes.
+### 4. Documentation Légale
+- [x] Mettre à jour `README.md` (ou créer `LEGAL.md`) avec les attributions obligatoires : "Licence Ouverte v2.0 (Etalab)", Base Adresse Nationale (BAN), Institut National de la Statistique et des Études Économiques (INSEE) et les blasons Wikimedia Commons.
 
-### 5. Qualité
+### 5. Qualité Finale
 - [x] `bun run typecheck`
 - [x] `bun run lint`
+- [x] `bun test` (tous les tests specs).
 
 ---
 
 ## Critères d'acceptation
-1. Zéro requête réseau vers l'extérieur (ex: requêtes Wikipedia ou requêtes d'images à la volée) lors du rendu d'une carte.
-2. Les 6 raretés sont visuellement distinctes et utilisent les standards de couleurs des TCG.
-3. Le composant est responsive et s'adapte à son conteneur parent (via les classes `w-full h-full` avec un `aspect-ratio` strict, ex: `aspect-[63/88]`).
 
----
-
-## Commandes
-```sh
-docker compose --profile tools run --rm dev bun run --cwd apps/web lint
-```
-
-## Interdits
-- N'installe pas de lourdes librairies 3D (Three.js, React Three Fiber) ou de physique. Garde le DOM propre.
-- Pas d'images externes : tout doit être généré en CSS/SVG, ou utiliser des assets statiques dans le dossier public/.
-- N'utilise pas de JS pour les animations de brillance au survol : utilise uniquement le :hover et le group-hover de Tailwind.
+1. [x] `docker compose -f docker-compose.prod.yml up --build` démarre l'application complète sans erreur.
+2. [x] Les tests Playwright passent localement avec succès.
+3. [x] Les attributs légaux de l'Open Data sont explicitement écrits dans la documentation.
+4. [x] L'API refuse les requêtes d'une origine non listée (CORS) en mode production.
 
 ---
 
 ## Journal
 
-- 2026-11-16 — Composant `<Card />` créé (`apps/web/src/components/ui/Card.tsx`) : `React.memo`, ratio `aspect-[2.5/3.5]`, DOM plat (racine + 2 enfants), blason SVG procédural (teinte `hsl()` dérivée d'un hash du nom) et plaque émaillée CSS pour les rues (4 vis, relief).
-- 2026-11-16 — Palette de rareté dans `apps/web/src/components/ui/card-styles.ts` : 6 paliers distincts (gris/vert/bleu/violet/or/fuchsia) + accents de catégorie.
-- 2026-11-16 — Effets CSS purs dans `styles.css` : balayage `card-foil`, halo `card-glow`, holographie `card-holo` (conique + trame), glitch subtil `card-glitch`, et `prefers-reduced-motion` respecté. Seules `transform`/`opacity` sont animées.
-- 2026-11-16 — Intégration dans `/collection` (vignette compacte dans la colonne nom), `/tableau` (aperçu détaillé dans les slots + vignettes compactes du tiroir) et `/market` (vignette détaillée dans les annonces).
-- 2026-11-16 — Corrections de revue : effets de rareté passés en `z-index: 0` (contenu en `z-10`, texte lisible sur MYTHIQUE/LEGENDAIRE/EPIQUE, `inset: -30%` pour la rotation holographique), prop `decorative` → `aria-hidden` sur les 4 vignettes intégrées (fin de l'annonce en double), et tailles de police du mode détaillé relevées (9–10px).
+### 2026-11-18 — Phase 11 exécutée
 
-### Hors phase — Blasons et contours
+**Docker**
+- `Dockerfile.api` : `base` (`oven/bun:1`, install + cache partagé), `dev` (watch),
+  `build` (bundle API + script de migration), `prod` (`oven/bun:alpine`, utilisateur
+  `bun`, bundle autonome sans `node_modules`, `HEALTHCHECK` sur `/api/v1/health`).
+- `Dockerfile.web` : `oven/bun:1` pour `bun run build`, `nginx:1.27-alpine` pour servir
+  `dist/` (gzip, cache immuable des assets, repli SPA, proxy `/api` et `/blasons`).
+- `docker-compose.prod.yml` : db + api + web, réseau `backend` interne, seul le web
+  publie un port (`WEB_HOST_PORT`, 8080 par défaut), migrations appliquées au
+  démarrage (`scripts/prod-entrypoint.sh`, `RUN_MIGRATIONS=0` pour désactiver),
+  `depends_on: service_healthy` + `service_completed_successfully` correctement chaînés.
 
-- 2026-11-16 — Pipeline `scripts/import/src/blasons.ts` : blasons réels via Wikidata `P94` (`P374`/`P2586`/`P2585` pour les codes INSEE) téléchargés depuis Wikimedia Commons, assainis sans dépendance (pas de `<script>`, pas de référence externe, `viewBox` garanti), puis repli en contour IGN Admin Express (`ADMINEXPRESS-COG-CARTO.LATEST:commune`, simplification Ramer–Douglas–Peucker) pour les communes sans armoiries.
-- 2026-11-16 — Migration `0007_blasons` : `blason_url`, `contour_url`, `blason_credit` sur `ref_communes` ; `blason_credit` sur `ref_departements` et `ref_regions`. `.docs/02-database.md` mis à jour en premier.
-- 2026-11-16 — Stockage : volume Docker `blasons` monté sur `/data/blasons` (`api` et `dev`), servi par l'API sur `GET /blasons/*` (cache `immutable` 30 j, ETag/304, anti path-traversal) avec proxys nginx et Vite. Aucun appel réseau au rendu.
-- 2026-11-16 — Robustesse mesurée : retry 6 tentatives à backoff jitteré honorant `Retry-After`, concurrence 4 et espacement 100 ms. Avant : 55 échecs sur 89 départements ; après : 0 échec sur 88.
-- 2026-11-16 — Intégré à `scripts/bootstrap.sh` (sautable via `SKIP_BLASONS=1`).
+**Sécurité**
+- `FRONTEND_URL` devient la source de vérité CORS en production. `apps/api/src/env.ts`
+  la valide et la rend **obligatoire** dès `NODE_ENV=production`.
+- `apps/api/src/app.ts` : liste blanche stricte (`FRONTEND_URL` + `TRUSTED_ORIGINS`),
+  `credentials: true`, en-tête `Access-Control-Allow-Origin` absent pour toute autre
+  origine. Vérifié par test Playwright et en curl sur la pile de production.
+- `apps/api/src/auth.ts` : `trustedOrigins` dérivé des mêmes origines, dédoublonné ;
+  `useSecureCookies` forcé en production, surchargeable par `AUTH_COOKIE_SECURE`
+  uniquement pour le banc E2E en HTTP simple ; rate limiter `storage: 'database'`.
 
-### Incident et reprise (contours IGN)
+**E2E**
+- `packages/e2e` : config Playwright (1 worker, locale `fr-FR`, traces à l'échec) et
+  `tests/core-loop.spec.ts` (inscription → ticket → grattage complet → collection →
+  marché + 2 tests CORS). Sélecteurs uniquement `getByRole`/`getByLabel`.
+- `docker-compose.e2e.yml` : base `hexamap_e2e` dédiée (volume `hexamap_e2e_pgdata`,
+  supprimé par `down -v`), API en image de production, `scripts/import/src/e2e-seed.ts`
+  pour un référentiel minimal déterministe, runner `mcr.microsoft.com/playwright:v1.65.1-noble`.
+- 3 tests verts : parcours critique (2,7 s) + CORS autorisé/refusé.
 
-- 2026-11-17 — Crash en phase contours (1 753 / 14 977) : une page WFS non-JSON a fait échouer `response.json()` et interrompu tout le streaming. Correctif : lecture texte + `JSON.parse` protégé, validation `FeatureCollection`, 4 tentatives (1/3/7/15 s), page sautée avec ligne de diagnostic (`HTTP`, `content-type`, 120 premiers caractères) au lieu de tuer le run. Même défense appliquée à SPARQL, Commons et `geo.api.gouv.fr`.
-- 2026-11-17 — `blason_url` était resté à `0` : le crash avait eu lieu avant l'upsert final. Rattrapage via `blasons --only=communes` (7 min, 0 échec, aucun téléchargement) → **19 945** communes reliées avec crédit.
-- 2026-11-17 — Nouveau mode `--contours-only` (idempotent, `--limit` compatible) qui ne met à jour que `contour_url` et ne touche jamais `blason_url`. Reprise : *13 102 contours en 54 s, 0 échec*.
-- 2026-11-17 — Couverture finale : **19 945 blasons + 14 923 contours = 34 868 / 34 869 communes**.
-- 2026-11-17 — `bootstrap.sh` sépare désormais blasons et contours en deux commandes : un incident sur les contours ne peut plus faire perdre l'upsert des blasons.
+**Documentation**
+- `README.md` : section « Mentions légales et Open Data » (BAN, INSEE, Licence Ouverte
+  v2.0 Etalab, IGN Admin Express, Wikimedia Commons/Wikidata) et section
+  « Déploiement » / « Tests de bout en bout ».
 
-### Couverture visuelle complète
+**Qualité**
+- `bun run lint` : 0 erreur (112 fichiers).
+- `bun run typecheck` : 6 paquets, 0 erreur (dont `packages/e2e`).
+- `bun run build` : OK (API + web).
+- `bun test packages/spec` : 110 pass, 2 échecs **préexistants**
+  (`Plan §5.6 — un référentiel totalement vide reste une erreur explicite` et son hook,
+  timeout 5 s) ; reproduits à l'identique sur le commit de référence avant modification.
 
-- 2026-11-17 — Cascade de résolution : `P94` → **recherche Commons ciblée** (`intitle:"<nom>" intitle:blason`, score strict écartant `famille`, `ville`, `commune`, `proposition`, `branche`) → **forme de secours** (agrégation des communes en un seul `<path>` pour les départements et régions). `P18` est écarté : il renvoie des photos (tour Eiffel, vues Landsat).
-- 2026-11-17 — Rasters (PNG/JPEG) redimensionnés à 320 px et convertis en **WebP q80** via `sharp` ; l'API sert désormais `.svg` **et** `.webp`. Migration `0008_entity_contours` : `contour_url` sur `ref_regions` et `ref_departements`.
-- 2026-11-17 — Couverture finale : **18/18 régions, 101/101 départements, 34 869/34 869 communes**. Lint (103 fichiers) et typecheck monorepo propres.
-- 2026-11-16 — L'API expose `blasonUrl`/`blasonCredit` sur `/cards` et `/market/listings` via `resolveCardAssets` (groupé par catégorie ; `coalesce(blason_url, contour_url)` en repli visuel pour les communes).
-- 2026-11-16 — `<Card />` affiche le blason réel empilé sur le SVG procédural (repli sans état React, `onError` → masquage) dans `/collection`, `/tableau` (slot + tiroir) et `/market` ; `scripts/bootstrap.sh` refait les imports complets (référentiel + BAN sautable `SKIP_BAN=1` + blasons avec contours).
+---
+
+## Commandes
+
+```sh
+docker compose --profile tools run --rm dev bun run lint
+docker compose -f docker-compose.e2e.yml run --rm playwright
+```
+
+## Interdits
+- Ne JAMAIS utiliser une image Docker node:XX pour l'API. Utiliser exclusivement oven/bun.
+- Ne pas désactiver le CSRF ou alléger le CORS "pour que ça marche plus vite".
+
+---
+
+## Suite
+
+V1 achevée (phase 11 terminée). Prochaines phases possibles :
+- Réduire le bundle web (> 500 kB, avertissement Vite) par découpage dynamique.
+- Traiter le test de spec `Plan §5.6` instable (timeout 5 s) — défaut préexistant.
+- Ajouter le TLS (reverse proxy HTTPS) devant `web` : `useSecureCookies` l'exige en
+  production réelle, et `PROD_FRONTEND_URL` doit alors être en `https://`.

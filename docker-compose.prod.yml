@@ -1,0 +1,94 @@
+# Stack de production Hexamap : PostgreSQL + API (oven/bun:alpine) + Web (Nginx).
+#
+#   docker compose -f docker-compose.prod.yml up --build
+#
+# Ports publiés : uniquement le web (8080 par défaut). L'API et la base ne sont
+# joignables que sur le réseau interne Docker.
+name: hexamap-prod
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hexamap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hexamap}
+      POSTGRES_DB: ${POSTGRES_DB:-hexamap}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hexamap} -d ${POSTGRES_DB:-hexamap}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Aucun port publié : la base n'est accessible que depuis `api`.
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgres://hexamap:hexamap@db:5432/hexamap}
+      # Origine publique du frontend : seule origine autorisée par CORS.
+      # `PROD_*` évite la collision avec les valeurs de développement de `.env`.
+      APP_URL: ${PROD_APP_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
+      BETTER_AUTH_URL: ${PROD_BETTER_AUTH_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
+      FRONTEND_URL: ${PROD_FRONTEND_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire (32 caractères minimum)}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
+      BLASONS_DIR: /data/blasons
+      IMPORT_STATUS_DIR: /data/import-status
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+    volumes:
+      - blasons:/data/blasons:ro
+      - importstatus:/data/import-status:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: prod
+    restart: unless-stopped
+    ports:
+      - target: 80
+        published: "${WEB_HOST_PORT:-8080}"
+        protocol: tcp
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - public
+      - backend
+
+networks:
+  # Réseau interne : la base et l'API ne sont pas joignables depuis l'extérieur.
+  # Nginx relaie /api et /blasons vers l'API.
+  backend:
+    internal: true
+  # Réseau de publication : seul `web` y est rattaché, ce qui permet d'exposer
+  # son port sur l'hôte (Docker ne publie pas les ports d'un réseau « internal »).
+  public:
+
+volumes:
+  # Base de production, isolée de celle de développement (`hexamap_pgdata`).
+  pgdata:
+    name: ${PROD_PGDATA_VOLUME:-hexamap_prod_pgdata}
+  # Volumes partagés avec la pile de développement : le pipeline d'import
+  # (`docker compose --profile tools run --rm dev …`) remplit `hexamap_blasons`
+  # une seule fois, l'API de production les monte en lecture seule.
+  blasons:
+    name: ${BLASONS_VOLUME:-hexamap_blasons}
+  importstatus:
+    name: ${IMPORT_STATUS_VOLUME:-hexamap_importstatus}

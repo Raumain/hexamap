@@ -1,0 +1,136 @@
+/**
+ * Référentiel minimal pour le banc E2E.
+ *
+ * Le banc tourne sur une base vide (`hexamap_e2e`) : la génération de ticket a
+ * besoin de candidats dans chaque palier de rareté. Ce script insère un jeu
+ * déterministe et réaliste (préfixe `E2E`), sans jamais toucher aux données de
+ * développement.
+ */
+
+import { createDb } from '@hexamap/db';
+import { RARITY, type Rarity } from '@hexamap/shared';
+
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  console.error('[e2e] DATABASE_URL manquant');
+  process.exit(1);
+}
+
+const db = createDb(databaseUrl);
+
+const PREFIX = 'E2E';
+const regionA = `${PREFIX}-R1`;
+const regionB = `${PREFIX}-R2`;
+const deptA = `${PREFIX}-D1`;
+const deptB = `${PREFIX}-D2`;
+
+try {
+  // Idempotent : on repart d'un référentiel E2E propre.
+  await db.deleteFrom('commune_odonymes').execute();
+  await db.deleteFrom('ref_odonymes').where('nom_normalise', 'like', 'e2e-%').execute();
+  await db.deleteFrom('ref_communes').where('code_insee', 'like', `${PREFIX}-%`).execute();
+  await db.deleteFrom('ref_departements').where('code', 'like', `${PREFIX}-%`).execute();
+  await db.deleteFrom('ref_regions').where('code', 'like', `${PREFIX}-%`).execute();
+
+  await db
+    .insertInto('ref_regions')
+    .values([
+      { code: regionA, nom: 'Région E2E A' },
+      { code: regionB, nom: 'Région E2E B' },
+    ])
+    .execute();
+
+  await db
+    .insertInto('ref_departements')
+    .values([
+      { code: deptA, nom: 'Département E2E A', code_region: regionA, population: 1_000_000 },
+      { code: deptB, nom: 'Département E2E B', code_region: regionB, population: 500_000 },
+    ])
+    .execute();
+
+  const communes = RARITY.flatMap((rarete: Rarity, rarityIndex: number) =>
+    [0, 1].map((district) => ({
+      code_insee: `${PREFIX}-C-${rarete}-${district}`,
+      nom: `Commune E2E ${rarete} ${district}`,
+      code_departement: district === 0 ? deptA : deptB,
+      code_region: district === 0 ? regionA : regionB,
+      population: 1_000_000 - rarityIndex * 100_000 - district * 50_000,
+      rarete,
+      score_base: 100 + rarityIndex * 50,
+    })),
+  );
+  await db.insertInto('ref_communes').values(communes).execute();
+
+  const odonymeRows = await db
+    .insertInto('ref_odonymes')
+    .values(
+      RARITY.flatMap((rarete: Rarity, rarityIndex: number) =>
+        [0, 1].map((district) => ({
+          nom_normalise: `e2e-rue-${rarete}-${district}`.toLowerCase(),
+          nom_affichage: `Rue E2E ${rarete} ${district}`,
+          nb_communes: 1,
+          rarete,
+          score_base: 100 + rarityIndex * 50,
+        })),
+      ),
+    )
+    .returning(['id', 'rarete'])
+    .execute();
+
+  const idsByRarity = new Map<Rarity, string[]>();
+  for (const row of odonymeRows) {
+    const list = idsByRarity.get(row.rarete) ?? [];
+    list.push(row.id);
+    idsByRarity.set(row.rarete, list);
+  }
+
+  const twinOdonymes = [
+    ...(idsByRarity.get('INHABITUELLE') ?? []),
+    ...(idsByRarity.get('RARE') ?? []),
+  ];
+  const treasureOdonymes = [
+    ...(idsByRarity.get('RARE') ?? []),
+    ...(idsByRarity.get('EPIQUE') ?? []),
+    ...(idsByRarity.get('LEGENDAIRE') ?? []),
+    ...(idsByRarity.get('MYTHIQUE') ?? []),
+  ];
+
+  const treasureCommunes = communes.filter((commune) =>
+    (['RARE', 'EPIQUE', 'LEGENDAIRE', 'MYTHIQUE'] as Rarity[]).includes(commune.rarete),
+  );
+  const twinCommunes = communes.filter(
+    (commune) => commune.rarete === 'INHABITUELLE' || commune.rarete === 'RARE',
+  );
+
+  const links = new Map<string, { code_insee: string; odonyme_id: string }>();
+  for (const commune of treasureCommunes) {
+    for (const odonymeId of twinOdonymes) {
+      links.set(`${commune.code_insee}|${odonymeId}`, {
+        code_insee: commune.code_insee,
+        odonyme_id: odonymeId,
+      });
+    }
+  }
+  for (const commune of twinCommunes) {
+    for (const odonymeId of treasureOdonymes) {
+      links.set(`${commune.code_insee}|${odonymeId}`, {
+        code_insee: commune.code_insee,
+        odonyme_id: odonymeId,
+      });
+    }
+  }
+
+  if (links.size > 0) {
+    await db
+      .insertInto('commune_odonymes')
+      .values([...links.values()])
+      .execute();
+  }
+
+  console.log(
+    `[e2e] Référentiel prêt : ${communes.length} communes, ${odonymeRows.length} odonymes, ${links.size} liens.`,
+  );
+} finally {
+  await db.destroy();
+}

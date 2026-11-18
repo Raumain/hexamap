@@ -2,7 +2,7 @@ import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
 import { Elysia } from 'elysia';
 import { sql } from 'kysely';
-import { auth, trustedOrigins } from './auth';
+import { auth } from './auth';
 import { db } from './db';
 import { env } from './env';
 import { authPlugin } from './middleware/auth';
@@ -15,6 +15,21 @@ import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
 
 const isDev = env.NODE_ENV !== 'production';
+
+const normalizeOrigin = (value: string): string => new URL(value).origin;
+
+// Liste blanche stricte de production : l'origine du frontend déclarée par
+// `FRONTEND_URL`, plus les origines explicitement listées dans `TRUSTED_ORIGINS`.
+// Aucune autre origine n'obtient d'en-tête CORS.
+const extraOrigins = env.TRUSTED_ORIGINS.split(',')
+  .map((value) => value.trim())
+  .filter(Boolean)
+  .map(normalizeOrigin);
+
+const productionOrigins = new Set<string>([
+  ...(env.FRONTEND_URL ? [normalizeOrigin(env.FRONTEND_URL)] : []),
+  ...extraOrigins,
+]);
 
 const publicRoutes = new Elysia({ prefix: '/api/v1' }).use(importStatusRoutes);
 
@@ -43,15 +58,16 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
 export const app = new Elysia()
   .use(
     cors({
+      // Obligatoire : Better Auth lit et écrit des cookies de session.
       credentials: true,
       // Reflète l'origine de la requête quand elle est autorisée. Pas de `*`
       // avec credentials (invalide). En dev, toute origine est reflétée pour
-      // l'accès LAN par IP ; en production, seules les origines de confiance.
+      // l'accès LAN par IP ; en production, seule la liste blanche passe.
       origin: (request) => {
         const origin = request.headers.get('origin');
-        if (!origin) return true; // même origine ou pas d'en-tête (curl)
+        if (!origin) return true; // même origine ou pas d'en-tête (curl, healthcheck)
         if (isDev) return true;
-        return trustedOrigins.includes(origin);
+        return productionOrigins.has(origin);
       },
     }),
   )
