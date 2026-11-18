@@ -4,7 +4,12 @@ import { useEffect, useRef } from 'react';
 const REVEAL_THRESHOLD = 0.4;
 const BRUSH_SIZE = 26;
 const COVERAGE_CHECK_INTERVAL = 6;
-const SPECKLE_COUNT = 150;
+
+// Canvas fills need literal colours; these mirror the --color-muted and
+// --color-ink-muted tokens declared in styles.css.
+const COVER_FILL = '#E6E2D8';
+const COVER_HATCH = 'rgba(148, 163, 184, 0.45)';
+const COVER_STAMP = 'rgba(71, 85, 105, 0.22)';
 
 interface ScratchCellProps {
   index: number;
@@ -53,13 +58,10 @@ export function ScratchCell({
       const w = rect.width;
       const h = rect.height;
 
-      const gradient = ctx.createLinearGradient(0, 0, w, h);
-      gradient.addColorStop(0, '#334155');
-      gradient.addColorStop(1, '#1e293b');
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = COVER_FILL;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+      ctx.strokeStyle = COVER_HATCH;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = -h; x < w + h; x += 8) {
@@ -68,20 +70,16 @@ export function ScratchCell({
       }
       ctx.stroke();
 
-      let seed = 0x9e3779b9;
-      const rand = () => {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        return seed / 4294967296;
-      };
-      ctx.fillStyle = 'rgba(241, 245, 249, 0.12)';
-      for (let i = 0; i < SPECKLE_COUNT; i++) {
-        const x = rand() * w;
-        const y = rand() * h;
-        const r = 0.4 + rand() * 1.1;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // Single flat stamp — no speckles, no gradient (DESIGN_SYSTEM.md §6.2).
+      ctx.save();
+      ctx.fillStyle = COVER_STAMP;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `900 ${Math.round(Math.min(w, h) * 0.42)}px "JetBrains Mono", monospace`;
+      ctx.fillText('?', w / 2, h / 2 - h * 0.06);
+      ctx.font = `700 ${Math.max(7, Math.round(Math.min(w, h) * 0.1))}px "JetBrains Mono", monospace`;
+      ctx.fillText('HEXAGONE', w / 2, h / 2 + h * 0.18);
+      ctx.restore();
     };
 
     paint();
@@ -194,23 +192,23 @@ export function ScratchCell({
       aria-busy={pending || undefined}
       onKeyDown={handleKeyDown}
       className={[
-        'relative block aspect-square w-full touch-none overflow-hidden rounded-2xl border border-slate-700 bg-slate-800 p-0 text-left',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
+        'relative block aspect-square w-full touch-none overflow-hidden rounded-md border border-border bg-surface p-0 text-left',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-ochre',
         isDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab',
       ].join(' ')}
     >
       {pending ? (
         <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-          <span className="text-2xl font-bold text-slate-400/80">?</span>
+          <span className="font-mono text-2xl font-bold text-ink-muted">?</span>
         </div>
       ) : null}
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
       {pending ? (
         <div
           aria-hidden="true"
-          className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/60"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-ink/70"
         >
-          <span className="text-xs font-medium text-slate-200">Révélation…</span>
+          <span className="text-xs font-medium text-ink-inverse">Révélation…</span>
         </div>
       ) : null}
     </button>

@@ -72,7 +72,7 @@ export const LISTING_STATUS_LABELS: Record<'OPEN' | 'SOLD' | 'CANCELLED', string
 };
 
 export const LISTING_STATUS_STYLES: Record<'OPEN' | 'SOLD' | 'CANCELLED', string> = {
-  OPEN: 'border-amber-500 bg-amber-500/10 text-amber-300',
-  SOLD: 'border-emerald-600 bg-emerald-600/10 text-emerald-300',
-  CANCELLED: 'border-slate-600 bg-slate-800 text-slate-300',
+  OPEN: 'border-sign-gold bg-amber-100 text-sign-ochre',
+  SOLD: 'border-sign-green bg-emerald-100 text-sign-green',
+  CANCELLED: 'border-border bg-muted text-ink-secondary',
 };

@@ -1,13 +1,14 @@
 import type { Category, Rarity } from '@hexamap/shared';
-import { CATEGORY, RARITY } from '@hexamap/shared';
+import { CATEGORY, RARITY, RARITY_LABELS } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { Card } from '../components/ui/Card';
+import { RarityBadge } from '../components/ui/rarity-badge';
 import { listingsCountLabel, MARKET, priceLabel } from '../content/market';
-import { CATEGORY_LABELS, RARITY_LABELS, RARITY_STYLES } from '../content/tickets';
+import { CATEGORY_LABELS } from '../content/tickets';
 import { collectionQueryKey } from '../lib/collection';
 import type { MarketFilters, MarketListing } from '../lib/market';
 import {
@@ -31,7 +32,7 @@ function MarketPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-slate-400">{MARKET.loadingSession}</p>;
+    return <p className="text-ink-secondary">{MARKET.loadingSession}</p>;
   }
 
   if (!session.data?.user) {
@@ -41,11 +42,11 @@ function MarketPage() {
   return (
     <section className="space-y-8">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
           {MARKET.eyebrow}
         </p>
         <h1 className="text-4xl font-bold tracking-tight">{MARKET.title}</h1>
-        <p className="text-slate-400">{MARKET.subtitle}</p>
+        <p className="text-ink-secondary">{MARKET.subtitle}</p>
       </header>
       <MarketBody userId={session.data.user.id} />
     </section>
@@ -81,12 +82,12 @@ function MarketBody({ userId }: { userId: string }) {
   });
 
   if (listingsQuery.isPending) {
-    return <p className="text-slate-400">{MARKET.loading}</p>;
+    return <p className="text-ink-secondary">{MARKET.loading}</p>;
   }
 
   if (listingsQuery.isError) {
     return (
-      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <FormError message={marketErrorMessage(listingsQuery.error)} />
         <Button onClick={() => void listingsQuery.refetch()}>{MARKET.retry}</Button>
       </div>
@@ -98,12 +99,12 @@ function MarketBody({ userId }: { userId: string }) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-10 text-center">
-        <h2 className="text-xl font-semibold text-slate-100">{MARKET.emptyTitle}</h2>
-        <p className="mt-1 text-slate-400">{MARKET.emptyDescription}</p>
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-10 text-center">
+        <h2 className="text-xl font-semibold text-ink">{MARKET.emptyTitle}</h2>
+        <p className="mt-1 text-ink-secondary">{MARKET.emptyDescription}</p>
         <Link
           to="/market/mine"
-          className="mt-6 inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="mt-6 inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           {MARKET.manageMine}
         </Link>
@@ -136,7 +137,7 @@ function MarketBody({ userId }: { userId: string }) {
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-secondary">
         <p>{listingsCountLabel(items.length, total)}</p>
         <div className="flex items-center gap-2">
           <Button
@@ -184,14 +185,14 @@ interface FilterSelectProps {
 function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-slate-200">
+      <label htmlFor={id} className="text-sm font-medium text-ink">
         {label}
       </label>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+        className="rounded-sm border-2 border-border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
       >
         <option value="">{MARKET.allValues}</option>
         {options.map((option) => (
@@ -213,7 +214,7 @@ interface ListingCardProps {
 
 function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
   return (
-    <li className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+    <li className="rounded-sm border-2 border-border bg-surface shadow-tactile p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Card
@@ -229,15 +230,15 @@ function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
             className="w-24 shrink-0"
           />
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-100">{listing.card.nom}</h2>
-            <p className="mt-1 text-sm text-slate-400">
+            <h2 className="text-lg font-semibold text-ink">{listing.card.nom}</h2>
+            <p className="mt-1 text-sm text-ink-secondary">
               {CATEGORY_LABELS[listing.card.category]} · {listing.card.refCode}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <RarityBadge rarity={listing.card.rarity} />
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-ink-secondary">
                 {MARKET.scoreLabel} :{' '}
-                <span className="font-semibold tabular-nums text-slate-200">
+                <span className="font-mono font-semibold tabular-nums text-ink">
                   {scoreFormatter.format(listing.card.score)}
                 </span>
               </span>
@@ -246,23 +247,23 @@ function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
         </div>
 
         <div className="text-right">
-          <p className="text-sm font-bold tabular-nums text-amber-400">
+          <p className="text-sm font-mono font-bold tabular-nums text-sign-ochre">
             {priceLabel(listing.price)}
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800 pt-4">
-        <p className="text-sm text-slate-400">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
+        <p className="text-sm text-ink-secondary">
           {MARKET.sellerLabel} :{' '}
-          <span className="text-slate-200">{listing.seller.pseudo ?? MARKET.sellerAnonymous}</span>
+          <span className="text-ink">{listing.seller.pseudo ?? MARKET.sellerAnonymous}</span>
         </p>
         {isOwn ? (
           <div className="flex items-center gap-3">
             <Button disabled>{MARKET.ownListing}</Button>
             <Link
               to="/market/mine"
-              className="text-sm text-slate-200 transition-colors hover:text-amber-400"
+              className="text-sm text-ink transition-colors duration-150 hover:text-sign-ochre"
             >
               {MARKET.manageMine}
             </Link>
@@ -278,15 +279,5 @@ function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
         )}
       </div>
     </li>
-  );
-}
-
-function RarityBadge({ rarity }: { rarity: Rarity }) {
-  return (
-    <span
-      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${RARITY_STYLES[rarity]}`}
-    >
-      {RARITY_LABELS[rarity]}
-    </span>
   );
 }

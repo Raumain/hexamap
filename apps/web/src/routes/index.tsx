@@ -20,7 +20,7 @@ function DashboardPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-slate-400">Chargement de votre session…</p>;
+    return <p className="text-ink-secondary">Chargement de votre session…</p>;
   }
 
   const user = session.data?.user ?? undefined;
@@ -31,13 +31,13 @@ function DashboardPage() {
   return (
     <section className="space-y-8">
       <div className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
           Tableau de bord
         </p>
         <h1 className="text-4xl font-bold tracking-tight">Bienvenue, {user.pseudo}.</h1>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <CurrentTicketCta />
       </div>
     </section>
@@ -63,7 +63,7 @@ function CurrentTicketCta() {
   });
 
   if (ticketQuery.isPending) {
-    return <p className="text-slate-400">Chargement de votre ticket…</p>;
+    return <p className="text-ink-secondary">Chargement de votre ticket…</p>;
   }
 
   const ticket = ticketQuery.data ?? null;
@@ -72,13 +72,13 @@ function CurrentTicketCta() {
     return (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-slate-300">Votre ticket est en cours.</p>
-          <p className="mt-1 text-sm text-slate-400">{scrapesLabel(ticket.scrapesRemaining)}</p>
+          <p className="text-ink-secondary">Votre ticket est en cours.</p>
+          <p className="mt-1 text-sm text-ink-secondary">{scrapesLabel(ticket.scrapesRemaining)}</p>
         </div>
         <Link
           to="/tickets/$ticketId"
           params={{ ticketId: ticket.id }}
-          className="inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           Reprendre mon ticket
         </Link>
@@ -88,7 +88,7 @@ function CurrentTicketCta() {
 
   if (ticketQuery.isError) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-6">
         <FormError message={ticketErrorMessage(ticketQuery.error)} />
         <Button className="mt-4" onClick={() => void ticketQuery.refetch()}>
           {TICKET.retry}
@@ -100,8 +100,8 @@ function CurrentTicketCta() {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-slate-300">Aucun ticket actif pour le moment.</p>
-        <p className="mt-1 text-sm text-slate-400">Grattez pour découvrir vos cartes.</p>
+        <p className="text-ink-secondary">Aucun ticket actif pour le moment.</p>
+        <p className="mt-1 text-sm text-ink-secondary">Grattez pour découvrir vos cartes.</p>
         <FormError message={createMutation.error ? createMutation.error.message : null} />
       </div>
       <Button isPending={createMutation.isPending} onClick={() => createMutation.mutate()}>

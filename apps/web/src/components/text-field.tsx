@@ -11,11 +11,9 @@ export function TextField({ label, error, required, id, className, ...props }: T
   const errorId = `${fieldId}-error`;
 
   const inputClass = [
-    'w-full rounded-md border bg-slate-900 px-3 py-2 text-sm text-slate-100',
-    'placeholder:text-slate-500 focus:outline-none focus:ring-1',
-    error
-      ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
-      : 'border-slate-700 focus:border-amber-400 focus:ring-amber-400',
+    'w-full rounded-sm border-2 bg-surface px-3 py-2 text-sm text-ink',
+    'placeholder:text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue',
+    error ? 'border-sign-red' : 'border-border',
     className,
   ]
     .filter(Boolean)
@@ -23,11 +21,11 @@ export function TextField({ label, error, required, id, className, ...props }: T
 
   return (
     <div className="space-y-1">
-      <label htmlFor={fieldId} className="block text-sm font-medium text-slate-200">
+      <label htmlFor={fieldId} className="block text-sm font-medium text-ink-secondary">
         {label}
         {required ? (
           <>
-            <span aria-hidden="true" className="text-amber-400">
+            <span aria-hidden="true" className="text-sign-ochre">
               {' '}
               *
             </span>
@@ -45,7 +43,7 @@ export function TextField({ label, error, required, id, className, ...props }: T
         {...props}
       />
       {error ? (
-        <p id={errorId} className="text-sm text-rose-400">
+        <p id={errorId} className="text-sm text-sign-red">
           {error}
         </p>
       ) : null}

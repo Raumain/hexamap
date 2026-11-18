@@ -9,6 +9,26 @@ export const RARITY = [
 
 export type Rarity = (typeof RARITY)[number];
 
+// Single presentation source for rarity, consumed by `apps/web/src/lib/rarity-theme.ts`.
+// Labels and accent hex values are part of the design system (DESIGN_SYSTEM.md §3.2).
+export const RARITY_LABELS: Record<Rarity, string> = {
+  COMMUNE: 'Commune',
+  INHABITUELLE: 'Peu commune',
+  RARE: 'Rare',
+  EPIQUE: 'Épique',
+  LEGENDAIRE: 'Légendaire',
+  MYTHIQUE: 'Mythique',
+};
+
+export const RARITY_ACCENT_HEX: Record<Rarity, string> = {
+  COMMUNE: '#64748B',
+  INHABITUELLE: '#047857',
+  RARE: '#1D4ED8',
+  EPIQUE: '#6B21A8',
+  LEGENDAIRE: '#C25E00',
+  MYTHIQUE: '#D97706',
+};
+
 export const RARITY_WEIGHTS: Record<Rarity, number> = {
   COMMUNE: 55.0,
   INHABITUELLE: 25.0,

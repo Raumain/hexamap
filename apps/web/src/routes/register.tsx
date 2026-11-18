@@ -50,7 +50,7 @@ function RegisterPage() {
     <section className="mx-auto max-w-md space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Inscription</h1>
-        <p className="text-slate-400">Rejoignez Hexamap et commencez votre collection.</p>
+        <p className="text-ink-secondary">Rejoignez Hexamap et commencez votre collection.</p>
       </div>
 
       <FormError message={formError} />
@@ -174,9 +174,9 @@ function RegisterPage() {
         </form.Subscribe>
       </form>
 
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-ink-secondary">
         Vous avez déjà un compte ?{' '}
-        <Link to="/login" className="text-amber-400 hover:underline">
+        <Link to="/login" className="text-sign-ochre hover:underline">
           Se connecter
         </Link>
       </p>

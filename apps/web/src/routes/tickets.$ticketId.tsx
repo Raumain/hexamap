@@ -71,7 +71,7 @@ function TicketPage() {
   });
 
   if (session.isPending) {
-    return <p className="text-slate-400">{TICKET.loadingSession}</p>;
+    return <p className="text-ink-secondary">{TICKET.loadingSession}</p>;
   }
   if (!session.data?.user) {
     return <Navigate to="/login" />;
@@ -98,8 +98,8 @@ function TicketPage() {
       <section className="space-y-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">{TICKET.title}</h1>
-          <p className="text-slate-400">{TICKET.emptyTitle}</p>
-          <p className="text-sm text-slate-500">{TICKET.emptyDescription}</p>
+          <p className="text-ink-secondary">{TICKET.emptyTitle}</p>
+          <p className="text-sm text-ink-muted">{TICKET.emptyDescription}</p>
         </div>
         <FormError message={createMutation.error ? createMutation.error.message : null} />
         <Button isPending={createMutation.isPending} onClick={() => createMutation.mutate()}>
@@ -113,11 +113,11 @@ function TicketPage() {
     return (
       <section className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight">{TICKET.title}</h1>
-        <p className="text-slate-300">{TICKET.notCurrent}</p>
+        <p className="text-ink-secondary">{TICKET.notCurrent}</p>
         <Link
           to="/tickets/$ticketId"
           params={{ ticketId: ticket.id }}
-          className="inline-flex items-center justify-center rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+          className="inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
         >
           {TICKET.goToCurrent}
         </Link>
@@ -136,23 +136,23 @@ function TicketPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-400">Ticket</p>
+        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">Ticket</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{TICKET.title}</h1>
-        <p className="text-slate-400">{TICKET.subtitle}</p>
+        <p className="text-ink-secondary">{TICKET.subtitle}</p>
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200">
+        <span className="rounded-sm border-2 border-border bg-surface px-3 py-1 font-mono text-sm tabular-nums text-ink shadow-tactile-sm">
           {scrapesLabel(ticket.scrapesRemaining)}
         </span>
         <StatusBadge status={ticket.status} />
         {ticket.renovationPending ? (
-          <span className="rounded-full border border-violet-700 bg-violet-900/40 px-3 py-1 text-xs text-violet-200">
+          <span className="rounded-sm border border-border bg-muted px-3 py-1 text-xs text-ink-secondary">
             {TICKET.renovationPending}
           </span>
         ) : null}
         {ticket.treasureFound ? (
-          <span className="rounded-full border border-amber-500 bg-amber-400/10 px-3 py-1 text-xs text-amber-300">
+          <span className="rounded-sm border border-sign-gold bg-amber-100 px-3 py-1 text-xs text-sign-ochre">
             {TICKET.treasureFound}
           </span>
         ) : null}
@@ -180,12 +180,12 @@ function TicketPage() {
         })}
       </fieldset>
 
-      <p className="text-sm text-slate-500">{TICKET.keyboardHint}</p>
+      <p className="text-sm text-ink-muted">{TICKET.keyboardHint}</p>
 
       {ticket.status === 'EXHAUSTED' ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-slate-100">{TICKET.exhaustedTitle}</h2>
-          <p className="mt-1 text-sm text-slate-400">{TICKET.exhaustedDescription}</p>
+        <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-6">
+          <h2 className="text-lg font-semibold text-ink">{TICKET.exhaustedTitle}</h2>
+          <p className="mt-1 text-sm text-ink-secondary">{TICKET.exhaustedDescription}</p>
           <FormError message={createMutation.error ? createMutation.error.message : null} />
           <Button
             className="mt-4"
@@ -216,10 +216,10 @@ function StatusBadge({ status }: { status: Ticket['status'] }) {
   return (
     <span
       className={[
-        'rounded-full border px-3 py-1 text-xs',
+        'rounded-sm border px-3 py-1 text-xs',
         active
-          ? 'border-amber-500/50 bg-amber-400/10 text-amber-300'
-          : 'border-slate-700 bg-slate-900 text-slate-400',
+          ? 'border-sign-gold/50 bg-amber-100 text-sign-ochre'
+          : 'border-border bg-surface text-ink-secondary',
       ].join(' ')}
     >
       {STATUS_LABELS[status]}
@@ -229,7 +229,7 @@ function StatusBadge({ status }: { status: Ticket['status'] }) {
 
 function LockedCell({ index }: { index: number }) {
   return (
-    <div className="relative flex aspect-square items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/40 opacity-60">
+    <div className="relative flex aspect-square items-center justify-center rounded-sm border-2 border-border bg-muted opacity-60">
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -238,7 +238,7 @@ function LockedCell({ index }: { index: number }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
-        className="h-6 w-6 text-slate-600"
+        className="h-6 w-6 text-ink-muted"
       >
         <rect x="4" y="11" width="16" height="10" rx="2" />
         <path d="M8 11V7a4 4 0 0 1 8 0v4" />
@@ -252,12 +252,12 @@ function LoadingGrid() {
   return (
     <section className="space-y-6">
       <div className="space-y-3">
-        <div className="h-4 w-32 animate-pulse rounded bg-slate-800" />
-        <div className="h-8 w-2/3 animate-pulse rounded bg-slate-800" />
+        <div className="h-4 w-32 rounded-sm bg-muted" />
+        <div className="h-8 w-2/3 rounded-sm bg-muted" />
       </div>
       <div className="grid grid-cols-4 gap-3">
         {[...Array(16).keys()].map((index) => (
-          <div key={index} className="aspect-square animate-pulse rounded-2xl bg-slate-800" />
+          <div key={index} className="aspect-square rounded-sm bg-muted" />
         ))}
       </div>
     </section>

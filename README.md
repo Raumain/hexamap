@@ -238,6 +238,20 @@ scripts/
   import/             pipeline Open Data (Phase 3)
 ```
 
+### Design system
+
+- Les jetons (couleurs, ombres, polices) vivent dans un seul bloc `@theme` de
+  `apps/web/src/styles.css` — Tailwind v4 CSS-first, pas de `tailwind.config.ts`.
+- Les polices (Space Grotesk, JetBrains Mono) sont **auto-hébergées** dans
+  `apps/web/public/fonts/` : aucun CDN, aucune requête tierce au runtime.
+- Les couleurs et libellés de rareté viennent de `packages/shared/src/rarity.ts` ;
+  `apps/web/src/lib/rarity-theme.ts` n'ajoute que les classes.
+- Règles pour un nouveau composant : pas de dégradé, pas de mode de fusion, pas de
+  `backdrop-blur`, pas d'ombre floutée, et **≤ 12 nœuds par carte** (racine + descendants
+  non-SVG, les internes d'un `<svg>` ne comptent pas).
+
+La référence complète est `DESIGN_SYSTEM.md`.
+
 ## Méthode
 
 Les tests de `packages/spec` sont la source de vérité. Une implémentation doit faire passer la spécification, jamais l'inverse.
