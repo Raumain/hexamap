@@ -11,6 +11,7 @@ import { authPlugin } from './middleware/auth';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
 import { chargeRoutes } from './routes/charges';
+import { friendRoutes } from './routes/friends';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
 import { refRoutes } from './routes/ref';
@@ -45,6 +46,7 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(tableauRoutes)
   .use(marketRoutes)
   .use(chargeRoutes)
+  .use(friendRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });

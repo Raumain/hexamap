@@ -188,6 +188,22 @@ export interface UserScratchChargeTable {
   last_regen_at: Generated<Date>;
 }
 
+export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+export interface FriendshipTable {
+  requester_id: string;
+  addressee_id: string;
+  status: Generated<FriendshipStatus>;
+  created_at: Generated<Date>;
+  responded_at: Date | null;
+}
+
+export interface BlockTable {
+  blocker_id: string;
+  blocked_id: string;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -207,4 +223,6 @@ export interface Database {
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
   user_scratch_charges: UserScratchChargeTable;
+  friendships: FriendshipTable;
+  blocks: BlockTable;
 }

@@ -3,6 +3,7 @@ export type SalonPath =
   | '/collection'
   | '/tableau'
   | '/tableaux'
+  | '/friends'
   | '/market'
   | '/market/mine'
   | '/import-status';
@@ -54,6 +55,13 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     glyph: 'M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5L12 21l9-4.5',
   },
   {
+    to: '/friends',
+    label: 'Les Amis',
+    short: 'Amis',
+    glyph:
+      'M9 11a3.5 3.5 0 0 1 0-7 3.5 3.5 0 0 1 0 7M2 20c0-3 3.1-5 7-5s7 2 7 5M16.5 5.2a3 3 0 0 1 0 5.6M19.5 20c-.2-2.3-1.2-3.9-3-4.5',
+  },
+  {
     to: '/market/mine',
     label: 'Mes Offres',
     short: 'Offres',
@@ -75,6 +83,7 @@ const SALON_TITLES: Record<string, string> = {
   '/collection': 'Le Cadastre',
   '/tableau': 'La Planche',
   '/tableaux': 'Les Planches',
+  '/friends': 'Les Amis',
   '/market': 'Le Comptoir',
   '/market/mine': 'Mes Offres',
   '/import-status': 'Les Archives',
