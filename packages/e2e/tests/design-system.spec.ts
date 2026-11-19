@@ -419,21 +419,16 @@ test('canvas — aucun filtre autour de la grille de grattage', async ({ page })
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Le relevé topographique' })).toBeVisible();
 
-  const resume = page.getByRole('link', { name: 'Reprendre mon ticket' });
-  if ((await resume.count()) === 0) {
-    // Le bordereau est une mutation serveur : on en ouvre un plutôt que de
-    // sauter silencieusement l'assertion.
-    const obtain = page.getByRole('button', { name: 'Obtenir un ticket' });
-    if ((await obtain.count()) === 0) {
-      test.skip(
-        true,
-        'Aucun bordereau ne peut être ouvert depuis Le Relevé : le canvas de grattage n’est pas monté.',
-      );
-    }
-    await obtain.first().click();
-  } else {
-    await resume.first().click();
-  }
+  // `count()` n'attend pas : interroger les deux contrôles avant que la requête
+  // du bordereau n'ait répondu les trouve tous les deux absents. Le localisateur
+  // patient couvre les trois états possibles du tableau de bord.
+  const board = page
+    .getByRole('link', { name: 'Reprendre mon ticket' })
+    .or(page.getByRole('button', { name: 'Obtenir un ticket' }))
+    .or(page.getByRole('button', { name: 'Ouvrir un nouveau ticket' }))
+    .first();
+  await expect(board, 'Aucun bordereau ne peut être ouvert depuis Le Relevé.').toBeVisible();
+  await board.click();
 
   const grid = page.getByRole('group', { name: 'Grille du ticket' });
   await expect(grid).toBeVisible();
