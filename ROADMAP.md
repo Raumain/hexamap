@@ -39,20 +39,31 @@ in brotli (−70,4 %) — while still serving `/manifest.webmanifest` (`applicat
 
 ## 2. What remains, in order
 
-### P2 — README: PWA section
+Nothing scheduled. The last two items shipped on 2026-11-19; per-phase detail is in
+`.docs/03-active-task.md` (phases 24 and 25).
 
-Install, offline behaviour, and the "tickets and balances are never cached" rule with the
-`NetworkOnly`-per-method rationale. The only current `install` hits are `bun install`.
+- **README: PWA section** — install, offline behaviour, and the "tickets and balances are
+  never cached" rule with the `NetworkOnly`-per-method rationale. It also answers "install
+  from the dev server", which is why that entry left this table.
+- **Lateral safe-area insets** — `env(safe-area-inset-left|right)` on the rail, the bars,
+  the sheet, the update prompt and the mobile header, plus the `.gutter-safe` utility for
+  `main` and `footer`.
 
-### P3 — Remaining polish
+### Known gap — the market has no faucet
 
-| Item | Note |
+A new account starts at `currency = 0` (Better Auth `defaultValue`), and the market buy
+transaction is the **only** writer of `currency_ledger`: no daily bonus, no ticket reward,
+no `game_config` grant. A fresh player can therefore never buy anything, and the plateau
+only becomes reachable after a sale. This is a **product** decision — it needs the GDD and
+`.docs/02-database.md` before any migration.
+
+### Parked — decided 2026-11-19, no work planned
+
+| Item | Why it is parked |
 | :--- | :--- |
-| Lateral safe-area insets | Five `env()` uses, all top/bottom; landscape notch unhandled on rails and bars |
-| Double-tap e2e fixture | The UI half of the anti-double-purchase is unproven: `global-setup.ts` registers one account, so no cross-user listing exists. Needs a bench fixture |
-| Lighthouse PWA audit | Never run; installability is proven by hand only |
-| `dev.sh --prod` | Convenience only; the original roadmap itself asked for author sign-off |
-| Install from the dev server | `devOptions.enabled: false` by design — installation is testable on the prod build (`:8080`) or any HTTPS origin, never on a LAN IP over HTTP |
+| Double-tap e2e fixture | Blocked by the gap above: no account can pay, so the test would prove the UI half against a purchase that always answers `409 INSUFFICIENT_FUNDS`. The server half is already proven by `market.spec.ts`; the case in `mobile.spec.ts` re-enables itself once a faucet exists |
+| Lighthouse PWA audit | A new dependency for information the 7 `pwa.spec.ts` cases already give, and the PWA category's status across Lighthouse versions is uncertain |
+| `dev.sh --prod` | Tapping two commands instead of one does not justify touching the script that starts the whole stack |
 
 ---
 
@@ -75,7 +86,7 @@ Install, offline behaviour, and the "tickets and balances are never cached" rule
 | Risk | Status | Notes |
 | :--- | :--- | :--- |
 | `workbox-build` under Bun | **Disproven** | Build green, 46 precache entries, `dist/sw.js` emitted |
-| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 158 / 0 |
+| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 159 / 0 |
 | `GET /*` shadowing `/api`, `/api/auth`, `/blasons` | **Covered** | 13 cases in `static.spec.ts`, deny-list evaluated in the handler, not by route order |
 | `backend` network `internal: true` blocking the published port | **Covered** | `api` attaches to both `backend` and `public` |
 | Removing nginx loses gzip/brotli | **Covered** | in-process gzip + brotli, 13 specs, measured on the production image |
