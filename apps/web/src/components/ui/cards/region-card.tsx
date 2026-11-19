@@ -103,11 +103,11 @@ export function RegionCard({
         <footer className="relative mt-[3.5%] flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">
           <span className="font-display text-[clamp(10px,5.6cqi,15px)] font-semibold leading-none tabular-nums text-ink">
             {formatNumber(score)}
-            <span className="ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
+            <span className="plate-optional ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
               pts
             </span>
           </span>
-          <span className="font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.08em] text-ink-soft">
+          <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.08em] text-ink-soft">
             {refCode}
           </span>
           <RaritySeal rarity={rarity} />

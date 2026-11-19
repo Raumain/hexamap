@@ -133,12 +133,12 @@ export function CommuneCard({
         <footer className="relative mt-auto flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">
           <span className="font-display text-[clamp(10px,5.6cqi,15px)] font-semibold leading-none tabular-nums text-ink">
             {formatNumber(score)}
-            <span className="ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
+            <span className="plate-optional ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
               pts
             </span>
           </span>
           {detailed ? (
-            <span className="font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.06em] text-ink-soft truncate">
+            <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.06em] text-ink-soft truncate">
               {refCode}
             </span>
           ) : null}

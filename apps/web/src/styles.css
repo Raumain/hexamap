@@ -262,6 +262,15 @@
     background: radial-gradient(120% 70% at 50% -10%, rgb(255 246 214 / 0.12), transparent 62%);
   }
 
+  /* Sous 110 px, une planche ne garde que ce qui se lit : la densité seconde
+     (occurrences, mentions de spécimen) s'efface au profit du nom, du score et
+     du sceau. Le conteneur est `.exhibit` lui-même. */
+  @container (max-width: 110px) {
+    .plate-optional {
+      display: none;
+    }
+  }
+
   .exhibit:hover {
     transform: translateY(-3px);
     box-shadow:

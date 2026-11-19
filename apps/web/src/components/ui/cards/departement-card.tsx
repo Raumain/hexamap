@@ -41,7 +41,7 @@ export function DepartementCard({
             className="flex h-[62%] w-[62%] items-center justify-center border border-ink/70 bg-vellum-2"
             style={{ clipPath: SHIELD }}
           >
-            <span className="whitespace-nowrap font-display text-[8px] font-semibold leading-none tabular-nums text-ink">
+            <span className="whitespace-nowrap font-display text-[10px] font-semibold leading-none tabular-nums text-ink">
               {refCode}
             </span>
           </div>
@@ -114,7 +114,7 @@ export function DepartementCard({
         <footer className="relative mt-[3.5%] flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">
           <span className="font-display text-[clamp(10px,5.6cqi,15px)] font-semibold leading-none tabular-nums text-ink">
             {formatNumber(score)}
-            <span className="ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
+            <span className="plate-optional ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
               pts
             </span>
           </span>
