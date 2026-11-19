@@ -10,7 +10,7 @@ de la PR qui la ferme.
 | BUG-002 | Une carte de collection peut référencer un référentiel inexistant | Moyenne | Ouvert |
 | BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Ouvert |
 | BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
-| BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Ouvert |
+| BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Corrigé — PR à ouvrir sur `fix/bug-005-salles-secondaires-mobile` |
 | BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Ouvert |
 | BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`) |
 | BUG-008 | Les planches du tiroir se chevauchent | Basse | Ouvert |
@@ -285,7 +285,7 @@ Vérifié dans Docker : `bun run lint`, `bun run typecheck`,
 ## BUG-005 — Sur mobile, Les Planches et Mes Offres sont inatteignables
 
 - **Gravité** : Moyenne
-- **Statut** : Ouvert
+- **Statut** : Corrigé — PR à ouvrir sur `fix/bug-005-salles-secondaires-mobile`
 - **Constaté le** : 2026-11-19
 - **Zone** : `apps/web/src/components/layout/nav-items.ts`,
   `bottom-tab-bar.tsx`, `sidebar.tsx`, `app-shell.tsx`
@@ -318,20 +318,42 @@ existe.
 Planche, Comptoir). `/tableaux` et `/market/mine` restent accessibles uniquement en
 saisissant l'URL.
 
-### Correction proposée
+### Correction
 
-1. **Un cinquième onglet « Plus »** dans la barre basse, ouvrant une feuille listant
-   `SECONDARY_NAV` (Les Planches, Mes Offres, Les Archives). Quatre onglets restent
-   dans la zone du pouce ; le cinquième est un menu, pas une destination.
-2. **Ou le menu de compte déjà présent dans l'en-tête mobile** : y ajouter les trois
-   salles secondaires, ce qui évite un cinquième onglet et garde 44 px de cible.
-3. Traiter **`/tableau` et `/tableaux`** dans `isNavItemActive` : les deux salles
-   partagent un préfixe, une entrée « Les Planches » ne doit pas s'allumer sur
-   `/tableau`.
-4. Test Playwright mobile : depuis `/`, atteindre `/tableaux` en deux appuis au plus.
+Le cinquième contrôle l'a emporté sur le menu de compte : l'en-tête mobile ne porte aucune
+affordance de compte (seulement la bourse), un menu serait donc à inventer, et sortir d'une
+barre de navigation est plus découvrable que de cacher trois salles derrière un contrôle de
+compte. Trois fichiers :
 
-À ne pas faire : passer `SECONDARY_NAV` dans la barre basse telle quelle — sept
-onglets à 390 px tomberaient sous les 44 px de cible tactile.
+- `apps/web/src/components/layout/nav-items.ts` : `MORE_SHEET` (les libellés « Plus »,
+  « Autres salles », « Fermer ») et `isSecondaryRoom(pathname)`, bâti sur l'égalité stricte
+  d'`isNavItemActive`, inchangée — c'est elle qui distingue déjà `/tableau` de `/tableaux`.
+- `apps/web/src/components/layout/more-sheet.tsx` (créé) : `OverlayPortal` → voile
+  `bg-cabinet/80` → `role="dialog" aria-modal="true"`, géométrie reprise de `CardDrawer`
+  (`rounded-t-panel`, `border-t border-brass/30`, `bg-cabinet-raised`, `p-5`,
+  `shadow-lifted`, `max-h-[76vh]`), poignée `aria-hidden`, titre nommé par `useId()`, bouton
+  de fermeture `aria-label="Fermer"`, écoute d'Échap avec nettoyage, trois entrées de
+  `SECONDARY_NAV` à `min-h-[44px]`, `aria-current="page"` sur la salle courante seulement.
+- `apps/web/src/components/layout/bottom-tab-bar.tsx` : cinquième `<button>` (et non un
+  `Link` : il ouvre, il ne navigue pas), `aria-haspopup="dialog"`, `aria-expanded`, filet
+  de laiton quand `isSecondaryRoom(pathname)`, et le retour de focus au contrôle à la
+  fermeture.
+
+**La découverte de la correction : une asymétrie de visibilité.** `sidebar.tsx` enveloppe
+**tout** son bloc de navigation — principal et secondaire — dans un `{user ? … : « Le
+cabinet ouvre ses tiroirs… »}`, alors que la barre basse se rend sans condition. Afficher la
+feuille à un visiteur anonyme aurait donc exposé trois salles que le rail lui cache. Le
+cinquième contrôle est monté derrière `useSession()`, et la parité est verrouillée par un cas
+anonyme.
+
+**Deux écarts connus, non traités ici.**
+
+1. `DESIGN_SYSTEM.md` §9.1 rend **Les Archives** `/import-status` conditionnelle (« si
+   l'utilisateur y a droit »), mais rien n'applique cette condition : ni le rail ni la feuille
+   ne portent le contrôle de droit. La feuille garde la parité avec le rail.
+2. Le cas e2e anonyme est **vert par construction**, pas par observation rouge : il vérifie
+   l'absence du cinquième contrôle, que le code n'a jamais monté. Il garde la règle, il ne
+   prouve pas une régression corrigée.
 
 ---
 

@@ -67,6 +67,9 @@ export const SECONDARY_NAV: readonly NavItem[] = [
   },
 ];
 
+/** La copie de la feuille mobile des salles secondaires. */
+export const MORE_SHEET = { control: 'Plus', title: 'Autres salles', close: 'Fermer' } as const;
+
 const SALON_TITLES: Record<string, string> = {
   '/': 'Le Relevé',
   '/collection': 'Le Cadastre',
@@ -94,4 +97,8 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
       pathname === '/market' || (pathname.startsWith('/market/') && pathname !== '/market/mine')
     );
   return pathname === item.to;
+}
+
+export function isSecondaryRoom(pathname: string): boolean {
+  return SECONDARY_NAV.some((item) => isNavItemActive(item, pathname));
 }

@@ -14,6 +14,13 @@ const CABINET_NAV = 'nav[aria-label="Salles du cabinet"]';
 const COLLECTION_TABLE = 'Liste des cartes de votre collection';
 const SCRATCH_CELL = /^Case \d+, non révélée$/;
 
+// BUG-005 : le cinquième contrôle de la barre basse et la feuille qu'il ouvre.
+// Le nom accessible du contrôle vaut exactement « Plus », d'où `exact` dans les
+// localisateurs : sans lui, « Plus tard » de l'invitation de mise à jour serait
+// aussi candidat.
+const MORE_CONTROL = 'Plus';
+const MORE_SHEET = 'Autres salles';
+
 const ROOMS: readonly string[] = ['/', '/collection', '/market', '/tableau'];
 
 /**
@@ -66,6 +73,20 @@ function viewportHeight(page: Page): number {
  */
 function visibleCabinetNav(page: Page) {
   return page.locator(`${CABINET_NAV}:visible`);
+}
+
+/**
+ * Ouvre la feuille « Autres salles » : un seul appui sur le contrôle « Plus ».
+ *
+ * La visibilité est attendue avant le clic pour que l'absence du contrôle soit
+ * rapportée comme une assertion Playwright, et non comme l'expiration d'une
+ * action.
+ */
+async function openMoreSheet(page: Page): Promise<void> {
+  const control = page.getByRole('button', { name: MORE_CONTROL, exact: true });
+  await expect(control).toBeVisible();
+  await control.click();
+  await expect(page.getByRole('dialog', { name: MORE_SHEET })).toBeVisible();
 }
 
 async function openRoom(page: Page, room: string): Promise<void> {
@@ -378,5 +399,99 @@ test.describe('mobile — les overlays restent ancrés à la fenêtre', () => {
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(height + 1);
     expect(Math.abs(box.y + box.height - height)).toBeLessThanOrEqual(1);
+  });
+});
+
+/* ── 8. Salles secondaires (BUG-005) ─────────────────────────────────────── */
+
+/**
+ * Les deux salles secondaires que le roadmap nomme. « Les Archives » est listée
+ * par la feuille mais n'est pas suivie : `DESIGN_SYSTEM.md` §9.1 la déclare
+ * conditionnelle, et le cas se contente de constater sa présence.
+ */
+const SECONDARY_ROOMS: ReadonlyArray<readonly [string, string]> = [
+  ['Les Planches', '/tableaux'],
+  ['Mes Offres', '/market/mine'],
+];
+
+const SECONDARY_LABELS: readonly string[] = ['Les Planches', 'Mes Offres', 'Les Archives'];
+
+test('mobile — les salles secondaires sont atteintes en deux appuis', async ({ page }) => {
+  for (const [label, path] of SECONDARY_ROOMS) {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+    // Deux appuis exactement : le contrôle, puis le lien de la feuille.
+    await openMoreSheet(page);
+    const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+    await sheet.getByRole('link', { name: label }).click();
+
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+  }
+
+  // Depuis « Le Relevé », les trois salles secondaires sont offertes, « Les
+  // Archives » incluse — sans que le cas la suive.
+  await page.goto('/');
+  await openMoreSheet(page);
+  const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+  for (const label of SECONDARY_LABELS) {
+    await expect(sheet.getByRole('link', { name: label })).toBeVisible();
+  }
+});
+
+test('mobile — la cible « Plus » fait au moins 44 px', async ({ page }) => {
+  await page.goto('/');
+
+  const plus = page.getByRole('button', { name: MORE_CONTROL, exact: true });
+  await expect(plus).toBeVisible();
+
+  const box = requireBox(await plus.boundingBox(), 'la cible « Plus »');
+  expect(box.height, 'Cible tactile « Plus »').toBeGreaterThanOrEqual(44);
+});
+
+test('mobile — « Les Planches » ne s’allume pas sur La Planche', async ({ page }) => {
+  await page.goto('/tableau');
+  await openMoreSheet(page);
+  const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+
+  // `/tableau` et `/tableaux` partagent un préfixe : seule l'égalité stricte de
+  // `isNavItemActive` départage les deux salles.
+  await expect(sheet.getByRole('link', { name: 'Les Planches' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+
+  await page.goto('/tableaux');
+  await openMoreSheet(page);
+  await expect(sheet.getByRole('link', { name: 'Les Planches' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+test('mobile — la feuille se ferme par Échap et rend le focus', async ({ page }) => {
+  await page.goto('/');
+  await openMoreSheet(page);
+
+  const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+
+  // La sortie rend le focus au déclencheur, pas au document.
+  await expect(page.getByRole('button', { name: MORE_CONTROL, exact: true })).toBeFocused();
+});
+
+test.describe('mobile — sans session', () => {
+  // Aucun cookie, aucune origine : le cas n'emprunte pas la session déposée par
+  // `global-setup.ts`.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('mobile — sans session, aucune salle secondaire n’est offerte', async ({ page }) => {
+    await page.goto('/');
+
+    // Le rail cache toute sa navigation à un visiteur anonyme : la barre basse
+    // ne doit pas lui offrir davantage.
+    await expect(page.getByRole('button', { name: MORE_CONTROL, exact: true })).toHaveCount(0);
   });
 });

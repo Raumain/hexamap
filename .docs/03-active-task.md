@@ -5,7 +5,178 @@
 
 ---
 
-# Phase 20 — Les Overlays ancrés (BUG-007)
+# Phase 21 — Les Salles retrouvées (BUG-005)
+
+## Statut
+
+- **Phase** : 21 — Les Salles retrouvées (BUG-005)
+- **État** : Terminé
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-19
+- **Branche** : `fix/bug-005-salles-secondaires-mobile`
+
+---
+
+## Objectif
+
+Sur téléphone, un joueur pouvait composer une planche depuis **La Planche** (`/tableau`) mais
+aucun chemin ne menait à **Les Planches** (`/tableaux`) ni à **Mes Offres** (`/market/mine`) :
+les deux salles n'existaient que dans le rail, masqué sous `md`. La barre basse expose
+désormais un cinquième contrôle **Plus** qui ouvre une feuille des salles secondaires, la
+salle courante s'annonce par `aria-current`, et les trois routes sont atteintes en deux appuis
+depuis `/`. À domaine et contrats d'API constants.
+
+---
+
+## Étapes
+
+### 1. Spec-first — cinq cas rouges
+- [x] `mobile.spec.ts` : `/tableaux` et `/market/mine` atteints en deux appuis depuis `/`,
+      cible du contrôle **Plus** ≥ 44 px, `Les Planches` éteint sur `/tableau` et allumé sur
+      `/tableaux`, Échap ferme et rend le focus, aucun cinquième contrôle sans session.
+- [x] Lancés sur le seul projet « Pixel 7 » avant toute implémentation : 4 échecs sur la même
+      cause, « element(s) not found » sur `getByRole('button', { name: 'Plus', exact: true })`.
+
+### 2. La feuille
+- [x] `components/layout/more-sheet.tsx` (créé, 87 lignes) : `OverlayPortal` → voile
+      `bg-cabinet/80` → `role="dialog" aria-modal="true"`, géométrie reprise de `CardDrawer`,
+      `pb-[calc(1.25rem+env(safe-area-inset-bottom))]`, poignée `aria-hidden`, titre nommé par
+      `useId()`, bouton `aria-label="Fermer"`, écoute d'Échap avec nettoyage, trois entrées de
+      `SECONDARY_NAV` à `min-h-[44px]`.
+
+### 3. La barre
+- [x] `nav-items.ts` : `MORE_SHEET` et `isSecondaryRoom(pathname)`, sur l'égalité stricte
+      d'`isNavItemActive` laissée intacte — c'est elle qui distingue déjà `/tableau` de
+      `/tableaux`.
+- [x] `bottom-tab-bar.tsx` : cinquième `<button>` monté derrière `useSession()`,
+      `aria-haspopup="dialog"` / `aria-expanded`, filet de laiton quand `isSecondaryRoom`,
+      retour de focus au contrôle à la fermeture.
+- [x] `TabGlyph` gagne un `strokeWidth` optionnel (défaut `1.3`, inchangé pour les quatre
+      salles ; `2.2` pour les trois points).
+
+### 4. Banc et vérification
+- [x] `mobile.spec.ts` : 28 passés, 2 ignorés sur les deux projets tactiles.
+- [x] `design-system.spec.ts` : 11 passés, 1 ignoré.
+- [x] `bun run lint` : 164 fichiers, aucune correction.
+- [x] `ci:check` : les quatre étapes vertes, 158 spécifications, **794** `expect()` au dernier
+      passage (le nombre d'assertions fluctue d'une exécution à l'autre, voir le journal).
+- [x] Banc complet sur les quatre projets : 49 passés, 3 ignorés.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Depuis `/`, `/tableaux` et `/market/mine` sont atteints en deux appuis sur téléphone.
+2. [x] Le contrôle **Plus** mesure au moins 44 px, comme les quatre onglets.
+3. [x] `Les Planches` ne s'allume pas sur `/tableau` et s'allume sur `/tableaux`.
+4. [x] Échap ferme la feuille et rend le focus au contrôle qui l'a ouverte.
+5. [x] Aucun cinquième contrôle sans session ouverte, en parité avec le rail.
+6. [x] `mobile.spec.ts` (28 passés, 2 ignorés) et `design-system.spec.ts` (11 passés,
+       1 ignoré) verts ; `ci:check` vert à 158 spécifications.
+7. [x] Aucune migration, aucun changement de schéma ni de contrat d'API, aucune dépendance
+       nouvelle, `packages/spec` intact.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 21 exécutée : Les Salles retrouvées livrées
+
+**Le constat.** À 390 px, la barre basse exposait exactement quatre liens — Relevé, Cadastre,
+Planche, Comptoir — et `/tableaux` comme `/market/mine` ne s'atteignaient qu'en saisissant
+l'URL. Le joueur pouvait écrire une planche sans jamais pouvoir la relire. Les cinq cas
+rouges de la phase 1 l'ont dit avant toute correction, tous sur la même ligne : le bouton
+`Plus` n'existait pas.
+
+**La cause, et ce qu'elle cachait.** `SECONDARY_NAV` est le seul propriétaire des salles
+secondaires et le rail est `hidden md:flex` : sous 768 px, personne ne les rendait. Le défaut
+de nommage aggravait le silence — **La Planche** (composer) est une salle principale,
+**Les Planches** (relire) une salle secondaire, et rien ne signalait que la seconde existât.
+
+**Ce que la revue a trouvé : une asymétrie de visibilité.** `sidebar.tsx` enveloppe **tout**
+son bloc de navigation — principal et secondaire — dans `{user ? … : « Le cabinet ouvre ses
+tiroirs… »}`, alors que la barre basse se rend sans condition. Le cinquième contrôle est donc
+monté derrière `useSession()` : rendre la feuille à un visiteur anonyme aurait exposé trois
+salles que le rail lui cache. La parité est verrouillée par un cas anonyme.
+
+**Pourquoi un cinquième onglet plutôt que le menu de compte.** L'en-tête mobile ne porte
+aucune affordance de compte — seulement la bourse et `Entrer` (`app-shell.tsx:16-47`) : un
+menu serait à inventer, et sortir d'une barre de navigation est plus découvrable que de
+cacher trois salles derrière un contrôle de compte. Quatre salles restent dans la zone du
+pouce ; le cinquième contrôle ouvre, il ne navigue pas, donc c'est un `button` et non un
+`Link` — sans `aria-current`, qui désignerait à tort une destination.
+
+**Pourquoi la feuille recouvre la barre au lieu de s'empiler dessus.** S'empiler coudrait le
+`bottom` de la feuille à la hauteur mesurée de la barre, que `min-h-[56px]` rend variable
+alors que `DESIGN_SYSTEM.md` §9.2 la déclare à 64 px. Recouvrir réutilise la géométrie
+éprouvée de `CardDrawer` (`rounded-t-panel`, `max-h-[76vh]`, `shadow-lifted`) sans aucune
+constante partagée. La feuille passe par `OverlayPortal`, comme les deux overlays de route :
+un `transform` résiduel sur un ancêtre ne peut plus la déplacer.
+
+**`exact: true` sur le localisateur `Plus`.** `pwa-update-prompt.tsx` porte un bouton
+« Plus tard » ; sans correspondance exacte, la comparaison par sous-chaîne de Playwright
+aurait pu attraper l'un pour l'autre. Le nom accessible du contrôle est nu.
+
+**Un cas vert par construction.** Le cas anonyme vérifie l'absence du cinquième contrôle —
+que le code n'a jamais monté. Il garde la règle, il ne prouve aucune régression corrigée :
+il n'a pas d'observation rouge derrière lui, contrairement aux quatre autres.
+
+**La leçon de banc.** `docker-compose.e2e.yml` joue une image `target: prod`, donc le banc
+sert `apps/web/dist` figé au dernier build. La première exécution verte après l'implémentation
+a échoué pour cette seule raison : le serveur rendait encore l'ancien bundle. Reconstruire
+l'image du banc après **tout** changement dans `apps/web` fait partie de la commande, pas des
+précautions.
+
+**Vérification (Docker uniquement)**
+```
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/mobile.spec.ts --project="Pixel 7"
+  phase 1, rouge : 4 failed, 1 skipped, 10 passed (2.2m)
+  échec commun : element(s) not found sur getByRole('button', { name: 'Plus', exact: true })
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/mobile.spec.ts
+  2 skipped
+  28 passed (1.2m)
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/design-system.spec.ts
+  1 skipped
+  11 passed (33.1s)
+
+docker compose --profile tools run --rm dev bun run lint
+  Checked 164 files in 105ms. No fixes applied.
+
+docker compose --profile tools run --rm dev bun run ci:check
+  [hexamap] ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  158 pass, 0 fail, 794 expect() calls, Ran 158 tests across 11 files
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  52 tests, 49 passed, 3 skipped (1.5m)
+  chromium  14 passed, 1 skipped (core-loop 3, design-system 12)
+  pwa        7 passed
+  Pixel 7   14 passed, 1 skipped (mobile 15 cas)
+  iPhone 13 14 passed, 1 skipped (mobile 15 cas)
+```
+
+**Le compte d'`expect()` n'est pas un invariant.** Le même arbre, `packages/spec` intact, a
+affiché **804** puis **794** `expect()` à quelques minutes d'intervalle, pour 158 tests et
+11 fichiers dans les deux cas. Les assertions sont comptées à l'exécution : celles qui vivent
+dans une boucle sur les lignes du référentiel dépendent des données tirées. L'entrée de la
+phase 20 annonçait 792 ; ce n'est pas une régression, c'est la même mesure instable, prise un
+autre jour. Les chiffres stables sont **158 spécifications** et **11 fichiers** — ce sont eux
+qui doivent être cités, le compte d'assertions seulement comme observation datée.
+
+**Deux écarts connus, non traités ici.** `DESIGN_SYSTEM.md` §9.1 rend `/import-status`
+conditionnelle (« si l'utilisateur y a droit ») alors que ni le rail ni la feuille ne portent
+ce contrôle de droit : la feuille garde la parité avec le rail, l'écart est consigné au
+registre. Et le cas anonyme reste une garde, pas une preuve (voir plus haut).
+
+**Portée** : aucune migration, aucun changement de schéma ni de contrat d'API, aucune
+dépendance nouvelle, `packages/spec` intact. Aucun commit.
+
+---
+---
+
+# Historique — Phase 20 — Les Overlays ancrés (BUG-007)
 
 ## Statut
 
