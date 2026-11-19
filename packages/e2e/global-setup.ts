@@ -30,6 +30,10 @@ export default async function globalSetup(): Promise<void> {
     baseURL,
     locale: 'fr-FR',
     timezoneId: 'Europe/Paris',
+    // Le banc est servi par Caddy avec son AC interne, absente de tout trust
+    // store. Ce contexte est créé à la main : il n'hérite pas de `use` du
+    // `playwright.config.ts`, donc le réglage doit être répété ici.
+    ignoreHTTPSErrors: true,
   });
   const page = await context.newPage();
 
@@ -79,7 +83,7 @@ async function openRegistration(page: Page, baseURL: string): Promise<void> {
   if (status === 0 || status >= 500) {
     throw new Error(
       `La pile E2E répond mal sur ${baseURL} (statut ${status === 0 ? 'aucune réponse' : status}). ` +
-        'Démarrez-la avec `docker compose -f docker-compose.e2e.yml up -d --build db api` puis relancez Playwright.',
+        'Démarrez-la avec `docker compose -f docker-compose.e2e.yml up -d --build db api proxy` puis relancez Playwright.',
     );
   }
 }
@@ -87,7 +91,7 @@ async function openRegistration(page: Page, baseURL: string): Promise<void> {
 function unreachable(baseURL: string, error: unknown): Error {
   return new Error(
     `La pile E2E est injoignable sur ${baseURL} (${describeError(error)}). ` +
-      'Démarrez-la avec `docker compose -f docker-compose.e2e.yml up -d --build db api` puis relancez Playwright.',
+      'Démarrez-la avec `docker compose -f docker-compose.e2e.yml up -d --build db api proxy` puis relancez Playwright.',
   );
 }
 
