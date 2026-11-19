@@ -12,7 +12,7 @@ de la PR qui la ferme.
 | BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
 | BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Ouvert |
 | BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Ouvert |
-| BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Ouvert |
+| BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`) |
 | BUG-008 | Les planches du tiroir se chevauchent | Basse | Ouvert |
 
 Gravités : `Haute` (donnée utilisateur fausse ou perte de données), `Moyenne`
@@ -418,7 +418,7 @@ ne doit jamais reposer sur la seule couleur) ou réduire la case sous 44 px de c
 ## BUG-007 — Le tiroir de sélection s'ouvre au bas de la page, hors écran
 
 - **Gravité** : Moyenne
-- **Statut** : Ouvert
+- **Statut** : Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`)
 - **Constaté le** : 2026-11-19
 - **Zone** : `apps/web/src/styles.css` (`.enter-salon`),
   `apps/web/src/components/layout/app-shell.tsx`,
@@ -445,8 +445,11 @@ calculé différent de `none` — et `translateY(0)` en est un — fait de `<mai
 conteneur des descendants en `position: fixed`. Le tiroir est donc ancré en bas de la
 page, pas en bas de l'écran.
 
-Sous `prefers-reduced-motion: reduce`, `styles.css:352-361` force `transform: none` :
-le défaut ne se reproduit pas, ce qui le rend intermittent selon les réglages du système.
+Sous `prefers-reduced-motion: reduce`, `styles.css:351-363` ne fait que raccourcir
+`animation-duration` à 1 ms pour `.enter-salon` ; le `transform: none` de `:361` ne vise que
+`.exhibit` / `.exhibit:hover`. Avec `fill-mode: both`, une animation de 1 ms remplit encore sa
+dernière image clé : le défaut est donc **permanent à tous les réglages de mouvement**, jamais
+intermittent.
 
 **Le même défaut frappe la modale de Pépite** (`tickets.$ticketId.tsx`, `fixed inset-0
 z-50`, également enfant de `main`) : son voile couvre le contenu, pas la fenêtre,
@@ -473,6 +476,56 @@ document ; `main.getBoundingClientRect().height` dépasse `innerHeight`.
 
 À ne pas faire : passer le tiroir en `absolute` (il suivrait alors le défilement) ou
 supprimer l'animation d'entrée (elle porte l'identité de la salle).
+
+### Correction livrée
+
+Corrigé le 2026-11-19, uniquement côté web. Aucune migration, aucun changement de schéma,
+aucune évolution du contrat d'API, aucune dépendance nouvelle.
+
+1. **`fill-mode: backwards` sur `.enter-salon`.** `styles.css:286` passe de `both` à
+   `backwards`, un mot. L'animation est visuellement identique : la dernière image clé vaut
+   déjà l'état naturel de `main` (`transform: translateY(0)`, `opacity: 1`). Avec `backwards`,
+   `main` ne porte plus de `transform` après les 180 ms et cesse d'être un bloc conteneur pour
+   les descendants `position: fixed`. Les keyframes `enter-salon` et le bloc
+   `prefers-reduced-motion` sont inchangés.
+2. **`components/ui/overlay-portal.tsx`.** Nouveau composant :
+   `createPortal(children, document.body)`. Les deux overlays appartenant à une route y sont
+   rendus — le tiroir de La Planche (`routes/tableau.tsx`) et la modale de Pépite
+   (`routes/tickets.$ticketId.tsx`) — en enveloppant uniquement la racine retournée : ni
+   `aria-*`, ni focus, ni état, ni classe modifiés. Les deux overlays deviennent insensibles à
+   tout futur ancêtre transformé.
+3. **Décalage de bureau corrigé.** `md:left-[232px]` du tiroir s'ajoutait au `md:pl-[232px]`
+   de `main` (≈ 464 px de décalage sur bureau) ; ancré sur `document.body`, il dégage désormais
+   correctement le rail de 232 px.
+
+**Preuve rouge, avant correction**
+
+- `mobile.spec.ts`, nouveau cas, deux projets tactiles :
+  `expect(box.y).toBeGreaterThanOrEqual(0)` → `Expected: >= 0, Received: -27.25`.
+- `design-system.spec.ts`, cas `<main>` :
+  `Expected "none", Received "matrix(1, 0, 0, 1, 0, 0)"`.
+- `design-system.spec.ts`, cas portail : `expect(inMain).toBe(false)` → `Received: true`.
+
+**Preuve verte, après correction**
+
+- `mobile.spec.ts` + `design-system.spec.ts` : 29 passed, 3 skipped.
+- Banc complet (chromium, pwa, Pixel 7, iPhone 13) : **39 passed, 3 skipped** — chromium
+  12 → 14, Pixel 7 8 → 9, iPhone 13 8 → 9, pwa 7 inchangé.
+- `bun run ci:check` : lint, typecheck, ping PostgreSQL, 158 spécifications, 792 `expect()` —
+  vert.
+
+Nouveaux cas : « mobile — le tiroir de sélection reste dans la fenêtre après défilement »,
+« design system — main ne conserve aucun transform après l'entrée en salle », « bureau — le
+tiroir est rendu hors de main et dégage le rail ». Ils ouvrent le tiroir par un unique
+localisateur patient —
+`getByRole('button', { name: /Emplacement libre/ }).or(getByRole('button', { name: 'Modifier' })).first()` :
+`count()` n'attend pas et courait contre la requête de collection.
+
+**Ce qui n'a pas changé** : `.enter-plate` conserve `both` (ornement de feuille, jamais ancêtre
+d'un élément `fixed`) ; le rail, la barre d'onglets et l'invitation de mise à jour sont frères de
+`<main>` et n'ont jamais été concernés. BUG-004 reste corrigé : sa modale de Pépite retrouve
+simplement sa géométrie de fenêtre par la même cause racine, et ses sorties (`Escape`, clic sur
+le fond, focus rendu à la grille) sont intactes.
 
 ---
 

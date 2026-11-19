@@ -534,6 +534,9 @@ Règles :
 
 - On n'anime **que** `transform` et `opacity` (plus `background-color` / `border-color`).
 - Aucune animation dans une liste virtualisée.
+- Une animation d'entrée portée par un ancêtre de mise en page (`main`) ne remplit jamais vers
+  l'avant : `fill-mode: backwards`, parce que le `transform` résiduel redéfinirait le bloc
+  conteneur des overlays `fixed`. Un ornement de feuille (`.enter-plate`) peut garder `both`.
 - `prefers-reduced-motion: reduce` supprime les translations, garde les fondus de 1 ms.
 - Le seul mouvement continu autorisé est le balayage `MYTHIQUE`, et il est coupé en
   `prefers-reduced-motion`.
