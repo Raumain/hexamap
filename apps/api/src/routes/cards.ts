@@ -2,6 +2,7 @@ import { CATEGORY, RARITY } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { authPlugin } from '../middleware/auth';
+import { resolveCardDetail } from '../services/card-detail';
 import { cardNomKey, resolveCardAssets, resolveCardNoms } from '../services/draw';
 
 const raritySchema = t.Union([
@@ -57,6 +58,62 @@ const statsSchema = t.Object(
 
 const errorSchema = t.Object(
   { code: t.String(), message: t.String() },
+  { additionalProperties: false },
+);
+
+const ownerSchema = t.Object(
+  { id: t.String(), pseudo: t.Union([t.String(), t.Null()]) },
+  { additionalProperties: false },
+);
+
+const detailSchema = t.Object(
+  {
+    population: t.Union([t.Integer(), t.Null()]),
+    nbCommunes: t.Union([t.Integer(), t.Null()]),
+    latitude: t.Union([t.Number(), t.Null()]),
+    longitude: t.Union([t.Number(), t.Null()]),
+    codeDepartement: t.Union([t.String(), t.Null()]),
+    nomDepartement: t.Union([t.String(), t.Null()]),
+    codeRegion: t.Union([t.String(), t.Null()]),
+    nomRegion: t.Union([t.String(), t.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+const marketStatusSchema = t.Union([t.Literal('OPEN'), t.Literal('SOLD'), t.Literal('CANCELLED')]);
+
+const listingSummarySchema = t.Object(
+  {
+    id: t.String(),
+    price: t.Integer(),
+    status: marketStatusSchema,
+    createdAt: t.String(),
+  },
+  { additionalProperties: false },
+);
+
+const cardDetailSchema = t.Object(
+  {
+    card: t.Object(
+      {
+        id: t.String(),
+        category: categorySchema,
+        refCode: t.String(),
+        nom: t.String(),
+        rarity: raritySchema,
+        score: t.Integer(),
+        acquiredAt: t.String(),
+        source: t.Union([t.Literal('TICKET'), t.Literal('MARKET'), t.Literal('REWARD')]),
+        locked: t.Boolean(),
+        blasonUrl: t.Union([t.String(), t.Null()]),
+        blasonCredit: t.Union([t.String(), t.Null()]),
+        owner: ownerSchema,
+        detail: detailSchema,
+        listing: t.Union([listingSummarySchema, t.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
   { additionalProperties: false },
 );
 
@@ -170,6 +227,100 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
       response: {
         200: statsSchema,
         401: errorSchema,
+      },
+    },
+  )
+  .get(
+    '/cards/:id',
+    async ({ user, params, set }) => {
+      if (!user) {
+        set.status = 401;
+        return unauthorized;
+      }
+
+      const card = await db
+        .selectFrom('user_cards')
+        .select([
+          'id',
+          'user_id',
+          'category',
+          'ref_code',
+          'rarity',
+          'score',
+          'acquired_at',
+          'source',
+          'locked',
+        ])
+        .where('id', '=', params.id)
+        .executeTakeFirst();
+
+      if (!card) {
+        set.status = 404;
+        return { code: 'CARD_NOT_FOUND', message: 'Carte introuvable.' };
+      }
+
+      const listing = await db
+        .selectFrom('market_listings')
+        .select(['id', 'price', 'status', 'created_at'])
+        .where('user_card_id', '=', card.id)
+        .where('status', '=', 'OPEN')
+        .executeTakeFirst();
+
+      // Une carte n'est exposée qu'à son propriétaire ou tant qu'elle est en vente.
+      if (card.user_id !== user.id && !listing) {
+        set.status = 403;
+        return { code: 'CARD_NOT_VISIBLE', message: "Cette carte n'est pas exposée." };
+      }
+
+      const refs = [{ category: card.category, ref_code: card.ref_code }];
+      const key = cardNomKey(card.category, card.ref_code);
+
+      const [owner, detail, noms, assets] = await Promise.all([
+        db
+          .selectFrom('user')
+          .select(['id', 'pseudo'])
+          .where('id', '=', card.user_id)
+          .executeTakeFirst(),
+        resolveCardDetail(db, card.category, card.ref_code),
+        resolveCardNoms(db, refs),
+        resolveCardAssets(db, refs),
+      ]);
+
+      const asset = assets.get(key);
+
+      return {
+        card: {
+          id: card.id,
+          category: card.category,
+          refCode: card.ref_code,
+          nom: noms.get(key) ?? '',
+          rarity: card.rarity,
+          score: card.score,
+          acquiredAt: card.acquired_at.toISOString(),
+          source: card.source,
+          locked: card.locked,
+          blasonUrl: asset?.blasonUrl ?? null,
+          blasonCredit: asset?.blasonCredit ?? null,
+          owner: { id: owner?.id ?? card.user_id, pseudo: owner?.pseudo ?? null },
+          detail,
+          listing: listing
+            ? {
+                id: listing.id,
+                price: listing.price,
+                status: listing.status,
+                createdAt: listing.created_at.toISOString(),
+              }
+            : null,
+        },
+      };
+    },
+    {
+      params: t.Object({ id: t.String({ format: 'uuid' }) }),
+      response: {
+        200: cardDetailSchema,
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
       },
     },
   );
