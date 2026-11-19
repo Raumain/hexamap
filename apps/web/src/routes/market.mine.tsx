@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Card } from '../components/ui/Card';
+import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
 import { CURRENCY, LISTING_STATUS_LABELS, MARKET_MINE } from '../content/market';
 import { CATEGORY_LABELS } from '../content/tickets';
@@ -299,17 +300,23 @@ function MyListingCard({ listing, cancelPending, onCancel }: MyListingCardProps)
     <li className="group flex flex-col rounded-sheet border border-veil bg-cabinet-raised p-4 transition-colors duration-150 hover:border-brass/40">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-4">
-          <Card
-            type={listing.card.category}
-            rarity={listing.card.rarity}
-            name={listing.card.nom}
-            score={listing.card.score}
-            refCode={listing.card.refCode}
-            blasonUrl={listing.card.blasonUrl}
-            blasonCredit={listing.card.blasonCredit}
-            variant="compact"
+          <CardLink
+            cardId={listing.card.id}
+            label={cardLinkLabel(listing.card.nom)}
             className="w-[132px] shrink-0"
-          />
+          >
+            <Card
+              type={listing.card.category}
+              rarity={listing.card.rarity}
+              name={listing.card.nom}
+              score={listing.card.score}
+              refCode={listing.card.refCode}
+              blasonUrl={listing.card.blasonUrl}
+              blasonCredit={listing.card.blasonCredit}
+              variant="compact"
+              className="w-[132px] shrink-0"
+            />
+          </CardLink>
 
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-lg leading-tight text-vellum">{listing.card.nom}</h3>

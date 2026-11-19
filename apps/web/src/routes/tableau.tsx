@@ -9,6 +9,7 @@ import type { TableauSelection } from '../components/tableau/combo-board';
 import { MultiplierPanel } from '../components/tableau/multiplier-panel';
 import { TextField } from '../components/text-field';
 import { Card } from '../components/ui/Card';
+import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import {
   drawerTitleLabel,
@@ -334,18 +335,20 @@ function SlotRow({ slot, card, onOpen, onRemove }: SlotRowProps) {
           aria-hidden="true"
           className="absolute top-0 left-1/2 z-10 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brass shadow-brass"
         />
-        <Card
-          type={card.category}
-          rarity={card.rarity}
-          name={card.nom}
-          score={card.score}
-          refCode={card.refCode}
-          blasonUrl={card.blasonUrl}
-          blasonCredit={card.blasonCredit}
-          locked={card.locked}
-          variant="compact"
-          className="w-[132px] shrink-0"
-        />
+        <CardLink cardId={card.id} label={cardLinkLabel(card.nom)} className="w-[132px] shrink-0">
+          <Card
+            type={card.category}
+            rarity={card.rarity}
+            name={card.nom}
+            score={card.score}
+            refCode={card.refCode}
+            blasonUrl={card.blasonUrl}
+            blasonCredit={card.blasonCredit}
+            locked={card.locked}
+            variant="compact"
+            className="w-[132px] shrink-0"
+          />
+        </CardLink>
       </div>
 
       <div className="min-w-0 flex-1">

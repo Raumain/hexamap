@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
+import { Route as CardCardIdRouteImport } from './routes/card.$cardId'
 import { Route as MarketIndexRouteImport } from './routes/market.index'
 import { Route as MarketMineRouteImport } from './routes/market.mine'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets.$ticketId'
@@ -55,6 +56,11 @@ const TableauxRoute = TableauxRouteImport.update({
   path: '/tableaux',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CardCardIdRoute = CardCardIdRouteImport.update({
+  id: '/card/$cardId',
+  path: '/card/$cardId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketIndexRoute = MarketIndexRouteImport.update({
   id: '/market/',
   path: '/market/',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/market/': typeof MarketIndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/market': typeof MarketIndexRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/market/': typeof MarketIndexRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/card/$cardId'
     | '/market/mine'
     | '/tickets/$ticketId'
     | '/market/'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/card/$cardId'
     | '/market/mine'
     | '/tickets/$ticketId'
     | '/market'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/card/$cardId'
     | '/market/mine'
     | '/tickets/$ticketId'
     | '/market/'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
+  CardCardIdRoute: typeof CardCardIdRoute
   MarketMineRoute: typeof MarketMineRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
   MarketIndexRoute: typeof MarketIndexRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TableauxRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/card/$cardId': {
+      id: '/card/$cardId'
+      path: '/card/$cardId'
+      fullPath: '/card/$cardId'
+      preLoaderRoute: typeof CardCardIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/market/': {
       id: '/market/'
       path: '/market'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,
+  CardCardIdRoute: CardCardIdRoute,
   MarketMineRoute: MarketMineRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
   MarketIndexRoute: MarketIndexRoute,
