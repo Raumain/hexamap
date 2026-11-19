@@ -182,6 +182,12 @@ export interface RateLimitTable {
   lastRequest: string;
 }
 
+export interface UserAchievementTable {
+  user_id: string;
+  achievement_key: string;
+  unlocked_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -200,4 +206,5 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  user_achievements: UserAchievementTable;
 }
