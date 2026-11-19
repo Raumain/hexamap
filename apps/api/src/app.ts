@@ -6,6 +6,7 @@ import { sql } from 'kysely';
 import { auth } from './auth';
 import { db } from './db';
 import { env } from './env';
+import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
@@ -62,6 +63,10 @@ export interface CreateAppOptions {
   webDistDir?: string;
   // Force l'activation ou la désactivation du service du front.
   serveWeb?: boolean;
+  // Racine des blasons ; par défaut BLASONS_DIR.
+  blasonsDir?: string;
+  // Seuil de compression sous lequel l'API ne compresse pas ; 1024 octets par défaut.
+  compressionMinBytes?: number;
 }
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -90,6 +95,9 @@ export function createApp(options: CreateAppOptions = {}) {
         },
       }),
     )
+    // Compression des réponses JSON : montée avant les modules pour couvrir les
+    // routes de santé, le 404 JSON et les plugins montés ensuite.
+    .use(compressionPlugin({ minBytes: options.compressionMinBytes }))
     .use(openapi({ path: '/api/docs' }))
     .get('/api/v1/health', () => ({ status: 'ok', service: 'hexamap-api' }))
     .get('/api/v1/health/db', async ({ set }) => {
@@ -104,7 +112,7 @@ export function createApp(options: CreateAppOptions = {}) {
     .use(publicRoutes)
     .use(protectedRoutes)
     // Assets statiques hors du préfixe /api/v1 : servis directement sur /blasons.
-    .use(blasonRoutes)
+    .use(blasonRoutes(options.blasonsDir ?? env.BLASONS_DIR))
     .mount(auth.handler);
 
   // Service du front : explicite via `SERVE_WEB`, ou automatique en production.

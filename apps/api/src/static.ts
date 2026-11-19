@@ -1,5 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Elysia } from 'elysia';
+import {
+  appendVary,
+  COMPRESSION_MIN_BYTES,
+  compressBytes,
+  isCompressibleType,
+  negotiateEncoding,
+} from './lib/compression';
+import { cachedCompression, compressionCacheKey } from './lib/compression-cache';
 
 const HTML_TYPE = 'text/html; charset=utf-8';
 
@@ -128,14 +137,66 @@ export const webRoutes = (root: string, authHandler?: FetchHandler) =>
     if (!isRoot && extension !== '' && contentType !== undefined) {
       const file = Bun.file(absolute);
       if (await file.exists()) {
-        const etag = `"${file.size}-${file.lastModified}"`;
+        // Validateur faible : identité, gzip et br sont trois représentations
+        // sémantiquement équivalentes de la même ressource. Un validateur fort
+        // ne désignerait qu'une seule d'entre elles.
+        const etag = `W/"${file.size}-${file.lastModified}"`;
+        const currentVary = set.headers.Vary;
+        const vary = appendVary(
+          typeof currentVary === 'string' ? currentVary : null,
+          'accept-encoding',
+        );
+
         if (headers['if-none-match'] === etag) {
-          return new Response(null, { status: 304, headers: { ...SECURITY_HEADERS, ETag: etag } });
+          return new Response(null, {
+            status: 304,
+            headers: { ...SECURITY_HEADERS, ETag: etag, Vary: vary },
+          });
+        }
+
+        // Une réponse HEAD n'a pas de corps : rien à encoder. La branche
+        // compressée retourne AVANT toute écriture dans `set.headers`, sinon
+        // Elysia fusionnerait la longueur non compressée par-dessus.
+        const encoding =
+          request.method === 'HEAD' ? null : negotiateEncoding(headers['accept-encoding'] ?? null);
+
+        if (encoding && isCompressibleType(contentType) && file.size >= COMPRESSION_MIN_BYTES) {
+          // CORS reflète l'origine et pose `Vary: Origin` dans son propre
+          // onAfterHandle, qui n'atteint pas une Response construite ici : la
+          // dimension est réintégrée explicitement, sans quoi un cache partagé
+          // servirait la variante d'une origine à une autre.
+          const varyWithOrigin = appendVary(
+            typeof currentVary === 'string' ? currentVary : null,
+            'origin',
+          );
+          const compressedVary = appendVary(varyWithOrigin, 'accept-encoding');
+
+          const body = cachedCompression(
+            compressionCacheKey(absolute, file.size, file.lastModified, encoding),
+            () => compressBytes(new Uint8Array(readFileSync(absolute)), encoding),
+          );
+
+          return new Response(body, {
+            status: 200,
+            headers: {
+              ...SECURITY_HEADERS,
+              'Content-Type': contentType,
+              'Cache-Control': cacheControlFor(relative),
+              ETag: etag,
+              'Content-Encoding': encoding,
+              Vary: compressedVary,
+              'Content-Length': String(body.byteLength),
+            },
+          });
         }
 
         set.headers['Content-Type'] = contentType;
         set.headers['Cache-Control'] = cacheControlFor(relative);
+        // Longueur explicite : la réponse est un flux, dont la taille n'est pas
+        // déduite automatiquement par `app.handle`.
+        set.headers['Content-Length'] = String(file.size);
         set.headers.ETag = etag;
+        set.headers.Vary = vary;
         for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
           set.headers[key] = value;
         }
@@ -145,23 +206,62 @@ export const webRoutes = (root: string, authHandler?: FetchHandler) =>
 
     // REPLI SPA : toute route cliente inconnue reçoit `index.html`. Si le build
     // n'est pas présent, on répond 404 plutôt que de laisser Elysia lever.
-    const indexFile = Bun.file(resolve(root, 'index.html'));
+    const indexAbsolute = resolve(root, 'index.html');
+    const indexFile = Bun.file(indexAbsolute);
     if (!(await indexFile.exists())) {
       set.status = 404;
       return notFound;
     }
 
-    const indexEtag = `"${indexFile.size}-${indexFile.lastModified}"`;
+    const indexEtag = `W/"${indexFile.size}-${indexFile.lastModified}"`;
+    const currentIndexVary = set.headers.Vary;
+    const indexVary = appendVary(
+      typeof currentIndexVary === 'string' ? currentIndexVary : null,
+      'accept-encoding',
+    );
+
     if (headers['if-none-match'] === indexEtag) {
       return new Response(null, {
         status: 304,
-        headers: { ...SECURITY_HEADERS, ETag: indexEtag },
+        headers: { ...SECURITY_HEADERS, ETag: indexEtag, Vary: indexVary },
+      });
+    }
+
+    const indexEncoding =
+      request.method === 'HEAD' ? null : negotiateEncoding(headers['accept-encoding'] ?? null);
+
+    if (indexEncoding && isCompressibleType(HTML_TYPE) && indexFile.size >= COMPRESSION_MIN_BYTES) {
+      // Même raison que pour les assets : `Vary: Origin` du CORS n'atteint pas
+      // cette Response, la dimension est donc réintégrée ici.
+      const indexVaryWithOrigin = appendVary(
+        typeof currentIndexVary === 'string' ? currentIndexVary : null,
+        'origin',
+      );
+      const indexCompressedVary = appendVary(indexVaryWithOrigin, 'accept-encoding');
+
+      const body = cachedCompression(
+        compressionCacheKey(indexAbsolute, indexFile.size, indexFile.lastModified, indexEncoding),
+        () => compressBytes(new Uint8Array(readFileSync(indexAbsolute)), indexEncoding),
+      );
+
+      return new Response(body, {
+        status: 200,
+        headers: {
+          ...SECURITY_HEADERS,
+          'Content-Type': HTML_TYPE,
+          'Cache-Control': cacheControlFor('index.html'),
+          ETag: indexEtag,
+          'Content-Encoding': indexEncoding,
+          Vary: indexCompressedVary,
+          'Content-Length': String(body.byteLength),
+        },
       });
     }
 
     set.headers['Content-Type'] = HTML_TYPE;
     set.headers['Cache-Control'] = cacheControlFor('index.html');
     set.headers.ETag = indexEtag;
+    set.headers.Vary = indexVary;
     for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
       set.headers[key] = value;
     }
