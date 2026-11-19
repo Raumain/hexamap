@@ -8,6 +8,7 @@ import { db } from './db';
 import { env } from './env';
 import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
+import { achievementRoutes } from './routes/achievements';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
 import { importStatusRoutes } from './routes/import-status';
@@ -43,6 +44,7 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(cardRoutes)
   .use(tableauRoutes)
   .use(marketRoutes)
+  .use(achievementRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });

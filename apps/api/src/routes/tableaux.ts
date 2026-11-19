@@ -1,17 +1,20 @@
-import type { CardCategory, Rarity } from '@hexamap/db';
 import {
   type CommuneOdonymeRef,
   evaluateTableau,
-  rueExistsInCommune,
   slotMatchesCategory,
-  type TableauGeography,
   type TableauSlot,
 } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { HttpError } from '../lib/http-error';
 import { authPlugin } from '../middleware/auth';
-import { cardNomKey, type Executor, resolveCardNoms } from '../services/draw';
+import { cardNomKey, resolveCardNoms } from '../services/draw';
+import {
+  buildTableauGeography,
+  type CardRow,
+  resolveGeography,
+  type SelectedCards,
+} from '../services/tableaux';
 
 const raritySchema = t.Union([
   t.Literal('COMMUNE'),
@@ -96,110 +99,6 @@ const errorSchema = t.Object(
 );
 
 const unauthorized = { code: 'UNAUTHORIZED', message: 'Non authentifié' };
-
-type CardRow = {
-  id: string;
-  category: CardCategory;
-  ref_code: string;
-  score: number;
-  rarity: Rarity;
-  locked: boolean;
-};
-
-type SelectedCards = {
-  region: CardRow | null;
-  departement: CardRow | null;
-  commune: CardRow | null;
-  rue: CardRow | null;
-};
-
-/** Lignes de référence déjà résolues, nécessaires à la construction d'une
- *  géographie. `null` quand la ligne manque en base. */
-interface GeographyReferenceRows {
-  region: { code: string } | null;
-  departement: { code: string; code_region: string | null } | null;
-  commune: { code_insee: string; code_departement: string | null } | null;
-  odonymes: ReadonlyArray<CommuneOdonymeRef>;
-}
-
-/** Construit la géographie d'une sélection (partielle ou complète) à partir des
- *  lignes de référence déjà résolues. Pur : aucune requête, ne lève jamais.
- *  Repli sur `ref_code` quand la ligne de référence manque ; lien invalide. */
-function buildTableauGeography(
-  cards: SelectedCards,
-  refs: GeographyReferenceRows,
-): TableauGeography {
-  const regionCode = cards.region ? (refs.region?.code ?? cards.region.ref_code) : null;
-
-  const departementCode = cards.departement
-    ? (refs.departement?.code ?? cards.departement.ref_code)
-    : null;
-  const departementRegionCode = cards.departement ? (refs.departement?.code_region ?? null) : null;
-
-  const communeInsee = cards.commune ? (refs.commune?.code_insee ?? cards.commune.ref_code) : null;
-  const communeDepartementCode = cards.commune ? (refs.commune?.code_departement ?? null) : null;
-
-  const rueOdonymeId = cards.rue ? cards.rue.ref_code : null;
-  const rueInCommune = rueExistsInCommune(refs.odonymes, communeInsee, rueOdonymeId);
-
-  return {
-    regionCode,
-    departementCode,
-    departementRegionCode,
-    communeInsee,
-    communeDepartementCode,
-    rueOdonymeId,
-    rueInCommune,
-  };
-}
-
-/** Résout la géographie d'une sélection (partielle ou complète) sans jamais
- *  lever si une donnée de référence est absente : champ null, lien invalide. */
-async function resolveGeography(exec: Executor, cards: SelectedCards): Promise<TableauGeography> {
-  const region = cards.region
-    ? await exec
-        .selectFrom('ref_regions')
-        .select('code')
-        .where('code', '=', cards.region.ref_code)
-        .executeTakeFirst()
-    : null;
-
-  const departement = cards.departement
-    ? await exec
-        .selectFrom('ref_departements')
-        .select(['code', 'code_region'])
-        .where('code', '=', cards.departement.ref_code)
-        .executeTakeFirst()
-    : null;
-
-  const commune = cards.commune
-    ? await exec
-        .selectFrom('ref_communes')
-        .select(['code_insee', 'code_departement'])
-        .where('code_insee', '=', cards.commune.ref_code)
-        .executeTakeFirst()
-    : null;
-
-  const communeInsee = commune?.code_insee ?? cards.commune?.ref_code ?? null;
-  const odonymes: CommuneOdonymeRef[] =
-    cards.rue && communeInsee !== null
-      ? (
-          await exec
-            .selectFrom('commune_odonymes')
-            .select(['code_insee', 'odonyme_id'])
-            .where('code_insee', '=', communeInsee)
-            .where('odonyme_id', '=', cards.rue.ref_code)
-            .execute()
-        ).map((row) => ({ codeInsee: row.code_insee, odonymeId: row.odonyme_id }))
-      : [];
-
-  return buildTableauGeography(cards, {
-    region: region ?? null,
-    departement: departement ?? null,
-    commune: commune ?? null,
-    odonymes,
-  });
-}
 
 /** Projette une carte résolue en carte de slot (nom via la map des noms). */
 function toSlotCard(noms: Map<string, string>, slot: TableauSlot, card: CardRow) {
