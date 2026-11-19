@@ -1,30 +1,25 @@
 import type { TableauAlignment, TableauSlot } from '@hexamap/shared';
-import {
-  evaluateTableauAlignment,
-  slotMatchesCategory,
-  TABLEAU_SLOT_LABELS,
-  TABLEAU_SLOTS,
-  tableauScore,
-} from '@hexamap/shared';
+import { slotMatchesCategory, TABLEAU_SLOT_LABELS, TABLEAU_SLOTS } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Button } from '../components/button';
+import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FormError } from '../components/form-error';
-import { ComboBoard, type TableauSelection } from '../components/tableau/combo-board';
+import type { TableauSelection } from '../components/tableau/combo-board';
 import { MultiplierPanel } from '../components/tableau/multiplier-panel';
 import { TextField } from '../components/text-field';
 import { Card } from '../components/ui/Card';
-import { RarityBadge } from '../components/ui/rarity-badge';
+import { RaritySeal } from '../components/ui/rarity-seal';
 import {
   drawerTitleLabel,
   multiplierLabel,
+  removeCardAria,
   resultsLabel,
   TABLEAU,
   TABLEAUX_LIST,
 } from '../content/tableau';
 import { CATEGORY_LABELS } from '../content/tickets';
+import { CATEGORY_META, type CategoryMeta } from '../lib/category-theme';
 import {
   type CollectionCard,
   collectionErrorMessage,
@@ -43,6 +38,22 @@ const scoreFormatter = new Intl.NumberFormat('fr-FR');
 
 type Selection = TableauSelection;
 
+type TableauLinkKey = TableauAlignment['breakdown'][number]['key'];
+
+/** Lien géographique attaché à l'emplacement qui le précède, dans l'ordre du GDD. */
+const LINK_FOR_SLOT: Partial<Record<TableauSlot, TableauLinkKey>> = {
+  REGION: 'region-departement',
+  DEPARTEMENT: 'departement-commune',
+  COMMUNE: 'commune-rue',
+};
+
+const SLOT_META: Record<TableauSlot, CategoryMeta> = {
+  REGION: CATEGORY_META.REGION,
+  DEPARTEMENT: CATEGORY_META.DEPARTEMENT,
+  COMMUNE: CATEGORY_META.COMMUNE,
+  RUE: CATEGORY_META.RUE,
+};
+
 export const Route = createFileRoute('/tableau')({
   component: TableauPage,
 });
@@ -50,24 +61,26 @@ export const Route = createFileRoute('/tableau')({
 function TableauPage() {
   const session = useSession();
 
-  if (session.isPending) {
-    return <p className="text-ink-secondary">{TABLEAU.loadingSession}</p>;
-  }
-
-  if (!session.data?.user) {
-    return <Navigate to="/login" />;
-  }
-
   return (
-    <section className="space-y-8">
-      <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
-          {TABLEAU.eyebrow}
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight">{TABLEAU.title}</h1>
-        <p className="text-ink-secondary">{TABLEAU.subtitle}</p>
+    <section className="space-y-10">
+      <header>
+        <p className="salon-eyebrow">SALLE III · LA PLANCHE</p>
+        <h1 className="mt-3 font-display text-4xl tracking-tight text-vellum md:text-5xl">
+          La planche d'alignement
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-vellum/70">{TABLEAU.subtitle}</p>
+        <div className="brass-rule mt-5 w-24" />
       </header>
-      <TableauBody />
+
+      {session.isPending ? (
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+          {TABLEAU.loadingSession}
+        </p>
+      ) : !session.data?.user ? (
+        <Navigate to="/login" />
+      ) : (
+        <TableauBody />
+      )}
     </section>
   );
 }
@@ -76,14 +89,18 @@ function TableauBody() {
   const collectionQuery = useQuery(collectionQueryOptions);
 
   if (collectionQuery.isPending) {
-    return <p className="text-ink-secondary">{TABLEAU.loading}</p>;
+    return (
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+        {TABLEAU.loading}
+      </p>
+    );
   }
 
   if (collectionQuery.isError) {
     return (
-      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
+      <div className="space-y-4 rounded-sheet border border-oxide/40 bg-cabinet-raised p-6">
         <FormError message={collectionErrorMessage(collectionQuery.error)} />
-        <Button onClick={() => void collectionQuery.refetch()}>{TABLEAU.retry}</Button>
+        <GhostButton onClick={() => void collectionQuery.refetch()}>{TABLEAU.retry}</GhostButton>
       </div>
     );
   }
@@ -92,9 +109,9 @@ function TableauBody() {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-md border-2 border-border bg-surface p-10 text-center">
-        <h2 className="text-xl font-semibold text-ink">{TABLEAU.emptyCollectionTitle}</h2>
-        <p className="mt-1 text-ink-secondary">{TABLEAU.emptyCollectionDescription}</p>
+      <div className="rounded-sheet border border-veil bg-cabinet-raised p-10 text-center">
+        <h2 className="font-display text-xl text-vellum">{TABLEAU.emptyCollectionTitle}</h2>
+        <p className="mt-2 text-sm text-vellum/65">{TABLEAU.emptyCollectionDescription}</p>
       </div>
     );
   }
@@ -110,15 +127,17 @@ function TableauBuilder({ items }: { items: CollectionCard[] }) {
 
   const preview = useQuery(tableauPreviewQueryOptions(selection));
 
-  // Le multiplicateur et le total viennent exclusivement des fonctions partagées.
-  const alignment = preview.data ? evaluateTableauAlignment(preview.data.geography) : null;
+  // L'alignement, le nombre de liens et le total viennent du serveur
+  // (`GET /tableaux/preview`) : aucune règle géographique n'est réévaluée ici.
+  const alignment = preview.data?.alignment ?? null;
   const scores = {
     region: selection.REGION?.score ?? 0,
     departement: selection.DEPARTEMENT?.score ?? 0,
     commune: selection.COMMUNE?.score ?? 0,
     rue: selection.RUE?.score ?? 0,
   };
-  const total = alignment ? tableauScore(scores, alignment.links) : null;
+  const base = scores.region + scores.departement + scores.commune + scores.rue;
+  const total = preview.data?.total ?? null;
   const complete = TABLEAU_SLOTS.every((slot) => selection[slot] !== undefined);
   const recalculating = preview.isFetching && preview.isPlaceholderData;
 
@@ -171,53 +190,74 @@ function TableauBuilder({ items }: { items: CollectionCard[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      <aside className="order-first lg:order-last lg:sticky lg:top-6 lg:w-80 lg:shrink-0">
-        <MultiplierPanel alignment={alignment} />
-      </aside>
+    <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="min-w-0 space-y-6">
+        <div className="rounded-sheet border border-veil bg-cabinet-raised p-4 md:p-6">
+          <div className="flex flex-col gap-0">
+            {TABLEAU_SLOTS.map((slot, index) => {
+              const key = LINK_FOR_SLOT[slot];
+              const link =
+                key === undefined
+                  ? undefined
+                  : alignment?.breakdown.find((entry) => entry.key === key);
 
-      <div className="min-w-0 flex-1 space-y-6">
-        <ComboBoard
-          selection={selection}
-          alignment={alignment}
-          onOpen={setOpenSlot}
-          onRemove={removeCard}
-        />
+              return (
+                <Fragment key={slot}>
+                  {index === 0 ? null : <SlotSeal link={link} />}
+                  <SlotRow
+                    slot={slot}
+                    card={selection[slot]}
+                    onOpen={() => setOpenSlot(slot)}
+                    onRemove={() => removeCard(slot)}
+                  />
+                </Fragment>
+              );
+            })}
+          </div>
+        </div>
 
-        {recalculating ? (
-          <p role="status" className="font-mono text-xs text-ink-muted">
-            {TABLEAU.recalculating}
-          </p>
-        ) : null}
-
-        <ScoreDetail
-          selection={selection}
-          alignment={alignment}
-          total={total}
-          complete={complete}
-        />
-
-        <section className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-5">
+        <section className="space-y-4 rounded-sheet border border-veil bg-cabinet-raised p-5">
           <TextField
             label={TABLEAU.nameLabel}
             placeholder={TABLEAU.namePlaceholder}
             value={name}
             maxLength={80}
             onChange={(event) => setName(event.target.value)}
+            tone="dark"
           />
-          <Button
+          <button
+            type="button"
             onClick={handleSave}
-            disabled={!complete}
-            isPending={createMutation.isPending}
-            className="w-full"
+            disabled={!complete || createMutation.isPending}
+            aria-busy={createMutation.isPending || undefined}
+            className="inline-flex w-full items-center justify-center rounded-[2px] border border-brass-deep bg-brass px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {TABLEAU.save}
-          </Button>
+            {createMutation.isPending ? 'Enregistrement…' : TABLEAU.save}
+          </button>
           <FormError
             message={createMutation.isError ? tableauErrorMessage(createMutation.error) : null}
           />
         </section>
+
+        {recalculating ? (
+          <p
+            role="status"
+            className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/55"
+          >
+            {TABLEAU.recalculating}
+          </p>
+        ) : null}
       </div>
+
+      <aside className="sticky top-6 space-y-4 self-start">
+        <CalculationPlate
+          base={base}
+          multiplier={alignment?.multiplier ?? 1}
+          total={total}
+          complete={complete}
+        />
+        <MultiplierPanel alignment={alignment} />
+      </aside>
 
       {openSlot ? (
         <CardDrawer
@@ -232,62 +272,157 @@ function TableauBuilder({ items }: { items: CollectionCard[] }) {
   );
 }
 
-interface ScoreDetailProps {
-  selection: Selection;
-  alignment: TableauAlignment | null;
+/** Sceau de validation entre deux emplacements, alimenté par `alignment.breakdown`. */
+function SlotSeal({ link }: { link: TableauAlignment['breakdown'][number] | undefined }) {
+  return (
+    <div className="relative flex h-7 items-center justify-center">
+      <div aria-hidden="true" className="h-7 w-px bg-brass/35" />
+      {link === undefined ? null : (
+        <div className="absolute left-3 flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={`font-mono text-[11px] leading-none ${
+              link.valid ? 'text-verdigris' : 'text-oxide'
+            }`}
+          >
+            {link.valid ? '✓' : '✗'}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/60">
+            {link.label}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SlotRowProps {
+  slot: TableauSlot;
+  card: CollectionCard | undefined;
+  onOpen: () => void;
+  onRemove: () => void;
+}
+
+function SlotRow({ slot, card, onOpen, onRemove }: SlotRowProps) {
+  const meta = SLOT_META[slot];
+
+  if (card === undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-haspopup="dialog"
+        className="flex w-full items-center gap-4 rounded-[2px] border border-dashed border-veil-strong/70 bg-cabinet-sunk/40 p-3 text-left transition-colors duration-150 hover:border-brass/40"
+      >
+        <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-[2px] border border-veil text-brass/70">
+          <CategoryGlyph glyph={meta.glyph} className="h-5 w-5" />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-display text-[15px] text-vellum/65">Emplacement libre</span>
+          <span className="mt-0.5 block font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/55">
+            {TABLEAU_SLOT_LABELS[slot]}
+          </span>
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 rounded-[2px] border border-veil bg-cabinet-sunk/30 p-3">
+      <div className="relative shrink-0">
+        <span
+          aria-hidden="true"
+          className="absolute top-0 left-1/2 z-10 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brass shadow-brass"
+        />
+        <Card
+          type={card.category}
+          rarity={card.rarity}
+          name={card.nom}
+          score={card.score}
+          refCode={card.refCode}
+          blasonUrl={card.blasonUrl}
+          blasonCredit={card.blasonCredit}
+          locked={card.locked}
+          variant="compact"
+          className="w-[132px] shrink-0"
+        />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-display text-[15px] text-vellum">{card.nom}</p>
+        <p className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-[0.12em] text-vellum/60">
+          {CATEGORY_LABELS[card.category]} · {card.refCode}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <RaritySeal rarity={card.rarity} size={18} />
+          <button
+            type="button"
+            onClick={onOpen}
+            className="font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55 transition-colors duration-150 hover:text-brass"
+          >
+            {TABLEAU.slotModify}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={removeCardAria(card.nom)}
+            className="font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55 transition-colors duration-150 hover:text-oxide"
+          >
+            Retirer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface CalculationPlateProps {
+  base: number;
+  multiplier: number;
   total: number | null;
   complete: boolean;
 }
 
-function ScoreDetail({ selection, alignment, total, complete }: ScoreDetailProps) {
-  const sousTotal = TABLEAU_SLOTS.reduce((sum, slot) => sum + (selection[slot]?.score ?? 0), 0);
-  const multiplier = alignment?.multiplier ?? 1;
-
+/** Plaque de calcul : laiton sur vélin, total en Fraunces. */
+function CalculationPlate({ base, multiplier, total, complete }: CalculationPlateProps) {
   return (
-    <section className="rounded-md border-2 border-border bg-surface shadow-tactile p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-secondary">
+    <section aria-live="polite" className="vellum rounded-sheet p-6">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep">
         {TABLEAU.scoreTitle}
-      </h2>
-      <dl className="mt-3 space-y-2">
-        {TABLEAU_SLOTS.map((slot) => {
-          const card = selection[slot];
-          return (
-            <div key={slot} className="flex items-center justify-between text-sm">
-              <dt className="text-ink-secondary">
-                {TABLEAU_SLOT_LABELS[slot]}
-                {card ? <span className="ml-2 text-xs text-ink-muted">{card.nom}</span> : null}
-              </dt>
-              <dd className="font-mono tabular-nums text-ink">
-                {scoreFormatter.format(card?.score ?? 0)}
-              </dd>
-            </div>
-          );
-        })}
-        <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
-          <dt className="font-medium text-ink-secondary">{TABLEAU.subTotal}</dt>
-          <dd className="font-mono tabular-nums font-medium text-ink">
-            {scoreFormatter.format(sousTotal)}
-          </dd>
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <div className="flex items-baseline justify-between gap-4 border-b border-ink/12 pb-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">
+            Score de base
+          </span>
+          <span className="font-mono text-lg tabular-nums text-ink-soft">
+            {scoreFormatter.format(base)}
+          </span>
         </div>
-        {complete ? (
-          <>
-            <div className="flex items-center justify-between text-sm">
-              <dt className="text-ink-secondary">{TABLEAU.multiplierLine}</dt>
-              <dd className="font-mono tabular-nums text-sign-ochre">
-                {multiplierLabel(multiplier)}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-2 text-base">
-              <dt className="font-semibold text-ink">{TABLEAU.totalLine}</dt>
-              <dd className="font-mono tabular-nums font-black text-sign-ochre">
-                {total !== null ? scoreFormatter.format(total) : '—'}
-              </dd>
-            </div>
-          </>
+
+        <div className="flex items-center justify-between gap-4 border-b border-ink/12 pb-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">
+            Alignement
+          </span>
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-oxide font-display text-[15px] tabular-nums text-vellum">
+            {multiplierLabel(multiplier)}
+          </span>
+        </div>
+
+        {complete && total !== null ? (
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">
+              {TABLEAU.totalLine}
+            </span>
+            <span className="font-display text-5xl leading-none tabular-nums text-ink">
+              {scoreFormatter.format(total)}
+            </span>
+          </div>
         ) : (
-          <p className="pt-2 text-sm text-ink-muted">{TABLEAU.incompleteHint}</p>
+          <p className="font-display text-base italic text-ink-faint">{TABLEAU.incompleteHint}</p>
         )}
-      </dl>
+      </div>
     </section>
   );
 }
@@ -334,44 +469,49 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="fixed inset-0 z-50" role="presentation">
-      <div className="absolute inset-0 bg-ink/60" onClick={onClose} aria-hidden="true" />
+    <div className="fixed inset-0 z-40" role="presentation">
+      <div className="absolute inset-0 bg-cabinet/80" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l-2 border-border bg-surface shadow-tactile-lg"
+        className="fixed inset-x-0 bottom-0 z-40 flex max-h-[76vh] flex-col rounded-t-panel border-t border-brass/30 bg-cabinet-raised p-5 shadow-lifted md:left-[232px]"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
-          <h2 id={titleId} className="text-lg font-semibold text-ink">
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-veil-strong" />
+
+        <div className="flex items-start justify-between gap-4">
+          <h2 id={titleId} className="font-display text-xl text-vellum">
             {drawerTitleLabel(TABLEAU_SLOT_LABELS[slot])}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={TABLEAU.drawerClose}
-            className="rounded-md p-2 text-ink-secondary transition-colors duration-150 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
+            className="rounded-[2px] border border-veil px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/70 transition-colors duration-150 hover:border-brass/40 hover:text-brass"
           >
-            ✕
+            {TABLEAU.drawerClose}
           </button>
         </div>
 
-        <div className="border-b border-border px-4 py-3">
+        <div className="mt-4 border-b border-veil pb-4">
           <TextField
             label={TABLEAU.searchLabel}
             placeholder={TABLEAU.searchPlaceholder}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            tone="dark"
           />
-          <p className="mt-2 text-sm text-ink-secondary">{resultsLabel(eligible.length)}</p>
+          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55">
+            {resultsLabel(eligible.length)}
+          </p>
         </div>
 
         {eligible.length === 0 ? (
           <div className="flex flex-1 items-center justify-center p-6 text-center">
-            <p className="text-ink-muted">{TABLEAU.noResults}</p>
+            <p className="font-display text-base italic text-vellum/60">{TABLEAU.noResults}</p>
           </div>
         ) : (
-          <div ref={scrollRef} className="flex-1 overflow-auto p-4">
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto pt-3">
             <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
               {virtualItems.map((virtualItem) => {
                 const card = eligible[virtualItem.index];
@@ -387,7 +527,7 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                     type="button"
                     disabled={usedElsewhere}
                     onClick={() => onSelect(slot, card)}
-                    className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-md border-2 border-border bg-surface px-3 text-left transition-colors duration-150 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                    className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
                     <Card
@@ -401,22 +541,22 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                       locked={card.locked}
                       variant="compact"
                       decorative
-                      className="w-8 shrink-0"
+                      className="w-14 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-ink">{card.nom}</p>
-                      <p className="truncate text-xs text-ink-secondary">
+                      <p className="truncate font-display text-[15px] text-vellum">{card.nom}</p>
+                      <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
                         {CATEGORY_LABELS[card.category]} · {card.refCode}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <RarityBadge rarity={card.rarity} />
-                      <p className="mt-1 text-sm font-semibold tabular-nums text-ink">
+                      <RaritySeal rarity={card.rarity} size={18} />
+                      <p className="mt-1 font-mono text-[11px] tabular-nums text-brass">
                         {scoreFormatter.format(card.score)}
                       </p>
                     </div>
                     {usedElsewhere ? (
-                      <span className="shrink-0 text-xs text-sign-ochre">
+                      <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-warn">
                         {TABLEAU.usedElsewhere}
                       </span>
                     ) : null}
@@ -433,37 +573,76 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
 
 function CreatedPanel({ tableau, onReset }: { tableau: CreatedTableau; onReset: () => void }) {
   return (
-    <section className="space-y-6 rounded-sm border-2 border-sign-gold bg-paper p-8 shadow-tactile text-center">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
-          {TABLEAU.successEyebrow}
-        </p>
-        <h2 className="mt-2 text-2xl font-bold">{TABLEAU.successTitle}</h2>
-      </div>
-      <p className="text-lg font-medium text-ink">{tableau.name}</p>
-      <dl className="mx-auto grid max-w-sm grid-cols-2 gap-4">
-        <div className="rounded-md border-2 border-border bg-surface shadow-tactile-sm p-4">
-          <dt className="text-sm text-ink-secondary">{TABLEAU.totalLine}</dt>
-          <dd className="mt-1 font-mono text-2xl font-black tabular-nums text-sign-ochre">
+    <section className="vellum mx-auto max-w-2xl rounded-sheet p-8 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep">
+        {TABLEAU.successEyebrow}
+      </p>
+      <h2 className="mt-3 font-display text-2xl text-ink">{TABLEAU.successTitle}</h2>
+      <p className="mt-2 font-display text-lg italic text-ink-soft">{tableau.name}</p>
+
+      <dl className="mx-auto mt-6 grid max-w-sm grid-cols-2 gap-4">
+        <div className="rounded-[2px] border border-ink/12 p-4">
+          <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-faint">
+            {TABLEAU.totalLine}
+          </dt>
+          <dd className="mt-1 font-display text-3xl leading-none tabular-nums text-ink">
             {scoreFormatter.format(tableau.total)}
           </dd>
         </div>
-        <div className="rounded-md border-2 border-border bg-surface shadow-tactile-sm p-4">
-          <dt className="text-sm text-ink-secondary">{TABLEAU.multiplierLine}</dt>
-          <dd className="mt-1 font-mono text-2xl font-black tabular-nums text-sign-ochre">
+        <div className="rounded-[2px] border border-ink/12 p-4">
+          <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-faint">
+            {TABLEAU.multiplierLine}
+          </dt>
+          <dd className="mt-1 font-display text-3xl leading-none tabular-nums text-ink">
             {multiplierLabel(tableau.alignment.multiplier)}
           </dd>
         </div>
       </dl>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button onClick={onReset}>{TABLEAU.createAnother}</Button>
+
+      <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex items-center justify-center rounded-[2px] border border-brass-deep bg-brass px-4 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-cabinet transition-colors duration-150 hover:bg-brass-pale"
+        >
+          {TABLEAU.createAnother}
+        </button>
         <Link
           to="/tableaux"
-          className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-colors duration-150 hover:bg-muted"
+          className="inline-flex items-center justify-center rounded-[2px] border border-ink/25 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-soft transition-colors duration-150 hover:border-ink/50 hover:text-ink"
         >
           {TABLEAUX_LIST.viewList}
         </Link>
       </div>
     </section>
+  );
+}
+
+function CategoryGlyph({ glyph, className }: { glyph: string; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      strokeLinecap="square"
+      className={className}
+    >
+      <path d={glyph} />
+    </svg>
+  );
+}
+
+function GhostButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center justify-center rounded-[2px] border border-veil px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/70 transition-colors duration-150 hover:border-brass/40 hover:text-brass"
+    >
+      {children}
+    </button>
   );
 }

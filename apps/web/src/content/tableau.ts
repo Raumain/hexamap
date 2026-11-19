@@ -41,9 +41,6 @@ export const TABLEAU = {
 export interface MultiplierTier {
   title: string;
   hint: string;
-  badgeClass: string;
-  panelClass: string;
-  surfaceClass: string;
 }
 
 /**
@@ -60,30 +57,18 @@ export const MULTIPLIER_TIERS: readonly [
   {
     title: 'Aucun lien',
     hint: 'Reliez vos cartes pour augmenter le multiplicateur.',
-    badgeClass: 'border-border bg-muted text-ink-secondary',
-    panelClass: 'border-border bg-surface shadow-tactile',
-    surfaceClass: 'text-ink',
   },
   {
     title: 'Premier lien',
     hint: 'Une première connexion géographique validée.',
-    badgeClass: 'border-border bg-muted text-ink-secondary',
-    panelClass: 'border-border bg-surface shadow-tactile',
-    surfaceClass: 'text-sign-ochre',
   },
   {
     title: 'Deux liens',
     hint: 'Deux connexions validées, le multiplicateur grimpe.',
-    badgeClass: 'border-border bg-muted text-ink-secondary',
-    panelClass: 'border-border bg-surface shadow-tactile',
-    surfaceClass: 'text-sign-ochre',
   },
   {
     title: 'Combo géographique complet',
     hint: 'Les quatre cartes forment un ensemble parfait.',
-    badgeClass: 'border-sign-gold bg-amber-100 text-amber-950',
-    panelClass: 'border-sign-gold bg-surface shadow-tactile ring-1 ring-sign-gold',
-    surfaceClass: 'text-sign-gold',
   },
 ];
 

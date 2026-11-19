@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hexamap">
+  <rect width="64" height="64" rx="10" fill="#0c1210" />
+  <g fill="none" stroke="#c6a15b" stroke-linecap="round">
+    <path d="M32 7 55 20v24L32 57 9 44V20z" stroke-width="2.2" />
+    <path d="M32 14 49 23v18L32 50 15 41V23z" stroke-width="1.1" opacity="0.55" />
+    <path d="M32 21v22M21 32h22" stroke-width="1.1" opacity="0.8" />
+    <circle cx="32" cy="32" r="3.6" stroke-width="1.5" />
+  </g>
+</svg>

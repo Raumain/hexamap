@@ -20,32 +20,23 @@ export function AlignmentConnector({
   const vertical = orientation === 'vertical';
 
   return (
-    <div className="relative flex items-center justify-center">
-      <svg
+    <div
+      className={
+        vertical
+          ? 'relative flex h-full items-center justify-center'
+          : 'relative flex w-full items-center justify-center'
+      }
+    >
+      <div
         aria-hidden="true"
-        focusable="false"
-        className={vertical ? 'h-full w-2' : 'h-2 w-full'}
-        viewBox={vertical ? '0 0 2 100' : '0 0 100 2'}
-        preserveAspectRatio="none"
-        fill="none"
-      >
-        <line
-          x1={vertical ? 1 : 0}
-          y1={vertical ? 0 : 1}
-          x2={vertical ? 1 : 100}
-          y2={vertical ? 100 : 1}
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-          strokeDasharray={valid ? undefined : '4 3'}
-          className={valid ? 'stroke-emerald-700' : 'stroke-slate-400'}
-        />
-      </svg>
+        className={vertical ? 'h-full w-px bg-brass/30' : 'h-px w-full bg-brass/30'}
+      />
       <span
         aria-hidden="true"
-        className={`absolute inline-flex h-4 w-4 items-center justify-center rounded-sm border font-mono text-[10px] font-bold ${
+        className={`absolute inline-flex h-3 w-3 items-center justify-center rounded-full border font-mono text-[8px] leading-none ${
           valid
-            ? 'border-emerald-700 bg-emerald-100 text-emerald-900'
-            : 'border-slate-400 bg-slate-200 text-slate-600'
+            ? 'border-verdigris/45 bg-cabinet text-verdigris'
+            : 'border-veil-strong/60 bg-cabinet text-vellum/55'
         }`}
       >
         {valid ? '✓' : '✗'}
@@ -65,17 +56,19 @@ export function AlignmentLinkList({ breakdown, className }: AlignmentLinkListPro
   return (
     <ul className={`flex flex-wrap gap-2 ${className ?? ''}`}>
       {breakdown.map((link) => (
-        <li key={link.key} className="flex items-center gap-1.5">
+        <li key={link.key} className="flex items-center gap-2">
           <span
-            className={`rounded-sm border px-2 py-0.5 font-mono text-xs font-bold ${
+            className={`inline-flex items-center gap-1 rounded-[2px] border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] ${
               link.valid
-                ? 'border-emerald-700 bg-emerald-100 text-emerald-900'
-                : 'border-slate-400 bg-slate-200 text-slate-600'
+                ? 'border-verdigris/45 text-verdigris'
+                : 'border-veil-strong/60 text-vellum/55'
             }`}
           >
             {linkStatusLabel(link.valid)}
           </span>
-          <span className="text-xs text-ink-secondary">{link.label}</span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-vellum/60">
+            {link.label}
+          </span>
         </li>
       ))}
     </ul>

@@ -2,36 +2,48 @@ import type { Rarity } from '@hexamap/shared';
 import type { CSSProperties } from 'react';
 import { RARITY_THEME } from '../../../lib/rarity-theme';
 
-const populationFormatter = new Intl.NumberFormat('fr-FR');
+const numberFormatter = new Intl.NumberFormat('fr-FR');
 
 export interface CardShellOptions {
   rarity: Rarity;
   locked?: boolean;
   decorative?: boolean;
   className?: string;
-  background?: string;
-  padding?: string;
-  style?: CSSProperties;
 }
 
-/** Coque commune aux quatre gabarits de carte (DESIGN_SYSTEM.md §5). */
+export interface CardShellProps {
+  className: string;
+  style: CSSProperties;
+  'aria-hidden'?: true;
+}
+
+/**
+ * Le carton de montage commun aux quatre planches (DESIGN_SYSTEM.md §7.1).
+ * La rareté est portée par l'épaisseur et la couleur du filet, jamais par un fond.
+ */
 export function cardShellProps({
   rarity,
   locked = false,
   decorative = false,
   className = '',
-  background = 'bg-surface',
-  padding = 'p-2.5',
-  style,
-}: CardShellOptions): { className: string; style?: CSSProperties; 'aria-hidden'?: true } {
+}: CardShellOptions): CardShellProps {
+  const theme = RARITY_THEME[rarity];
+
+  // Double cadre : les paliers hauts ajoutent un halo de métal statique (aucun filtre).
+  const halo =
+    theme.treatment === 'electrum'
+      ? `0 0 0 2px ${theme.metal}66`
+      : theme.treatment === 'or'
+        ? `0 0 0 2px ${theme.metal}40`
+        : theme.borderWidth === 2
+          ? `0 0 0 2px ${theme.metal}24`
+          : undefined;
+
   const classes = [
-    'aspect-[3/4] w-full rounded-md border-2 flex flex-col justify-between relative overflow-hidden select-none',
-    background,
-    padding,
-    'shadow-tactile-sm',
-    RARITY_THEME[rarity].borderClass,
-    locked ? 'opacity-60 saturate-50' : '',
-    decorative ? 'pointer-events-none' : '',
+    'exhibit group/card relative flex select-none flex-col overflow-hidden rounded-[2px] p-[3px]',
+    decorative ? 'aspect-[4/5]' : 'aspect-[5/7]',
+    locked ? 'opacity-60 saturate-[0.35]' : '',
+    theme.treatment === 'electrum' ? 'sheen' : '',
     className,
   ]
     .filter(Boolean)
@@ -39,12 +51,24 @@ export function cardShellProps({
 
   return {
     className: classes,
-    ...(style ? { style } : {}),
+    style: {
+      borderStyle: 'solid',
+      borderWidth: theme.borderWidth,
+      borderColor: theme.metal,
+      ...(halo ? { boxShadow: `${halo}, var(--shadow-lifted)` } : {}),
+    },
     ...(decorative ? { 'aria-hidden': true as const } : {}),
   };
 }
 
-export function formatPopulation(population: number | null | undefined): string {
-  if (population === null || population === undefined) return '—';
-  return populationFormatter.format(population);
+export function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return numberFormatter.format(value);
 }
+
+export function formatPopulation(population: number | null | undefined): string {
+  return formatNumber(population);
+}
+
+/** Finition de la gravure : encre brune, jamais noire. */
+export const ENGRAVING = 'text-ink';

@@ -1,4 +1,4 @@
-import { CATEGORY, RARITY, RARITY_LABELS } from '@hexamap/shared';
+import { CATEGORY, type Category, RARITY, RARITY_LABELS } from '@hexamap/shared';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import type { ColumnFiltersState, SortingState } from '@tanstack/react-table';
@@ -18,11 +18,8 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useRef, useState } from 'react';
-import { Button } from '../components/button';
-import { FormError } from '../components/form-error';
-import { TextField } from '../components/text-field';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { RarityBadge } from '../components/ui/rarity-badge';
 import { COLLECTION, cardsShownLabel, collectionTotalLabel } from '../content/collection';
@@ -72,10 +69,27 @@ const columns = columnHelper.columns([
             blasonCredit={card.blasonCredit}
             locked={card.locked}
             variant="compact"
-            decorative
-            className="w-10 shrink-0"
+            className="w-[84px] shrink-0 md:w-[96px]"
           />
-          <span className="min-w-0 truncate font-medium text-ink">{card.nom}</span>
+          <div className="min-w-0 md:hidden">
+            <p className="font-display text-[15px] font-semibold leading-tight text-vellum line-clamp-2">
+              {card.nom}
+            </p>
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/60">
+              {CATEGORY_LABELS[card.category]} · {scoreFormatter.format(card.score)} pts
+            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <RarityBadge rarity={card.rarity} />
+              <span className="font-mono text-[10px] tabular-nums text-vellum/55">
+                {dateFormatter.format(new Date(card.acquiredAt))}
+              </span>
+              {card.locked ? (
+                <span className="text-vellum/55">
+                  <LockedGlyph />
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
       );
     },
@@ -83,7 +97,9 @@ const columns = columnHelper.columns([
   columnHelper.accessor('category', {
     header: COLLECTION.columns.category,
     filterFn: 'equals',
-    cell: (info) => CATEGORY_LABELS[info.getValue()],
+    cell: (info) => (
+      <span className="text-[15px] text-vellum/75">{CATEGORY_LABELS[info.getValue()]}</span>
+    ),
   }),
   columnHelper.accessor('rarity', {
     header: COLLECTION.columns.rarity,
@@ -93,14 +109,16 @@ const columns = columnHelper.columns([
   columnHelper.accessor('score', {
     header: COLLECTION.columns.score,
     cell: (info) => (
-      <span className="font-mono tabular-nums">{scoreFormatter.format(info.getValue())}</span>
+      <span className="font-mono tabular-nums text-brass">
+        {scoreFormatter.format(info.getValue())}
+      </span>
     ),
   }),
   columnHelper.accessor('acquiredAt', {
     header: COLLECTION.columns.acquiredAt,
     sortFn: 'datetime',
     cell: (info) => (
-      <span className="font-mono tabular-nums">
+      <span className="font-mono text-[11px] tabular-nums text-vellum/60">
         {dateFormatter.format(new Date(info.getValue()))}
       </span>
     ),
@@ -108,12 +126,18 @@ const columns = columnHelper.columns([
   columnHelper.accessor('locked', {
     header: COLLECTION.columns.state,
     enableSorting: false,
-    cell: (info) => (info.getValue() ? <LockedBadge /> : null),
+    cell: (info) => (info.getValue() ? <LockedGlyph /> : null),
   }),
 ]);
 
 const gridTemplate =
-  'grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] items-center gap-4 px-4';
+  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[96px_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,0.6fr)] md:py-2';
+
+const inputClass =
+  'h-10 rounded-[2px] border border-veil bg-cabinet-sunk px-3 text-[13px] text-vellum placeholder:text-vellum/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass';
+
+const outlineButtonClass =
+  'inline-flex min-h-10 items-center justify-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale disabled:cursor-not-allowed disabled:opacity-40';
 
 export const Route = createFileRoute('/collection')({
   component: CollectionPage,
@@ -123,7 +147,7 @@ function CollectionPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-ink-secondary">{COLLECTION.loadingSession}</p>;
+    return <p className="text-sm text-vellum/70">{COLLECTION.loadingSession}</p>;
   }
 
   if (!session.data?.user) {
@@ -131,15 +155,18 @@ function CollectionPage() {
   }
 
   return (
-    <section className="space-y-8">
-      <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
-          {COLLECTION.eyebrow}
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight">{COLLECTION.title}</h1>
-        <p className="text-ink-secondary">{COLLECTION.subtitle}</p>
+    <section>
+      <header>
+        <p className="salon-eyebrow">SALLE II · LE CADASTRE</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-vellum md:text-5xl">
+          {COLLECTION.title}
+        </h1>
+        <div className="brass-rule mt-5 w-24" />
+        <p className="mt-4 text-[15px] leading-relaxed text-vellum/70">{COLLECTION.subtitle}</p>
       </header>
-      <CollectionBody />
+      <div className="mt-8">
+        <CollectionBody />
+      </div>
     </section>
   );
 }
@@ -148,14 +175,22 @@ function CollectionBody() {
   const collectionQuery = useQuery(collectionQueryOptions);
 
   if (collectionQuery.isPending) {
-    return <p className="text-ink-secondary">{COLLECTION.loading}</p>;
+    return <p className="text-sm text-vellum/70">{COLLECTION.loading}</p>;
   }
 
   if (collectionQuery.isError) {
     return (
-      <div className="space-y-4 rounded-md border-2 border-border bg-surface shadow-tactile p-6">
-        <FormError message={collectionErrorMessage(collectionQuery.error)} />
-        <Button onClick={() => void collectionQuery.refetch()}>{COLLECTION.retry}</Button>
+      <div className="space-y-4 rounded-sheet border border-veil bg-cabinet-raised p-6">
+        <div role="alert" className="text-sm text-danger">
+          {collectionErrorMessage(collectionQuery.error)}
+        </div>
+        <button
+          type="button"
+          onClick={() => void collectionQuery.refetch()}
+          className={outlineButtonClass}
+        >
+          {COLLECTION.retry}
+        </button>
       </div>
     );
   }
@@ -163,22 +198,55 @@ function CollectionBody() {
   const items = collectionQuery.data?.items ?? [];
   const total = collectionQuery.data?.total ?? 0;
 
-  if (items.length === 0) {
-    return (
-      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-10 text-center">
-        <h2 className="text-xl font-semibold text-ink">{COLLECTION.emptyTitle}</h2>
-        <p className="mt-1 text-ink-secondary">{COLLECTION.emptyDescription}</p>
-        <Link
-          to="/"
-          className="mt-6 inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
-        >
-          {COLLECTION.goHome}
-        </Link>
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-8">
+      <CollectionCounters items={items} />
+      {items.length === 0 ? (
+        <div className="border-y border-veil px-4 py-16 text-center">
+          <p className="font-display text-lg italic text-vellum/60">{COLLECTION.emptyTitle}</p>
+          <p className="mt-2 font-display text-base italic text-vellum/60">
+            {COLLECTION.emptyDescription}
+          </p>
+          <Link
+            to="/"
+            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale"
+          >
+            {COLLECTION.goHome}
+          </Link>
+        </div>
+      ) : (
+        <CollectionTable items={items} total={total} />
+      )}
+    </div>
+  );
+}
 
-  return <CollectionTable items={items} total={total} />;
+function CollectionCounters({ items }: { items: CollectionCard[] }) {
+  const counts = useMemo(() => {
+    const byCategory = new Map<Category, number>();
+    for (const item of items) {
+      byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + 1);
+    }
+    return CATEGORY.map((category) => ({
+      category,
+      count: byCategory.get(category) ?? 0,
+    }));
+  }, [items]);
+
+  return (
+    <div className="grid grid-cols-4 divide-x divide-veil border-y border-veil">
+      {counts.map(({ category, count }) => (
+        <div key={category} className="px-3 py-3 md:px-4 md:py-4">
+          <p className="truncate font-mono text-[8px] uppercase tracking-[0.12em] text-vellum/60 md:text-[9px] md:tracking-[0.18em]">
+            {CATEGORY_LABELS[category]}
+          </p>
+          <p className="mt-1 font-display text-2xl tabular-nums text-brass md:text-3xl">
+            {scoreFormatter.format(count)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 interface CollectionTableProps {
@@ -201,12 +269,35 @@ function CollectionTable({ items, total }: CollectionTableProps) {
     onColumnFiltersChange: setColumnFilters,
   });
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 768px)');
+    const onChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (listRef.current) setScrollMargin(listRef.current.offsetTop);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   const rows = table.getRowModel().rows;
-  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+  // Un seul défilement : celui de la fenêtre. Pas de conteneur imbriqué, donc
+  // pas de double barre de défilement sur mobile (DESIGN_SYSTEM.md §8.2).
+  const rowVirtualizer = useWindowVirtualizer({
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 84,
+    estimateSize: () => (isDesktop ? 152 : 142),
+    scrollMargin,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 8,
   });
@@ -227,52 +318,94 @@ function CollectionTable({ items, total }: CollectionTableProps) {
     return typeof filter?.value === 'string' ? filter.value : '';
   }
 
+  const activeCategory = getFilterValue('category');
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="min-w-64 flex-1">
-          <TextField
-            label={COLLECTION.searchLabel}
-            placeholder={COLLECTION.searchPlaceholder}
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-          />
+    <div>
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-5 border-b border-veil bg-cabinet px-5 py-3 md:top-0 md:-mx-10 md:px-10">
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4">
+          <div className="relative order-1 w-full md:order-3 md:w-72">
+            <label htmlFor="collection-search" className="sr-only">
+              {COLLECTION.searchLabel}
+            </label>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-vellum/50"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m16.5 16.5 4 4" />
+            </svg>
+            <input
+              id="collection-search"
+              type="search"
+              placeholder={COLLECTION.searchPlaceholder}
+              value={globalFilter}
+              onChange={(event) => setGlobalFilter(event.target.value)}
+              className={`${inputClass} w-full pl-9`}
+            />
+          </div>
+
+          <fieldset className="order-2 m-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-0 p-0 md:order-1">
+            <legend className="sr-only">{COLLECTION.categoryLabel}</legend>
+            {(['', ...CATEGORY] as Array<Category | ''>).map((value) => {
+              const active = activeCategory === value;
+              return (
+                <button
+                  key={value === '' ? 'all' : value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => applyColumnFilter('category', value)}
+                  className={`pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] transition-colors duration-150 md:pb-2 md:text-[10px] md:tracking-[0.14em] ${
+                    active
+                      ? 'border-b-2 border-brass text-brass'
+                      : 'border-b-2 border-transparent text-vellum/60 hover:text-vellum/75'
+                  }`}
+                >
+                  {value === '' ? COLLECTION.allValues : CATEGORY_LABELS[value]}
+                </button>
+              );
+            })}
+          </fieldset>
+
+          <div className="order-3 flex items-center gap-2 md:order-2">
+            <label
+              htmlFor="rarity"
+              className="font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/60"
+            >
+              {COLLECTION.rarityLabel}
+            </label>
+            <select
+              id="rarity"
+              value={getFilterValue('rarity')}
+              onChange={(event) => applyColumnFilter('rarity', event.target.value)}
+              className={`${inputClass} flex-1 md:flex-none`}
+            >
+              <option value="">{COLLECTION.allValues}</option>
+              {RARITY.map((rarity) => (
+                <option key={rarity} value={rarity}>
+                  {RARITY_LABELS[rarity]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <FilterSelect
-          id="rarity"
-          label={COLLECTION.rarityLabel}
-          value={getFilterValue('rarity')}
-          onChange={(value) => applyColumnFilter('rarity', value)}
-          options={RARITY.map((rarity) => ({
-            value: rarity,
-            label: RARITY_LABELS[rarity],
-          }))}
-        />
-        <FilterSelect
-          id="category"
-          label={COLLECTION.categoryLabel}
-          value={getFilterValue('category')}
-          onChange={(value) => applyColumnFilter('category', value)}
-          options={CATEGORY.map((category) => ({
-            value: category,
-            label: CATEGORY_LABELS[category],
-          }))}
-        />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-secondary">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-vellum/60">
         <p>{cardsShownLabel(filteredCount, total)}</p>
         <p>{collectionTotalLabel(total)}</p>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="h-[32rem] overflow-auto rounded-md border-2 border-border bg-surface shadow-tactile"
-      >
+      <div ref={listRef} className="mt-3 rounded-sheet border border-veil bg-cabinet-sunk">
         <table aria-label={COLLECTION.scrollAriaLabel} className="w-full">
-          <thead className="sticky top-0 z-10 block border-b border-border bg-surface">
+          <thead className="hidden border-b border-veil-strong bg-cabinet-sunk font-mono text-[9px] uppercase tracking-[0.16em] text-vellum/70 md:block">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className={`${gridTemplate} py-2`}>
+              <tr key={headerGroup.id} className={gridTemplate}>
                 {headerGroup.headers.map((header) => {
                   const sorted = header.column.getIsSorted();
                   const ariaSort =
@@ -283,15 +416,15 @@ function CollectionTable({ items, total }: CollectionTableProps) {
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="inline-flex items-center gap-1 rounded text-left font-medium text-ink transition-colors duration-150 hover:text-sign-ochre focus:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
+                          className="inline-flex items-center gap-1 pb-1 text-left transition-colors duration-150 hover:text-brass"
                         >
                           <table.FlexRender header={header} />
-                          <span aria-hidden="true" className="text-sign-ochre">
+                          <span aria-hidden="true" className="text-brass">
                             {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : ''}
                           </span>
                         </button>
                       ) : (
-                        <span className="font-medium text-ink">
+                        <span className="pb-1">
                           <table.FlexRender header={header} />
                         </span>
                       )}
@@ -313,11 +446,11 @@ function CollectionTable({ items, total }: CollectionTableProps) {
                   key={row.id}
                   ref={rowVirtualizer.measureElement}
                   data-index={item.index}
-                  className={`${gridTemplate} absolute top-0 left-0 w-full border-b border-border/50`}
-                  style={{ transform: `translateY(${item.start}px)` }}
+                  className={`${gridTemplate} absolute top-0 left-0 w-full border-b border-veil transition-colors duration-150 hover:bg-cabinet-raised/70`}
+                  style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
                 >
-                  {row.getAllCells().map((cell) => (
-                    <td key={cell.id} className="py-3">
+                  {row.getAllCells().map((cell, index) => (
+                    <td key={cell.id} className={index === 0 ? undefined : 'hidden md:block'}>
                       <table.FlexRender cell={cell} />
                     </td>
                   ))}
@@ -331,41 +464,22 @@ function CollectionTable({ items, total }: CollectionTableProps) {
   );
 }
 
-interface FilterSelectProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}
-
-function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps) {
+function LockedGlyph() {
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-sm border-2 border-border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue"
+    <span className="inline-flex items-center gap-1.5 text-vellum/55">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="h-4 w-4"
       >
-        <option value="">{COLLECTION.allValues}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function LockedBadge() {
-  return (
-    <span className="inline-flex w-fit rounded-sm border border-border bg-muted px-2 py-0.5 text-xs font-medium text-ink-secondary">
-      {COLLECTION.locked}
+        <path d="M7 11V8a5 5 0 0 1 10 0v3" strokeLinecap="round" />
+        <rect x="5" y="11" width="14" height="9" rx="1" />
+        <path d="M12 15v2" strokeLinecap="round" />
+      </svg>
+      <span className="sr-only">{COLLECTION.locked}</span>
     </span>
   );
 }

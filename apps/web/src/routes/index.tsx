@@ -1,7 +1,9 @@
+import type { Category, Rarity } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate, useNavigate } from '@tanstack/react-router';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
+import { Card } from '../components/ui/Card';
 import { scrapesLabel, TICKET } from '../content/tickets';
 import { useSession } from '../lib/session';
 import {
@@ -16,11 +18,68 @@ export const Route = createFileRoute('/')({
   component: DashboardPage,
 });
 
+const plateLinkClass =
+  'inline-flex min-h-11 items-center justify-center rounded-[2px] bg-brass px-5 font-mono text-[11px] uppercase tracking-[0.14em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale';
+
+interface PlatePreview {
+  type: Category;
+  rarity: Rarity;
+  name: string;
+  score: number;
+  refCode: string;
+  offsetClass: string;
+}
+
+const PLATE_PREVIEWS: PlatePreview[] = [
+  {
+    type: 'REGION',
+    rarity: 'RARE',
+    name: 'Bretagne',
+    score: 750,
+    refCode: '53',
+    offsetClass: 'sm:-translate-y-2',
+  },
+  {
+    type: 'DEPARTEMENT',
+    rarity: 'EPIQUE',
+    name: 'Finistère',
+    score: 1250,
+    refCode: '29',
+    offsetClass: 'sm:translate-y-2',
+  },
+  {
+    type: 'COMMUNE',
+    rarity: 'MYTHIQUE',
+    name: 'Lyon',
+    score: 3600,
+    refCode: '69123',
+    offsetClass: 'sm:-translate-y-2',
+  },
+  {
+    type: 'RUE',
+    rarity: 'RARE',
+    name: 'Rue des Lices',
+    score: 1000,
+    refCode: '—',
+    offsetClass: 'sm:translate-y-2',
+  },
+];
+
+const CABINET_FACTS: { label: string; value: string }[] = [
+  { label: 'Régions', value: '18' },
+  { label: 'Départements', value: '101' },
+  { label: 'Communes', value: '34 900' },
+];
+
 function DashboardPage() {
   const session = useSession();
 
   if (session.isPending) {
-    return <p className="text-ink-secondary">Chargement de votre session…</p>;
+    return (
+      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-vellum/65">
+        Chargement de votre session…
+      </p>
+    );
   }
 
   const user = session.data?.user ?? undefined;
@@ -29,17 +88,67 @@ function DashboardPage() {
   }
 
   return (
-    <section className="space-y-8">
-      <div className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
-          Tableau de bord
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight">Bienvenue, {user.pseudo}.</h1>
+    <section className="space-y-12">
+      <header>
+        <p className="salon-eyebrow">SALLE I · LE RELEVÉ</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-vellum md:text-5xl">
+          Le relevé topographique
+        </h1>
+        <div className="brass-rule mt-5 w-24" />
+      </header>
+
+      <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        <div>
+          <p className="max-w-xl text-[15px] leading-relaxed text-vellum/75">
+            Chaque bordereau porte seize cases de carbone et quatre coups de grattoir : sous la
+            poussière, une pépite, deux lieux jumelés et dix routes communales. Grattez, et le
+            relevé prend forme — un département, une commune, une rue, bientôt une planche à
+            épingler dans votre cadastre.
+          </p>
+          <h2 className="mt-5 font-display text-lg italic text-vellum/80">
+            Bienvenue, {user.pseudo}.
+          </h2>
+          <div className="mt-7">
+            <CurrentTicketCta />
+          </div>
+          <Link
+            to="/collection"
+            className="mt-5 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/65 transition-colors duration-150 hover:text-brass"
+          >
+            Consulter le cadastre
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 justify-items-center gap-4">
+          {PLATE_PREVIEWS.map((plate) => (
+            <div
+              key={`${plate.type}-${plate.name}`}
+              className={`w-full max-w-[240px] transition-transform duration-150 ${plate.offsetClass}`}
+            >
+              <Card
+                type={plate.type}
+                rarity={plate.rarity}
+                name={plate.name}
+                score={plate.score}
+                refCode={plate.refCode}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-6">
-        <CurrentTicketCta />
-      </div>
+      <dl className="grid divide-y divide-veil overflow-hidden rounded-sheet border border-veil bg-cabinet-raised sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {CABINET_FACTS.map((fact) => (
+          <div key={fact.label} className="p-6">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+              {fact.label}
+            </dt>
+            <dd className="mt-2 font-display text-3xl font-semibold tabular-nums text-vellum">
+              {fact.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
@@ -63,22 +172,28 @@ function CurrentTicketCta() {
   });
 
   if (ticketQuery.isPending) {
-    return <p className="text-ink-secondary">Chargement de votre ticket…</p>;
+    return (
+      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-vellum/65">
+        Chargement de votre ticket…
+      </p>
+    );
   }
 
   const ticket = ticketQuery.data ?? null;
 
   if (ticket) {
     return (
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
-          <p className="text-ink-secondary">Votre ticket est en cours.</p>
-          <p className="mt-1 text-sm text-ink-secondary">{scrapesLabel(ticket.scrapesRemaining)}</p>
+          <p className="text-[15px] leading-relaxed text-vellum/75">Votre ticket est en cours.</p>
+          <p className="mt-1 font-mono text-[11px] tabular-nums text-vellum/65">
+            {scrapesLabel(ticket.scrapesRemaining)}
+          </p>
         </div>
         <Link
           to="/tickets/$ticketId"
           params={{ ticketId: ticket.id }}
-          className="inline-flex items-center justify-center rounded-md border-2 border-border bg-sign-blue px-4 py-2 text-sm font-medium text-ink-inverse shadow-tactile-sm transition-colors duration-150 hover:shadow-tactile"
+          className={`${plateLinkClass} w-full sm:w-auto sm:self-start`}
         >
           Reprendre mon ticket
         </Link>
@@ -88,9 +203,9 @@ function CurrentTicketCta() {
 
   if (ticketQuery.isError) {
     return (
-      <div className="rounded-md border-2 border-border bg-surface shadow-tactile p-6">
+      <div className="rounded-sheet border border-veil bg-cabinet-raised p-5">
         <FormError message={ticketErrorMessage(ticketQuery.error)} />
-        <Button className="mt-4" onClick={() => void ticketQuery.refetch()}>
+        <Button variant="secondary" className="mt-4" onClick={() => void ticketQuery.refetch()}>
           {TICKET.retry}
         </Button>
       </div>
@@ -98,13 +213,25 @@ function CurrentTicketCta() {
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4">
       <div>
-        <p className="text-ink-secondary">Aucun ticket actif pour le moment.</p>
-        <p className="mt-1 text-sm text-ink-secondary">Grattez pour découvrir vos cartes.</p>
-        <FormError message={createMutation.error ? createMutation.error.message : null} />
+        <p className="text-[15px] leading-relaxed text-vellum/75">
+          Aucun ticket actif pour le moment.
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-vellum/65">
+          Grattez pour découvrir vos cartes.
+        </p>
+        {createMutation.error ? (
+          <div className="mt-3">
+            <FormError message={createMutation.error.message} />
+          </div>
+        ) : null}
       </div>
-      <Button isPending={createMutation.isPending} onClick={() => createMutation.mutate()}>
+      <Button
+        className="w-full sm:w-auto sm:self-start"
+        isPending={createMutation.isPending}
+        onClick={() => createMutation.mutate()}
+      >
         Obtenir un ticket
       </Button>
     </div>

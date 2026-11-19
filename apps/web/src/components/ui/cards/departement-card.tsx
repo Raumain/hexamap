@@ -1,6 +1,8 @@
 import type { Rarity } from '@hexamap/shared';
+import { CATEGORY_META } from '../../../lib/category-theme';
 import { RARITY_THEME } from '../../../lib/rarity-theme';
-import { cardShellProps } from './card-shell';
+import { RaritySeal } from '../rarity-seal';
+import { cardShellProps, formatNumber } from './card-shell';
 
 export interface DepartementCardProps {
   rarity: Rarity;
@@ -14,7 +16,9 @@ export interface DepartementCardProps {
   className?: string;
 }
 
-/** Carte « Département » — borne routière et écu géométrique. */
+const SHIELD = 'polygon(50% 0%, 94% 22%, 94% 72%, 50% 100%, 6% 72%, 6% 22%)';
+
+/** Planche « Département » — l'écu (DESIGN_SYSTEM.md §7.2). */
 export function DepartementCard({
   rarity,
   name,
@@ -27,47 +31,96 @@ export function DepartementCard({
   className,
 }: DepartementCardProps) {
   const theme = RARITY_THEME[rarity];
+  const shell = cardShellProps({ rarity, locked, decorative, className });
+
+  if (decorative) {
+    return (
+      <article {...shell}>
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[1px] bg-vellum">
+          <div
+            className="flex h-[62%] w-[62%] items-center justify-center border border-ink/70 bg-vellum-2"
+            style={{ clipPath: SHIELD }}
+          >
+            <span className="whitespace-nowrap font-display text-[8px] font-semibold leading-none tabular-nums text-ink">
+              {refCode}
+            </span>
+          </div>
+          <span
+            className="absolute inset-x-0 bottom-0 h-[3px]"
+            style={{ backgroundColor: theme.metal }}
+          />
+        </div>
+      </article>
+    );
+  }
 
   return (
-    <article {...cardShellProps({ rarity, locked, decorative, className })}>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex select-none items-center justify-center font-mono text-[7rem] font-black leading-none text-ink/10"
-      >
-        {refCode}
-      </div>
+    <article {...shell}>
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[1px] bg-vellum px-[4.5%] pb-[3.5%] pt-[3.5%] text-ink">
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full text-ink"
+          viewBox="0 0 100 140"
+          fill="none"
+          opacity="0.12"
+        >
+          <path d="M50 8 L92 26 V74 L50 122 L8 74 V26 Z" stroke="currentColor" strokeWidth="0.8" />
+          <path
+            d="M50 16 L84 31 V72 L50 112 L16 72 V31 Z"
+            stroke="currentColor"
+            strokeWidth="0.6"
+          />
+        </svg>
 
-      <div
-        className="relative z-10 mx-auto my-auto w-full max-w-[7rem] border-2 border-ink bg-paper px-2 py-3 text-center shadow-tactile-sm"
-        style={{
-          clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
-          backgroundImage: blasonUrl ? `url(${blasonUrl})` : undefined,
-          backgroundSize: '70%',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
-      >
-        <div className="mx-auto w-fit bg-paper px-1 font-mono text-2xl font-black leading-none tabular-nums text-ink">
-          {refCode}
-        </div>
-      </div>
-
-      <div className="relative z-10 text-center">
-        <h3 className="text-xs font-bold uppercase leading-tight tracking-tight text-ink line-clamp-2 md:text-sm">
-          {name}
-        </h3>
-      </div>
-
-      {detailed ? (
-        <div className="relative z-10 flex items-center justify-between border-t border-border/30 pt-1.5 font-mono text-[11px] tabular-nums text-ink-secondary">
-          <span>DÉP. · {score} pts</span>
-          <span
-            className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold ${theme.badgeBgClass} ${theme.badgeTextClass}`}
-          >
-            {theme.label}
+        <header className="relative flex items-start justify-between gap-[3%]">
+          <span className="font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
+            {CATEGORY_META.DEPARTEMENT.label}
           </span>
+          {blasonUrl ? (
+            <img
+              src={blasonUrl}
+              alt=""
+              className="h-[clamp(18px,18cqi,44px)] w-[clamp(18px,18cqi,44px)] object-contain opacity-90 mix-blend-multiply"
+            />
+          ) : (
+            <span className="font-mono text-[clamp(7px,3cqi,9px)] uppercase tracking-[0.1em] text-ink-faint">
+              Écu
+            </span>
+          )}
+        </header>
+
+        <div className="relative my-auto flex justify-center">
+          <div
+            className="flex h-[clamp(46px,42cqi,88px)] w-[clamp(40px,37cqi,76px)] items-center justify-center border border-ink/80 bg-vellum-2"
+            style={{ clipPath: SHIELD }}
+          >
+            <span className="font-display text-[clamp(14px,10cqi,24px)] font-semibold leading-none tabular-nums text-ink">
+              {refCode}
+            </span>
+          </div>
         </div>
-      ) : null}
+
+        <div className="relative text-center">
+          <h3 className="font-display text-[clamp(10px,6.6cqi,16px)] font-semibold leading-[1.1] tracking-tight text-ink break-words line-clamp-2">
+            {name}
+          </h3>
+          {detailed ? (
+            <p className="mt-[3%] font-mono text-[clamp(7px,2.9cqi,8px)] uppercase tracking-[0.14em] text-ink-faint">
+              {CATEGORY_META.DEPARTEMENT.plate}
+            </p>
+          ) : null}
+        </div>
+
+        <footer className="relative mt-[3.5%] flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">
+          <span className="font-display text-[clamp(10px,5.6cqi,15px)] font-semibold leading-none tabular-nums text-ink">
+            {formatNumber(score)}
+            <span className="ml-0.5 font-sans text-[clamp(7px,2.6cqi,8px)] uppercase tracking-[0.1em] text-ink-soft">
+              pts
+            </span>
+          </span>
+          <RaritySeal rarity={rarity} />
+        </footer>
+      </div>
     </article>
   );
 }

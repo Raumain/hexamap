@@ -5,6 +5,134 @@
 
 ---
 
+# Phase 14 — Le Cabinet de cartographie (design system v4)
+
+## Statut
+
+- **Phase** : 14 — Le Cabinet de cartographie (design system v4)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-18
+- **Branche** : `feat/phase-14-cabinet`
+
+---
+
+## Objectif
+
+Remplacer la direction « papier IGN + signalétique routière » de la phase 13 par celle du
+**cabinet de cartographie** décrite par `DESIGN_SYSTEM.md` (révision 4) : une pièce sombre,
+des planches de vélin, du laiton et de la cire, la rareté rendue par le métal du cadre et non
+par une pastille de couleur. La refonte couvre la documentation, la coquille de navigation et
+tous les écrans, à domaine et contrats d'API constants.
+
+---
+
+## Étapes
+
+### 1. Jetons, polices et coquille
+- [x] `apps/web/src/styles.css` : unique bloc `@theme` (pièce, vélin, encre, laiton, cire, six métaux, rayons, ombres, durées), grain fixe `body::after`, `.vellum`, utilitaires de planche.
+- [x] Six `@font-face` auto-hébergées sous `apps/web/public/fonts/` — Fraunces, Instrument Sans, JetBrains Mono, chacune en deux sous-ensembles (`latin`, `latin-ext`) ; `index.html` précharge les deux `latin` et déclare `viewport-fit=cover`.
+- [x] `components/layout/app-shell.tsx` + `sidebar.tsx` (rail desktop) + `bottom-tab-bar.tsx` (onglets mobiles), zones de sécurité `env(safe-area-inset-*)`, un seul `main` par route.
+
+### 2. Rareté en métaux
+- [x] `RARITY_ACCENT_HEX` (`packages/shared/src/rarity.ts`) porte les six métaux (étain, cuivre, argent, émail, or, électrum) ; `RARITY_LABELS` porte les libellés français.
+- [x] `apps/web/src/lib/rarity-theme.ts` n'ajoute que l'initiale du sceau, l'épaisseur du filet et l'encre lisible.
+- [x] `components/ui/rarity-seal.tsx` : unique marque de rareté ; `rarity-badge.tsx` reste le libellé inline.
+
+### 3. Les quatre planches
+- [x] `components/ui/Card.tsx` aiguille vers `region-card.tsx`, `departement-card.tsx`, `commune-card.tsx`, `rue-card.tsx`, sur le châssis commun `cards/card-shell.ts`.
+- [x] `apps/web/src/lib/commune-vignette.ts` : silhouette de village déterministe depuis le code INSEE.
+- [x] Budget DOM ≤ 18 nœuds non-SVG par planche (internes d'un `<svg>` exclus).
+
+### 4. Les salles
+- [x] Le Relevé (`/`), Le Cadastre (`/collection`), La Planche (`/tableau`), Le Comptoir (`/market`), Le Seuil (`/login`, `/register`), Les Archives (`/import-status`).
+
+### 5. Qualité
+- [x] `packages/e2e/tests/design-system.spec.ts` réécrit pour la v4 : fond `cabinet`, couche de grain, quatre gravures distinctes, budget ≤ 18 nœuds, déterminisme de la vignette communale, multiplicateur piloté par le serveur.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Aucune trace de la direction routière (EB10, plaque émaillée, liseré rouge de commune) dans `apps/web`.
+2. [x] Un seul bloc `@theme`, six `@font-face`, aucun `tailwind.config.ts`.
+3. [x] Six métaux de rareté alignés entre `packages/shared`, `rarity-theme.ts` et les specs.
+4. [x] Quatre planches aux gravures distinctes, toutes ≤ 18 nœuds non-SVG.
+5. [x] Coquille unique (rail desktop, barre basse mobile) et un seul `main` par route.
+6. [x] Les effets restent interdits dans les listes virtualisées et autour du canvas de grattage.
+
+---
+
+## Journal
+
+### 2026-11-18 — Phase 14 exécutée : cabinet de cartographie livré
+
+**Vérification** (dans le conteneur)
+- `bun run lint` : propre, 139 fichiers.
+- `bun run typecheck` : propre sur les six workspaces.
+- `bun test packages/spec` : **133 pass, 0 fail**.
+- `bun run build` : OK.
+- `playwright test` (banc `docker-compose.e2e.yml`, image de production) : **12 pass,
+  1 skip**. Parcours critique, CORS, et huit contrôles du design system (fond, grain,
+  Fraunces, chiffres tabulaires, quatre gravures, budget ≤ 18 nœuds, vignette déterministe,
+  absence de filtre dans la liste et autour du canvas). Le cas ignoré est la comparaison du
+  multiplicateur, qui exige une collection plaçable dans le tiroir de démonstration.
+
+**Corrections trouvées par le banc**
+- La planche forçait `w-full` sur sa racine : les vignettes `w-11` du registre étaient
+  écrasées et la carte occupait toute la ligne. La largeur est désormais portée par l'appelant.
+- Le libellé accessible de la case de grattage est « Case N, non révélée » ; les sélecteurs
+  E2E du parcours clavier ont suivi.
+- Le parcours critique s'exécute dans un contexte vierge (`storageState` vide), l'inscription
+  redirigeant un utilisateur déjà connecté.
+- La plaque de calcul lit `preview.alignment` et `preview.total` : plus aucun recalcul
+  d'alignement ni de total dans le navigateur.
+- La plaque Rue tombe à 17 nœuds pour rester sous le budget même en variante détaillée ; la
+  Commune affiche son code INSEE à défaut de population.
+
+**Ajustements du 2026-11-18 (retour utilisateur)**
+- **Contraste.** `--color-ink-faint` assombri à `#6a5e4c` ; plus aucun texte utile sous
+  `text-vellum/55` sur la pièce ; la pastille de rareté passe en **aplat de métal** avec texte
+  éclairci par `color-mix`, ce qui garantit ≥ 4,5:1 pour les six paliers (l'émail était
+  illisible). La rareté reste toujours nommée, jamais portée par la couleur seule.
+- **Taille.** `.exhibit` ouvre un conteneur (`container-type: inline-size`) et toutes les
+  tailles internes (nom, étiquettes, blason, sceau) passent en `cqi` bornés par `clamp()`.
+  Une seule planche, lisible de 56 px à 320 px, au lieu d'une vignette appauvrie.
+- **Cohérence et blasons.** Le registre n'utilise plus `decorative` : il affiche la planche
+  entière, comme Le Comptoir et La Planche. Le serveur servant déjà `blason_url ?? contour_url`
+  dans `blasonUrl`, le contour apparaît quand il existe ; le blason est visible sur les trois
+  catégories qui en portent.
+- **Espace.** Colonne de contenu portée à `max-w-[1600px]`, registre à 152 px de ligne et
+  hauteur calculée sur `100dvh`, Comptoir à quatre colonnes en `2xl`, chapiteau du Relevé à
+  240 px.
+- **Favicon.** `apps/web/public/favicon.svg` (hexagone de laiton), déclaré dans `index.html`.
+
+**Ajustements du 2026-11-19 (Cadastre mobile)**
+- **Un seul défilement.** Le registre quitte le conteneur à hauteur fixe pour
+  `useWindowVirtualizer` : la fenêtre est l'unique zone de défilement. Plus de barre
+  imbriquée, plus de `calc(100dvh - …)` à recalculer.
+- **Mobile.** L'en-tête de colonnes et les colonnes secondaires sont masqués sous `md` ; la
+  ligne devient une colonne unique d'environ 142 px qui montre la planche (84 px), le nom,
+  `Catégorie · score pts`, la pastille de rareté, la date et l'état verrouillé. **Aucun
+  défilement horizontal.**
+- **Filtres.** Sur mobile : recherche pleine largeur avec loupe, puis onglets de catégorie,
+  puis rareté ; sur desktop, l'ordre inverse. La barre reste collante sous l'en-tête de salle
+  (`calc(3.5rem + env(safe-area-inset-top))`) et devient **opaque** pour qu'aucune ligne ne
+  passe derrière. Les compteurs passent en quatre colonnes dès le mobile.
+- **Vérifié** en captures 390 × 844 et 1600 × 1000 : un seul défilement, lignes rendues après
+  défilement, aucune colonne coupée.
+
+**Portée**
+- Aucune modification de domaine métier, de migration ou de contrat d'API. Aucun commit.
+
+---
+---
+
+# Historique — Phase 13 — Design system IGN & signalétique routière
+
+> Archive. La direction papier IGN et signalétique routière a été remplacée par le cabinet de
+> cartographie (phase 14). Le journal ci-dessous décrit l'état au 2026-11-18.
+
 ## Statut
 
 - **Phase** : 13 — Design system IGN & signalétique routière française

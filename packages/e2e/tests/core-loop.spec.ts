@@ -6,6 +6,10 @@ import { expect, test } from '@playwright/test';
 
 const password = 'Grattage-E2E-2026';
 
+// Le parcours critique crée son propre compte : il part d'un contexte vierge,
+// alors que le `storageState` global contient déjà la session de démonstration.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe.configure({ mode: 'serial' });
 
 test('parcours critique : inscription, ticket, grattage, collection, marché', async ({ page }) => {
@@ -39,7 +43,7 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
   });
 
   await test.step('grattage complet', async () => {
-    const scratchable = page.getByRole('button', { name: /^Case \d+ à gratter$/ });
+    const scratchable = page.getByRole('button', { name: /^Case \d+, non révélée$/ });
 
     // 16 cases, 4 coups de grattoir (+2 par Station-service) : la boucle
     // s'arrête dès que le ticket est consommé, avant cette borne de sécurité.
@@ -57,7 +61,7 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
     }
 
     // Ticket consommé : l'écran propose immédiatement un nouveau ticket.
-    await expect(page.getByText('Aucun ticket actif.')).toBeVisible();
+    await expect(page.getByText(/Ce bordereau est soldé|Aucun ticket actif/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Obtenir un ticket' })).toBeVisible();
   });
 

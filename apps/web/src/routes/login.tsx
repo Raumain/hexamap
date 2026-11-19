@@ -3,6 +3,7 @@ import { createFileRoute, Link, Navigate, useRouter } from '@tanstack/react-rout
 import { useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
+import { HexSeal } from '../components/layout/hex-seal';
 import { TextField } from '../components/text-field';
 import { signIn } from '../lib/auth';
 import { useInvalidateSession, useSession } from '../lib/session';
@@ -41,88 +42,119 @@ function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Connexion</h1>
-        <p className="text-ink-secondary">Accédez à votre collection et à vos tickets.</p>
+    <section className="grid items-center gap-10 lg:min-h-[70vh] lg:grid-cols-2">
+      <div className="hidden lg:flex lg:flex-col lg:gap-6">
+        <HexSeal size={72} className="text-brass" />
+        <p className="max-w-md font-display text-3xl italic leading-[1.25] text-vellum">
+          « Un cabinet de cartographie, ouvert sur la France. »
+        </p>
+        <div className="brass-rule w-24" />
+        <p className="max-w-sm text-[15px] leading-relaxed text-vellum/75">
+          Ici, chaque département, chaque commune et chaque rue devient une planche que l'on
+          conserve, épingle et échange.
+        </p>
       </div>
 
-      <FormError message={formError} />
+      <div className="vellum rounded-sheet p-6 md:p-8">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-brass-deep">
+          SALLE VI · LE SEUIL
+        </p>
+        <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink">
+          Connexion
+        </h1>
+        <div className="brass-rule mt-5 w-16" />
+        <p className="mt-5 text-[15px] leading-relaxed text-ink-soft">
+          Accédez à votre collection et à vos tickets.
+        </p>
 
-      <form
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          void form.handleSubmit();
-        }}
-        className="space-y-6"
-      >
-        <form.Field
-          name="email"
-          validators={{
-            onChange: ({ value }) => {
-              if (!value) return 'Adresse e-mail requise.';
-              if (!emailRegex.test(value)) return 'Adresse e-mail invalide.';
-              return undefined;
-            },
-          }}
-        >
-          {(field) => (
-            <TextField
-              label="Adresse e-mail"
-              type="email"
-              autoComplete="email"
-              required
-              error={field.state.meta.errors.find((e) => typeof e === 'string')}
-              value={field.state.value}
-              onChange={(e) => field.handleChange(e.target.value)}
-              onBlur={field.handleBlur}
-            />
-          )}
-        </form.Field>
+        <div className="mt-6 space-y-5">
+          <FormError message={formError} />
 
-        <form.Field
-          name="password"
-          validators={{
-            onChange: ({ value }) => {
-              if (!value) return 'Mot de passe requis.';
-              if (value.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères.';
-              return undefined;
-            },
-          }}
-        >
-          {(field) => (
-            <TextField
-              label="Mot de passe"
-              type="password"
-              autoComplete="current-password"
-              required
-              error={field.state.meta.errors.find((e) => typeof e === 'string')}
-              value={field.state.value}
-              onChange={(e) => field.handleChange(e.target.value)}
-              onBlur={field.handleBlur}
-            />
-          )}
-        </form.Field>
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void form.handleSubmit();
+            }}
+            className="space-y-5"
+          >
+            <form.Field
+              name="email"
+              validators={{
+                onChange: ({ value }) => {
+                  if (!value) return 'Adresse e-mail requise.';
+                  if (!emailRegex.test(value)) return 'Adresse e-mail invalide.';
+                  return undefined;
+                },
+              }}
+            >
+              {(field) => (
+                <TextField
+                  label="Adresse e-mail"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  error={field.state.meta.errors.find((e) => typeof e === 'string')}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                />
+              )}
+            </form.Field>
 
-        <form.Subscribe
-          selector={(s) => ({ isSubmitting: s.isSubmitting, canSubmit: s.canSubmit })}
-        >
-          {({ isSubmitting, canSubmit }) => (
-            <Button type="submit" isPending={isSubmitting} disabled={!canSubmit} className="w-full">
-              Se connecter
-            </Button>
-          )}
-        </form.Subscribe>
-      </form>
+            <form.Field
+              name="password"
+              validators={{
+                onChange: ({ value }) => {
+                  if (!value) return 'Mot de passe requis.';
+                  if (value.length < 8)
+                    return 'Le mot de passe doit contenir au moins 8 caractères.';
+                  return undefined;
+                },
+              }}
+            >
+              {(field) => (
+                <TextField
+                  label="Mot de passe"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  error={field.state.meta.errors.find((e) => typeof e === 'string')}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                />
+              )}
+            </form.Field>
 
-      <p className="text-sm text-ink-secondary">
-        Pas encore de compte ?{' '}
-        <Link to="/register" className="text-sign-ochre hover:underline">
-          Créer un compte
-        </Link>
-      </p>
+            <form.Subscribe
+              selector={(s) => ({ isSubmitting: s.isSubmitting, canSubmit: s.canSubmit })}
+            >
+              {({ isSubmitting, canSubmit }) => (
+                <Button
+                  type="submit"
+                  isPending={isSubmitting}
+                  disabled={!canSubmit}
+                  className="w-full"
+                >
+                  Se connecter
+                </Button>
+              )}
+            </form.Subscribe>
+          </form>
+
+          <p className="text-sm text-ink-soft">
+            Pas encore de compte ?{' '}
+            <Link
+              to="/register"
+              className="text-brass-deep underline underline-offset-2 transition-colors duration-150 hover:text-ink"
+            >
+              Créer un compte
+            </Link>
+          </p>
+        </div>
+      </div>
     </section>
   );
 }
