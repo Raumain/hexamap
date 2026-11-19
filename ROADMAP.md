@@ -39,14 +39,6 @@ in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and
 
 ## 2. What remains, in order
 
-### P2 — BUG-005: secondary rooms unreachable on mobile
-
-`SECONDARY_NAV` (`/tableaux`, `/market/mine`, `/import-status`) exists only in the desktop rail.
-A player can compose a planche and never reopen it.
-
-- Fifth "Plus" tab opening a sheet, or the mobile account menu; keep 44 px targets.
-- Acceptance: `/tableaux` reached in two taps from `/`, asserted in `mobile.spec.ts`.
-
 ### P2 — BUG-006: plates illegible at small sizes
 
 `clamp()` floors are fixed px, the Département shield floors at 46 px, the scratched cell gives the

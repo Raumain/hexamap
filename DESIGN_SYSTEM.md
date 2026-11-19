@@ -506,9 +506,18 @@ Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
 
 - En-tête collant de 56 px : sceau + nom de la salle courante en Fraunces 17 px, à droite
   la bourse compacte. `pt-[env(safe-area-inset-top)]`.
-- Barre basse de 64 px, quatre onglets de 44 px minimum, glyphe + libellé court
-  (`Relevé`, `Cadastre`, `Planche`, `Comptoir`). Onglet actif : glyphe laiton + filet
-  supérieur de 2 px. `pb-[env(safe-area-inset-bottom)]`.
+- Barre basse de 64 px, **cinq cibles** de 44 px minimum, glyphe + libellé court : les
+  quatre salles principales (`Relevé`, `Cadastre`, `Planche`, `Comptoir`) et le contrôle
+  `Plus`. Onglet actif : glyphe laiton + filet supérieur de 2 px.
+  `pb-[env(safe-area-inset-bottom)]`.
+- **La feuille des salles secondaires** s'ouvre depuis `Plus` : `role="dialog"`,
+  `aria-modal="true"`, recouvre la barre, `rounded-t-panel`, `bg-cabinet-raised`, poignée,
+  titre « Autres salles », les trois entrées de `SECONDARY_NAV` à `min-h-[44px]`,
+  `aria-current="page"` sur la salle courante seulement. Fermeture par Échap, par le voile
+  et par le bouton ; le focus revient au contrôle.
+- **Le contrôle `Plus` n'apparaît qu'avec une session ouverte**, comme le bloc de
+  navigation du rail : les salles secondaires vivent dans le rail sur bureau (§9.1) et
+  dans la feuille sur mobile.
 - Le contenu a `pb-24 md:pb-10`.
 
 `viewport-fit=cover` est obligatoire dans `index.html`.

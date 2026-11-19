@@ -271,8 +271,11 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   budget, vérifie les quatre gravures distinctes, le déterminisme de la vignette et le
   multiplicateur piloté par le serveur.
 - **La coquille est unique.** `apps/web/src/components/layout/app-shell.tsx` monte
-  `sidebar.tsx` (rail desktop, à partir de `md:`) et `bottom-tab-bar.tsx` (onglets mobiles),
-  avec `env(safe-area-inset-top|bottom)` et `viewport-fit=cover`. Chaque route rend **un seul**
+  `sidebar.tsx` (rail desktop, à partir de `md:`), `bottom-tab-bar.tsx` (onglets mobiles)
+  et `more-sheet.tsx` (feuille des salles secondaires, ouverte par le cinquième contrôle),
+  avec `env(safe-area-inset-top|bottom)` et `viewport-fit=cover`. La feuille passe par
+  `OverlayPortal` comme les deux overlays de route, et le cinquième onglet est un `button`,
+  pas un `Link`, parce qu'il ouvre au lieu de naviguer. Chaque route rend **un seul**
   `main` ; les salles sont nommées dans l'interface (Le Relevé, Le Cadastre, La Planche, Le
   Comptoir, Le Seuil, Les Archives).
 - **Politique d'effets.** Dégradés et ombres douces sont autorisés sur les surfaces (cônes de
