@@ -34,7 +34,10 @@ ton rapport : tu n'as pas le droit de changer le contrat en silence.
    défauts et leur gravité. Un défaut *deal-breaker* se corrige, puis tu rejoues 3 et 4.
 5. **`01-commit`** — charge la skill. Commits atomiques, format
    `type(scope): impératif en français`.
-6. **`02-pull-request`** — charge la skill, ouvre une **PR en brouillon** vers `main`.
+6. **`02-pull-request`** — charge la skill, ouvre une **PR en brouillon** vers la branche
+   cible indiquée dans tes paramètres (`{{PARENT}}`) — **pas vers `main`**. Empiler une PR sur
+   `main` casse la chaîne : ta phase contient le travail de ses dépendances, et la PR doit
+   montrer ton diff, pas le leur.
 
 Les skills se chargent avec l'outil `skill`, par identifiant. Si une skill ne se charge pas,
 applique ses étapes à la main et dis-le dans le rapport — ne saute pas l'étape.
