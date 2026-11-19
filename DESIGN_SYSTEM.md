@@ -53,6 +53,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/collection` | **Le Cadastre** | Consulter le registre de ses planches, filtrer, verrouiller. |
 | `/tableau` | **La Planche** | Composer une planche à quatre emplacements et lire l'alignement. |
 | `/tableaux` | **Les Planches** | Retrouver ses planches enregistrées. |
+| `/friends` | **Les Amis** | Ajouter des joueurs, accepter les demandes, tenir son cercle. |
 | `/market` | **Le Comptoir** | Parcourir les lots mis en vente, acheter. |
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
 | `/import-status` | **Les Archives** | Suivre l'entrée des fonds cartographiques. |
@@ -483,7 +484,29 @@ Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
 - Téléphone : une seule colonne, montage en premier, cibles tactiles de 44 px, chiffres
   tabulaires, aucun défilement horizontal.
 
-### 8.8 La Vitrine — `/players/$playerId`
+### 8.8 Les Amis — `/friends`
+
+Le **cercle du joueur** : une seule salle pour ajouter, accepter et retenir ses amis.
+
+- **En-tête de salle**, puis un formulaire de recherche : un champ `pseudo` (24 caractères au
+  plus, `autocomplete` coupé) et un bouton **Ajouter**. Sous le formulaire, une zone
+  `aria-live="polite"` porte le retour — message français d'erreur (code stable traduit) ou
+  confirmation d'action.
+- **Deux colonnes à partir de `lg`**, une seule en dessous. À gauche **Demandes reçues**
+  (**Accepter**, **Refuser**) puis **Demandes envoyées** (**Annuler**) ; à droite **Mes amis**
+  (**Retirer**, **Bloquer**).
+- Chaque section est un carton `bg-cabinet-raised` à filet `veil`, titrée en Fraunces, comptée
+  en mono 9 px. Une section vide nomme le manque (« Aucune demande reçue… ») : aucune section
+  ne disparaît, et la salle d'un compte neuf montre trois sections vides.
+- Une ligne est un `li` en `bg-cabinet-sunk/40` : le pseudo en Fraunces, tronqué, puis les
+  actions. Sur téléphone, les actions passent sous le pseudo.
+- **Toute action est une mutation serveur** : elle invalide la clé `friends` et l'état se relit
+  depuis le serveur. Aucune mise à jour optimiste, aucune retouche locale de la liste.
+- Cibles tactiles de 44 px, `focus-visible` sur chaque contrôle, aucun défilement horizontal
+  à 390 px. La salle s'atteint par le rail, ou sur téléphone par la barre basse puis la
+  feuille « Plus ».
+
+### 8.9 La Vitrine — `/players/$playerId`
 
 La **fiche publique d'un joueur**, en deux colonnes à partir de `lg`, une seule requête
 serveur et aucun recalcul : pseudo, ancienneté, biographie en vélin, complétude en quatre
@@ -506,8 +529,8 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   **Le Relevé** `/`, **Le Cadastre** `/collection`, **La Planche** `/tableau`,
   **Le Comptoir** `/market`.
 - Entrées secondaires, plus petites, séparées par un filet :
-  **Les Planches** `/tableaux`, **Mes Offres** `/market/mine`, **Les Archives**
-  `/import-status` (si l'utilisateur y a droit).
+  **Les Planches** `/tableaux`, **Les Amis** `/friends`, **Mes Offres** `/market/mine`,
+  **Les Archives** `/import-status` (si l'utilisateur y a droit).
 - État actif : fond `cabinet`, filet gauche de laiton de 2 px, libellé en `vellum`.
   `aria-current="page"`.
 - En bas : la **bourse** (pièce de laiton + « 1 250 écus » en mono) et l'**usager**
@@ -525,7 +548,8 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   le dernier onglet ne doivent pas passer sous la découpe.
 - **La feuille des salles secondaires** s'ouvre depuis `Plus` : `role="dialog"`,
   `aria-modal="true"`, recouvre la barre, `rounded-t-panel`, `bg-cabinet-raised`, poignée,
-  titre « Autres salles », les trois entrées de `SECONDARY_NAV` à `min-h-[44px]`,
+  titre « Autres salles », les quatre entrées de `SECONDARY_NAV` (**Les Planches**,
+  **Les Amis**, **Mes Offres**, **Les Archives**) à `min-h-[44px]`,
   `aria-current="page"` sur la salle courante seulement. Fermeture par Échap, par le voile
   et par le bouton ; le focus revient au contrôle.
 - **Le contrôle `Plus` n'apparaît qu'avec une session ouverte**, comme le bloc de

@@ -3,8 +3,10 @@ export type SalonPath =
   | '/collection'
   | '/tableau'
   | '/tableaux'
+  | '/friends'
   | '/market'
   | '/market/mine'
+  | '/achievements'
   | '/import-status';
 
 export interface NavItem {
@@ -54,10 +56,24 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     glyph: 'M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5L12 21l9-4.5',
   },
   {
+    to: '/friends',
+    label: 'Les Amis',
+    short: 'Amis',
+    glyph:
+      'M9 11a3.5 3.5 0 0 1 0-7 3.5 3.5 0 0 1 0 7M2 20c0-3 3.1-5 7-5s7 2 7 5M16.5 5.2a3 3 0 0 1 0 5.6M19.5 20c-.2-2.3-1.2-3.9-3-4.5',
+  },
+  {
     to: '/market/mine',
     label: 'Mes Offres',
     short: 'Offres',
     glyph: 'M3 12l9-9 9 9-9 9zM8 12h8M12 8v8',
+  },
+  {
+    to: '/achievements',
+    label: 'Les Médailles',
+    short: 'Médailles',
+    glyph:
+      'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z',
   },
   {
     to: '/import-status',
@@ -75,8 +91,10 @@ const SALON_TITLES: Record<string, string> = {
   '/collection': 'Le Cadastre',
   '/tableau': 'La Planche',
   '/tableaux': 'Les Planches',
+  '/friends': 'Les Amis',
   '/market': 'Le Comptoir',
   '/market/mine': 'Mes Offres',
+  '/achievements': 'Les Médailles',
   '/import-status': 'Les Archives',
   '/login': 'Le Seuil',
   '/register': 'Le Seuil',
