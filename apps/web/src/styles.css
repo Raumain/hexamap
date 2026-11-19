@@ -283,7 +283,7 @@
 
 @layer utilities {
   .enter-salon {
-    animation: enter-salon 180ms var(--ease-cabinet) both;
+    animation: enter-salon 180ms var(--ease-cabinet) backwards;
   }
 
   .enter-plate {

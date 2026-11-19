@@ -282,6 +282,17 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
 - **Le tableau de combo ne calcule rien.** `alignment.breakdown[].valid` et
   `alignment.multiplier` viennent du serveur ; `alignment.links` est un **nombre**. Aucun
   recalcul d'alignement ni de multiplicateur dans le navigateur.
+- **Aucune animation ne remplit vers l'avant sur un ancêtre de mise en page.** `<main>` porte
+  `.enter-salon` avec `animation-fill-mode: backwards` : son `transform` disparaît à la fin des
+  180 ms. Un `transform` — même `translateY(0)` — ferait de `<main>` le bloc conteneur de tout
+  descendant `position: fixed` (BUG-007). Les overlays appartenant à une route — le tiroir de
+  La Planche (`routes/tableau.tsx`) et la modale de Pépite (`routes/tickets.$ticketId.tsx`) —
+  sont rendus dans `document.body` par `components/ui/overlay-portal.tsx`, donc insensibles à
+  tout futur ancêtre transformé ; la même règle vaut pour `#root` et pour la racine
+  d'`app-shell.tsx`. Le rail, la barre d'onglets et l'invitation de mise à jour sont frères de
+  `<main>` et ne sont pas concernés. `packages/e2e` verrouille l'invariant :
+  `getComputedStyle(main).transform === 'none'` après l'entrée en salle, et tiroir rendu hors
+  de `<main>`.
 
 ### 4.10 Installation — manifeste, icônes, service worker
 

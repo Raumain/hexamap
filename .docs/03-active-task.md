@@ -5,7 +5,134 @@
 
 ---
 
-# Phase 19 — L'Installation vérifiée (suite PWA de bout en bout)
+# Phase 20 — Les Overlays ancrés (BUG-007)
+
+## Statut
+
+- **Phase** : 20 — Les Overlays ancrés (BUG-007)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `fix/bug-007-overlays-viewport`
+
+---
+
+## Objectif
+
+Le défaut n'appartenait à aucun composant : il tenait à un ancêtre de mise en page. `<main>`
+portait `.enter-salon` en `animation-fill-mode: both`, donc conservait
+`transform: translateY(0)` après l'entrée en salle — et un `transform`, même nul, fait de
+`<main>` le bloc conteneur de **tout** descendant `position: fixed`. Le tiroir de La Planche
+s'ouvrait au bas de la page et non au bas de l'écran, et la modale de Pépite se dimensionnait
+sur le document. La phase corrige la cause (`.enter-salon` en `backwards`) et rend les deux
+overlays structurellement insensibles à toute récidive (`OverlayPortal`), à domaine et contrats
+d'API constants.
+
+---
+
+## Étapes
+
+### 1. Spec-first — trois cas rouges
+- [x] `mobile.spec.ts` : « le tiroir de sélection reste dans la fenêtre après défilement »,
+      joué sur les deux projets tactiles ; rouge à `-27.25` px.
+- [x] `design-system.spec.ts` : « main ne conserve aucun transform après l'entrée en salle »,
+      rouge sur `matrix(1, 0, 0, 1, 0, 0)` au lieu de `none`.
+- [x] `design-system.spec.ts` : « le tiroir est rendu hors de main et dégage le rail », rouge
+      sur `inMain === true`.
+
+### 2. Correction d'un mot
+- [x] `styles.css:286` : `both` → `backwards`. Les keyframes `enter-salon` et le bloc
+      `prefers-reduced-motion` sont inchangés.
+
+### 3. Portail des overlays
+- [x] `components/ui/overlay-portal.tsx` : `createPortal(children, document.body)`.
+- [x] `routes/tableau.tsx` (tiroir) et `routes/tickets.$ticketId.tsx` (modale de Pépite) :
+      seule la racine retournée est enveloppée, aucun changement d'`aria-*`, de focus, d'état
+      ni de classe.
+- [x] Décalage de bureau : `md:left-[232px]` dégage désormais le rail (232 px) au lieu de
+      s'ajouter au `md:pl-[232px]` de `<main>` (≈ 464 px).
+
+### 4. Banc et vérification
+- [x] `mobile.spec.ts` + `design-system.spec.ts` : 29 passed, 3 skipped.
+- [x] Banc complet : **39 passed, 3 skipped** (chromium 14 / 1, pwa 7, Pixel 7 9 / 1,
+      iPhone 13 9 / 1).
+- [x] `bun run ci:check` : lint, typecheck, ping PostgreSQL, 158 spécifications, 792
+      `expect()` — vert.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Après défilement, la boîte du tiroir reste dans la fenêtre (`box.y >= 0`).
+2. [x] `getComputedStyle(main).transform === 'none'` après l'entrée en salle.
+3. [x] Le tiroir est rendu hors de `<main>` et dégage le rail de 232 px ; la modale de Pépite
+       emprunte le même portail.
+4. [x] Banc complet : 39 passed, 3 skipped (chromium 12 → 14, Pixel 7 8 → 9,
+       iPhone 13 8 → 9, pwa 7 inchangé).
+5. [x] `ci:check` vert : 158 spécifications, 792 `expect()`.
+6. [x] Aucune migration, aucun changement de schéma ni de contrat d'API, aucune dépendance
+       nouvelle.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 20 exécutée : Les Overlays ancrés livrés
+
+**Le constat.** À 390 px, ouvrir un emplacement vide de La Planche après avoir fait défiler la
+page plaçait le tiroir à `-27.25` px du haut de la fenêtre : il s'ouvrait bien, mais sous la
+ligne de flottaison. Le cas E2E l'a dit avant toute correction, sur les deux projets tactiles.
+
+**La cause.** `styles.css:286` : `animation: enter-salon 180ms var(--ease-cabinet) both`.
+`fill-mode: both` conserve la dernière image clé, donc `<main>` gardait
+`transform: translateY(0)` indéfiniment et devenait le bloc conteneur des descendants
+`position: fixed`. Les keyframes se terminant déjà sur l'état naturel, remplacer `both` par
+`backwards` ne change **rien à l'image** : l'animation est identique, le `transform` disparaît
+seulement à la fin. Un mot, et `main` cesse d'être un bloc conteneur.
+
+**Ce que la fiche de bug disait de travers.** L'entrée affirmait que le défaut disparaissait
+sous `prefers-reduced-motion: reduce`, grâce à un `transform: none` forcé. C'est faux :
+`styles.css:351-363` ne raccourcit que `animation-duration` à 1 ms pour `.enter-salon`, et le
+`transform: none` de `:361` ne vise que `.exhibit` / `.exhibit:hover`. Une animation de 1 ms
+remplit encore sa dernière image clé : le défaut était **permanent à tous les réglages de
+mouvement**, jamais intermittent. Le registre a été corrigé, pas seulement complété.
+
+**Le portail, pour la classe de bug et pas seulement pour l'occurrence.** `OverlayPortal`
+(`createPortal(children, document.body)`) enveloppe la racine retournée des deux overlays de
+route. Rien d'autre n'a bougé : ni `aria-modal`, ni la gestion d'`Escape`, ni le clic sur le
+fond, ni le retour de focus. Le tiroir et la modale ne dépendent plus de la forme de l'arbre.
+
+**Un défaut collatéral révélé par le portail.** `md:left-[232px]` du tiroir s'ajoutait au
+`md:pl-[232px]` de `<main>` : ≈ 464 px de décalage sur bureau, invisible tant que le tiroir
+était ancré sur `main`. Rendu dans `document.body`, il dégage correctement le rail de 232 px.
+
+**Leçon de fixture.** `count()` n'attend pas : compter les boutons avant que la requête de
+collection n'ait répondu faisait échouer l'ouverture du tiroir pour une raison sans rapport.
+Les deux specs passent par un unique localisateur patient —
+`getByRole('button', { name: /Emplacement libre/ }).or(getByRole('button', { name: 'Modifier' })).first()`.
+
+**Ce qui n'a pas été touché.** `.enter-plate` conserve `both` : c'est un ornement de feuille,
+jamais ancêtre d'un élément `fixed`. Le rail, la barre d'onglets et l'invitation de mise à jour
+sont frères de `<main>` et n'ont jamais été concernés. BUG-004 reste corrigé : sa modale
+retrouve sa géométrie de fenêtre par la même cause racine, ses sorties sont intactes.
+
+**Vérification (Docker uniquement)**
+```
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/mobile.spec.ts tests/design-system.spec.ts
+  29 passed, 3 skipped
+banc complet (chromium, pwa, Pixel 7, iPhone 13)
+  39 passed, 3 skipped
+docker compose --profile tools run --rm dev bun run ci:check
+  1/4 Lint  2/4 Typecheck  3/4 Base de données  4/4 Spécifications — 158 specs, 792 expect()
+```
+
+**Portée** : aucune migration, aucun changement de schéma ni de contrat d'API, aucune
+dépendance nouvelle, aucun changement dans `packages/spec`. Aucun commit.
+
+---
+---
+
+# Historique — Phase 19 — L'Installation vérifiée (suite PWA de bout en bout)
 
 ## Statut
 
