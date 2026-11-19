@@ -141,6 +141,75 @@ pour ne pas hériter des valeurs de développement de `.env` :
 - **Cookies** : `Secure` est forcé en production. Le banc E2E l'exerce aussi
   réellement : `AUTH_COOKIE_SECURE=true`, parce que son origine est en HTTPS.
 
+## Installation (PWA)
+
+Hexamap s'installe comme une application de bureau ou de téléphone : manifeste déclaré,
+icônes générées, service worker qui précache la coquille. Le menu du navigateur propose
+alors « Installer Hexamap ».
+
+| Élément | Emplacement | Rôle |
+| :--- | :--- | :--- |
+| Manifeste | `apps/web/public/manifest.webmanifest` | fichier **statique** lié par `index.html` ; `vite-plugin-pwa` tourne avec `manifest: false` et ne le génère jamais |
+| Icônes | `apps/web/public/icons/` | dérivées du favicon hexagonal par `apps/web/pwa-assets.config.ts` — 64, 192, 512, maskable 512, apple-touch 180 — et **versionnées** |
+| Service worker | `apps/web/vite.config.ts` | `strategies: 'generateSW'`, `filename: 'sw.js'`, `registerType: 'prompt'` |
+| Preuve | `packages/e2e/tests/pwa.spec.ts` | 7 cas, projet Playwright `pwa` |
+
+Les icônes se régénèrent depuis `apps/web` : `bunx pwa-assets-generator`. Les PNG produits
+sont versionnés, donc le build Docker n'a besoin d'aucun réseau.
+
+### Installer
+
+Une seule condition, et c'est elle qui surprend : une **origine sécurisée**.
+
+- `http://localhost:8080` — le build de production servi par l'API : **oui**.
+- Toute origine `https://` : **oui**.
+- `http://<IP-LAN>:5174` — le serveur de développement Vite : **non**. Hors `localhost`,
+  `http://` n'est pas un contexte sécurisé : `navigator.serviceWorker` n'existe même pas,
+  et rien ne s'enregistre.
+
+`devOptions.enabled: false` est un choix, pas un oubli : le serveur de développement ne
+sert jamais de worker, sans quoi il en tournerait un à chaque rechargement à chaud.
+L'installation se vérifie donc sur le build de production, ou sur n'importe quelle origine
+HTTPS.
+
+### Hors ligne
+
+Le précache porte la **coquille** : `index.html`, les assets hachés par Vite, les polices,
+les icônes et le manifeste. `html` figure dans `globPatterns` **obligatoirement** :
+`navigateFallback: '/index.html'` appelle `createHandlerBoundToURL('/index.html')` et, sans
+entrée de précache correspondante, Workbox lève `non-precached-url` à l'installation — le
+worker ne s'active jamais et le navigateur refuse d'installer.
+
+Un lien profond ouvert hors ligne retombe donc sur la coquille, et le routeur reprend la
+main. Les blasons sont la seule ressource servie depuis une cache :
+`StaleWhileRevalidate`, 200 entrées, 30 jours. Une armoirie périmée de quelques minutes
+est sans conséquence.
+
+### Ce qui n'est jamais mis en cache
+
+**Un ticket, une case révélée et un solde ne viennent jamais d'une cache.** Cinq entrées
+`NetworkOnly` couvrent `/api/` :
+
+| Méthode | Handler | Ce qu'elle porte |
+| :--- | :--- | :--- |
+| `GET` | `NetworkOnly` | le ticket actif, la collection, les annonces, le solde |
+| `POST` | `NetworkOnly` | **toutes** les mutations Eden : gratter une case, acheter, mettre à l'offre |
+| `PUT` | `NetworkOnly` | méthode qu'Eden n'emploie pas encore : la garde est posée d'avance |
+| `PATCH` | `NetworkOnly` | idem — aucune route actuelle ne doit trouver de cache si elle arrive |
+| `DELETE` | `NetworkOnly` | retirer une annonce |
+
+Une entrée Workbox ne s'applique qu'à **une seule** méthode HTTP : c'est pourquoi il y a
+cinq lignes et non une. La conséquence est celle qu'on veut — hors ligne, une action
+**échoue franchement** au lieu de mentir sur un état que le serveur n'a jamais confirmé.
+
+### Mettre à jour
+
+`skipWaiting: false` et `clientsClaim: false` : un worker neuf **attend**. Conséquence non
+évidente à garder en tête — au premier chargement, `navigator.serviceWorker.controller`
+vaut `null`, et la page n'est contrôlée qu'après un rechargement. L'invitation française
+vit dans `apps/web/src/components/layout/pwa-update-prompt.tsx` (« Recharger » / « Plus
+tard ») et n'est montée que par `app-shell.tsx`.
+
 ## Tests de bout en bout (Playwright)
 
 Le banc E2E utilise **sa propre base** (`hexamap_e2e`, volume dédié) : il ne touche
@@ -161,12 +230,10 @@ appartient au proxy, jamais à `api` (deux adresses DNS pour la même origine
 enverraient des requêtes HTTP nues sur une origine `https`). Playwright attend que
 l'`api` soit `healthy` et que la tâche `seed` soit terminée avant de démarrer.
 
-Le banc est en HTTPS pour une raison mécanique : sans **contexte sécurisé**, le
-navigateur n'expose pas `navigator.serviceWorker` et le service worker ne peut pas
-s'enregistrer. C'est aussi ce qui permet d'exercer de vrais cookies `Secure`
-(`AUTH_COOKIE_SECURE=true`, sans dérogation). Le service worker n'est donc
-vérifiable que sur cette origine HTTPS ou sur le build de production servi en
-`http://localhost:8080` — jamais sur une IP LAN en HTTP.
+Le banc est en HTTPS pour une raison mécanique : le service worker ne s'enregistre que
+dans un **contexte sécurisé**, et c'est aussi ce qui permet d'exercer de vrais cookies
+`Secure` (`AUTH_COOKIE_SECURE=true`, sans dérogation). Ce que l'application installable
+précache, et ce qu'elle ne met jamais en cache, est décrit dans « Installation (PWA) ».
 
 Les parcours couverts sont `packages/e2e/tests/core-loop.spec.ts` (inscription,
 génération d'un ticket, grattage complet, inventaire, marché),

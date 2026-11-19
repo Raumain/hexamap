@@ -273,7 +273,14 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
 - **La coquille est unique.** `apps/web/src/components/layout/app-shell.tsx` monte
   `sidebar.tsx` (rail desktop, à partir de `md:`), `bottom-tab-bar.tsx` (onglets mobiles)
   et `more-sheet.tsx` (feuille des salles secondaires, ouverte par le cinquième contrôle),
-  avec `env(safe-area-inset-top|bottom)` et `viewport-fit=cover`. La feuille passe par
+  avec `env(safe-area-inset-top|bottom)` et `viewport-fit=cover`. En **paysage**, l'encoche
+  passe sur les côtés : `env(safe-area-inset-left|right)` est posé sur le rail
+  (`sidebar.tsx`), la barre basse, la feuille, l'invitation de mise à jour, l'en-tête mobile
+  et le décalage du contenu `md:pl-[calc(232px+env(safe-area-inset-left))]`. La gouttière du
+  contenu est l'utilitaire `.gutter-safe` de `styles.css` — un `max()` entre la gouttière du
+  cabinet (20 px, 40 px à partir de `md`) et l'encoche — appliqué à `main` et au `footer`.
+  Hors encoche, `env()` vaut `0` : le portrait et le bureau sont inchangés au pixel près.
+  La feuille passe par
   `OverlayPortal` comme les deux overlays de route, et le cinquième onglet est un `button`,
   pas un `Link`, parce qu'il ouvre au lieu de naviguer. Chaque route rend **un seul**
   `main` ; les salles sont nommées dans l'interface (Le Relevé, Le Cadastre, La Planche, Le

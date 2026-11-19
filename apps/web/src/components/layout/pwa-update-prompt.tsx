@@ -18,7 +18,7 @@ export function PwaUpdatePrompt() {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-x-4 bottom-20 z-40 pb-[env(safe-area-inset-bottom)] md:inset-x-auto md:right-6 md:bottom-6 md:w-80">
+    <div className="fixed bottom-20 z-40 left-[max(1rem,env(safe-area-inset-left))] right-[max(1rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] md:left-auto md:right-6 md:bottom-6 md:w-80">
       <div
         role="status"
         aria-live="polite"

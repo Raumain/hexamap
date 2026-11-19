@@ -41,7 +41,7 @@ export function BottomTabBar() {
     <>
       <nav
         aria-label="Salles du cabinet"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-veil bg-cabinet-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-veil bg-cabinet-raised/95 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
       >
         {PRIMARY_NAV.map((item) => {
           const active = isNavItemActive(item, pathname);

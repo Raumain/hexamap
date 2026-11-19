@@ -33,7 +33,7 @@ export function Sidebar() {
   const user = session.data?.user ?? undefined;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-veil bg-cabinet-raised md:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-veil bg-cabinet-raised pl-[env(safe-area-inset-left)] md:flex">
       <div className="pt-[env(safe-area-inset-top)]">
         <div className="px-5 pb-5 pt-6">
           <Link to="/" className="flex items-center gap-3 text-brass">

@@ -5,7 +5,217 @@
 
 ---
 
-# Phase 23 — Les lignes du tiroir (BUG-008)
+# Phase 25 — Les encoches latérales
+
+## Statut
+
+- **Phase** : 25 — Les encoches latérales (insets de zone sûre)
+- **État** : Terminé
+- **Priorité** : P3
+- **Mis à jour** : 2026-11-19
+- **Branche** : `chore/polish-p2-p3`
+
+---
+
+## Objectif
+
+Les six usages d'`env()` du dépôt traitaient tous `top` ou `bottom` : en **paysage**, sur un
+appareil à encoche, le rail, l'en-tête, la barre basse, la feuille des salles secondaires et
+l'invitation de mise à jour passaient sous la découpe. `safe-area-inset-left` et
+`-right` n'existaient **nulle part**. À domaine, schéma et contrats d'API constants.
+
+## Étapes
+
+### 1. Spec-first — un cas rouge
+- [x] `packages/e2e/tests/pwa.spec.ts`, cas 7 « les marges de zone sûre sont appliquées » :
+      deux assertions ajoutées sur `safe-area-inset-left` et `safe-area-inset-right`.
+- [x] Lancé avant correction : `1 failed`, sur
+      « La marge gauche de zone sûre est compilée ».
+
+### 2. La gouttière du contenu
+- [x] `apps/web/src/styles.css` : utilitaire `.gutter-safe` dans `@layer utilities` —
+      `padding-inline: max(<gouttière>, env(safe-area-inset-*))`, 20 px en base et 40 px à
+      partir de `48rem`.
+- [x] `app-shell.tsx` : `main` et `footer` quittent `px-5 md:px-10` pour `gutter-safe`.
+
+### 3. Rail, barres, feuille, invitation
+- [x] `sidebar.tsx` : `pl-[env(safe-area-inset-left)]` sur l'`<aside>`.
+- [x] `app-shell.tsx` : `md:pl-[calc(232px+env(safe-area-inset-left))]` sur le conteneur de
+      contenu, sans quoi le rail décalé recouvre `main` ; en-tête mobile en
+      `pl-[max(1rem,…left)] pr-[max(1rem,…right)]`.
+- [x] `bottom-tab-bar.tsx` : `pl`/`pr` d'encoche sur le `<nav>`.
+- [x] `more-sheet.tsx` : `p-5` remplacé par `pt-5` + `pl`/`pr` en `max()`, `pb` inchangé.
+- [x] `pwa-update-prompt.tsx` : `inset-x-4` remplacé par `left`/`right` en `max()`, avec
+      `md:left-auto` pour conserver le placement de bureau.
+
+### 4. Preuve
+- [x] Cas 7 vert sur le projet `pwa`.
+- [x] Banc complet : 58 tests, 55 passés, 3 ignorés, aucun flaky.
+- [x] `ci:check` vert — 159 spécifications, 11 fichiers.
+
+## Critères d'acceptation
+
+1. [x] `safe-area-inset-left` et `safe-area-inset-right` sont compilés dans la feuille servie.
+2. [x] `viewport-fit=cover` reste présent dans `index.html`.
+3. [x] Le cas est rouge avant correction et vert après.
+4. [x] Le portrait et le bureau sont inchangés : `env()` y vaut `0`, donc chaque `max()`
+       rend la gouttière d'origine à l'identique.
+5. [x] Banc complet 58 / 55 / 3, `ci:check` 159 spécifications, aucun flaky.
+6. [x] Aucune migration, aucun schéma, aucun contrat d'API, aucune dépendance nouvelle.
+
+## Journal
+
+### 2026-11-19 — Phase 25 exécutée : le paysage cesse de rogner
+
+**Le constat, vérifié et non supposé.** Un `grep` sur tout le dépôt : zéro occurrence de
+`safe-area-inset-left` ou `-right`, six occurrences de `top`/`bottom`. Le ROADMAP disait
+« five `env()` uses » ; il y en a six, la sixième étant le `top-[calc(3.5rem+…)]` de la
+barre de filtres du Cadastre.
+
+**Pourquoi `max()` et non deux classes.** Écrire `pl-[env(…)]` à côté d'un `px-5` existant
+dépend de l'ordre de tri de Tailwind : `px-5` est un raccourci **logique**, `pl-*` un
+longhand **physique**, et rien ne garantit lequel gagne. Une déclaration unique en `max()`
+supprime la question. Elle a un second mérite : quand `env()` vaut `0`, `max(1.25rem, 0)`
+rend `1.25rem` — la gouttière d'origine, au pixel près, sans branche conditionnelle.
+
+**Un utilitaire plutôt que douze classes.** `main` et `footer` partageaient exactement
+`px-5 md:px-10` : c'est le seul cas où une classe commune se justifie. Les autres endroits
+sont ponctuels et restent en valeurs arbitraires inline, à la manière du dépôt.
+
+**Un défaut assumé, consigné.** La barre de filtres collante de `collection.tsx` déborde de
+`main` par `-mx-5 md:-mx-10`. Sur un écran en paysage à encoche, la gouttière de `main`
+s'élargit mais la barre déborde toujours de 20 px : elle paraît donc légèrement en retrait,
+**sans jamais rogner de texte**. Réparer cela demanderait un second utilitaire négatif
+(`min(-1.25rem, calc(env(…) * -1))`) pour un cas d'affichage marginal — non retenu.
+
+**Ce que la preuve ne prouve pas.** `env()` vaut toujours `0` sous Playwright. Le cas 7 est
+donc **structurel** : il établit que les déclarations survivent à la compilation et que
+`viewport-fit=cover` est là — il n'établit pas que la géométrie est juste. La vérification
+visuelle en paysage sur un appareil à encoche **reste à faire** ; elle n'a pas été faite ici.
+
+**Vérification (Docker uniquement)**
+```
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/pwa.spec.ts --project=pwa -g "marges de zone"
+  avant correction : 1 failed — La marge gauche de zone sûre est compilée
+
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint  ✓ 2/4 Typecheck  ✓ 3/4 Base de données  ✓ 4/4 Spécifications
+  159 pass, 0 fail, 811 expect() calls, Ran 159 tests across 11 files
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  58 tests, 55 passed, 3 skipped, aucun flaky
+```
+
+**Les trois ignorés, tous par construction** : le multiplicateur de la plaque
+(`design-system.spec.ts`, ignoré depuis la phase 14) et le double-appui sur les deux projets
+tactiles (parké en phase 24). `58 = 56 + 2` : la phase 23 comptait 56 tests et 53 passés,
+plus ses deux cas de tiroir.
+
+**Le compte d'`expect()` n'est pas un invariant.** Deux passages consécutifs, arbre
+identique, ont rendu **811** puis **815** assertions pour 159 tests et 11 fichiers : les
+assertions vivent parfois dans une boucle sur le référentiel. Les chiffres stables sont
+**159 spécifications** et **11 fichiers** — constat déjà consigné aux phases 21 et 22.
+
+**Portée** : aucune migration, aucun schéma, aucun contrat d'API, aucune dépendance nouvelle,
+`packages/spec`, `packages/db` et `packages/shared` intacts. Aucun commit.
+
+---
+---
+
+# Historique — Phase 24 — Le mode d'emploi (README PWA)
+
+## Statut
+
+- **Phase** : 24 — Le mode d'emploi (README PWA)
+- **État** : Terminé
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-19
+- **Branche** : `chore/polish-p2-p3`
+
+---
+
+## Objectif
+
+`README.md` documentait l'installation d'Hexamap nulle part. Les seuls faits PWA vivaient
+**dans la section Playwright** — un paragraphe sur le contexte sécurisé et une demi-ligne
+citant `pwa.spec.ts` —, et le mot « manifeste » n'y apparaissait jamais. Le ROADMAP
+demandait une section : installation, hors-ligne, et la règle « les tickets et les soldes ne
+sont jamais mis en cache » avec la raison du `NetworkOnly` par méthode. Documentation pure :
+aucune ligne de code.
+
+## Étapes
+
+### 1. La section
+- [x] `README.md` : `## Installation (PWA)` insérée entre « Déploiement (production) » et
+      « Tests de bout en bout (Playwright) » — l'installation découle du build de production,
+      qui est la seule origine locale qui la permette.
+- [x] Cinq sous-sections : le tableau manifeste / icônes / service worker / preuve ;
+      « Installer » (la condition de contexte sécurisé) ; « Hors ligne » (préache de la
+      coquille, `navigateFallback`) ; « Ce qui n'est jamais mis en cache » (tableau des cinq
+      méthodes) ; « Mettre à jour » (`skipWaiting: false`).
+- [x] §Tests de bout en bout : le paragraphe du contexte sécurisé réduit à sa raison
+      mécanique, avec renvoi à la nouvelle section.
+
+### 2. Ce qui a été vérifié avant d'écrire
+- [x] `apps/web/vite.config.ts` : les cinq `NetworkOnly`, `manifest: false`,
+      `StaleWhileRevalidate` (200 entrées, 30 jours), `skipWaiting`/`clientsClaim` à `false`,
+      `devOptions.enabled: false` — chaque affirmation de la section vient du fichier, pas
+      de la mémoire.
+- [x] `apps/web/index.html` : `viewport-fit=cover` ligne 5, `theme-color` `#0c1210`.
+
+### 3. La mémoire
+- [x] `ROADMAP.md` §2 : l'entrée P2 disparaît, « install from the dev server » est absorbé
+      par la section README, et les trois items restants passent en « Parked » avec leur
+      raison.
+- [x] `ROADMAP.md` §4 : la ligne des specs `Plan §5.6` passe de `158 / 0` à `159 / 0`.
+
+## Critères d'acceptation
+
+1. [x] Le mot « manifeste » et l'expression « contexte sécurisé » sont expliqués dans une
+       section dédiée, plus seulement dans la section Playwright.
+2. [x] Le tableau des cinq méthodes HTTP est présent, avec la raison du découpage.
+3. [x] La règle « tickets et soldes jamais mis en cache » est énoncée explicitement.
+4. [x] L'installation sur une IP LAN en HTTP est déclarée impossible, et `:8080` déclarée
+       possible.
+5. [x] Aucun chiffre de build recopié : pas de « 46 entrées de précache », qui change à
+       chaque build.
+6. [x] Aucun fichier de code modifié par cette phase.
+
+## Journal
+
+### 2026-11-19 — Phase 24 exécutée : le mode d'emploi
+
+**Ce que la section remplace.** La section Playwright portait, seule, l'explication du
+contexte sécurisé. C'était le mauvais endroit : elle répondait à « pourquoi le banc est en
+HTTPS », alors que la question du lecteur est « pourquoi le bouton Installer n'apparaît
+pas ». La nouvelle section porte la réponse, et Playwright ne garde que sa raison mécanique.
+
+**Le seul chiffre volontairement absent.** La phase 17 consignait « 46 entrées de
+précache ». Ce nombre change à chaque build dès qu'un chunk apparaît : l'écrire dans le
+README produirait une phrase fausse au premier commit de code. La section décrit donc *ce
+qui* est précaché, jamais *combien*.
+
+**Le lien avec « install from the dev server ».** L'entrée du ROADMAP n'était pas un
+travail : `devOptions.enabled: false` est un choix, et il n'y avait qu'à l'écrire. La
+section le fait en une phrase, ce qui ferme l'entrée sans toucher au code.
+
+**La découverte qui a réorganisé le ROADMAP.** En cherchant à écrire pourquoi le double-appui
+ne peut pas être testé, la cause exacte est apparue : `apps/api/src/auth.ts` donne
+`currency: 0` à l'inscription, et `market.ts` est le **seul** écrivain de `currency_ledger`.
+Aucun compte ne peut donc payer, jamais. La section « Known gap — the market has no faucet »
+a été ajoutée à `ROADMAP.md` §2 et les trois items restants sont passés en « Parked » avec
+leur raison, plutôt que supprimés en silence.
+
+**Vérification** : documentation seule. `ci:check` reste vert (159 spécifications) et ne
+prouve rien sur ce contenu ; la vérification réelle est le recoupement ligne à ligne avec
+`vite.config.ts` et `index.html`, consigné à l'étape 2.
+
+**Portée** : `README.md`, `ROADMAP.md`, ce fichier. Aucun fichier de code. Aucun commit.
+
+---
+
+# Historique — Phase 23 — Les lignes du tiroir (BUG-008)
 
 ## Statut
 
