@@ -53,7 +53,7 @@ async function signUp(): Promise<{ cookie: string; userId: string }> {
         email,
         password: 'motdepasse-123',
         name: 'Spec',
-        pseudo: `${prefix}-spec`,
+        pseudo: `${prefix}-spec-${crypto.randomUUID().slice(0, 6)}`,
       }),
     }),
   );

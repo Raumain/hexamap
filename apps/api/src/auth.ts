@@ -1,4 +1,6 @@
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
+import { sql } from 'kysely';
 import { db } from './db';
 import { env } from './env';
 
@@ -40,6 +42,13 @@ export const trustedOrigins = [
 // HTTP simple à l'intérieur du réseau Docker, peut les désactiver explicitement.
 const useSecureCookies = env.AUTH_COOKIE_SECURE ?? env.NODE_ENV === 'production';
 
+// Le pseudo est l'identité publique (`.docs/01-architecture.md` §2.9) : il sert
+// d'URL dans `/players/:id`, donc il est validé en forme et unique sans tenir
+// compte de la casse. La validation vit ici, pas dans un écran d'inscription,
+// parce que Better Auth est la seule porte d'entrée des comptes.
+const PSEUDO_MIN_LENGTH = 3;
+const PSEUDO_MAX_LENGTH = 24;
+
 export const auth = betterAuth({
   database: {
     db,
@@ -67,6 +76,32 @@ export const auth = betterAuth({
   },
   // Le rate limiter Better Auth persiste ses compteurs en base : ils survivent
   // aux redémarrages et sont partagés par toutes les instances de l'API.
+  databaseHooks: {
+    user: {
+      create: {
+        // Un pseudo hors de 3 à 24 caractères, ou déjà pris à la casse près,
+        // est refusé avant toute écriture : le compteur d'erreurs Better Auth
+        // n'a rien à réconcilier ensuite.
+        before: async (user) => {
+          const pseudo = typeof user.pseudo === 'string' ? user.pseudo.trim() : '';
+          if (pseudo.length < PSEUDO_MIN_LENGTH || pseudo.length > PSEUDO_MAX_LENGTH) {
+            throw new APIError('BAD_REQUEST', {
+              message: `Le pseudo doit contenir entre ${PSEUDO_MIN_LENGTH} et ${PSEUDO_MAX_LENGTH} caractères.`,
+            });
+          }
+
+          const taken = await sql<{ id: string }>`
+            select id from "user" where lower(pseudo) = lower(${pseudo}) limit 1
+          `.execute(db);
+          if (taken.rows.length > 0) {
+            throw new APIError('BAD_REQUEST', { message: 'Ce pseudo est déjà pris.' });
+          }
+
+          return { data: { ...user, pseudo } };
+        },
+      },
+    },
+  },
   rateLimit: {
     storage: 'database',
   },
