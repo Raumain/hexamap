@@ -188,6 +188,12 @@ export interface UserScratchChargeTable {
   last_regen_at: Generated<Date>;
 }
 
+export interface UserAchievementTable {
+  user_id: string;
+  achievement_key: string;
+  unlocked_at: Generated<Date>;
+}
+
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export interface FriendshipTable {
@@ -223,6 +229,7 @@ export interface Database {
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
   user_scratch_charges: UserScratchChargeTable;
+  user_achievements: UserAchievementTable;
   friendships: FriendshipTable;
   blocks: BlockTable;
 }

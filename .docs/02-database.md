@@ -30,8 +30,8 @@
 | `rateLimit` | **Migrée** | `packages/db/migrations/0005_rate_limit.ts` |
 | Colonnes blasons : `ref_communes.blason_url`, `ref_communes.contour_url`, `ref_communes.blason_credit`, `ref_departements.blason_credit`, `ref_regions.blason_credit` | **Migrée** | `packages/db/migrations/0007_blasons.ts` |
 | `user_scratch_charges` | **Migrée** | `packages/db/migrations/0009_scratch_charges.ts` |
-| `user_achievements` | **Contrat** | Migrations `0009`+ (phase 27) |
 | `friendships`, `blocks` | **Migrée** | `packages/db/migrations/0010_friendships.ts` |
+| `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
 | `user_profiles`, index `user_pseudo_lower_idx` | **Contrat** | Migrations `0009`+ (phase 29) |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
