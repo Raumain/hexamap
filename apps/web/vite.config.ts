@@ -2,9 +2,53 @@ import tailwindcss from '@tailwindcss/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react(), tailwindcss()],
+  plugins: [
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    react(),
+    tailwindcss(),
+    VitePWA({
+      // Le manifeste est un fichier statique de `public/`, pas une option Vite.
+      registerType: 'prompt',
+      injectRegister: false,
+      strategies: 'generateSW',
+      filename: 'sw.js',
+      manifest: false,
+      workbox: {
+        // `navigateFallback` exige que `/index.html` soit précaché : Workbox
+        // lève `non-precached-url` à l'installation sinon, et aucun service
+        // worker ne s'active. L'ancienne exclusion `**/index.html` rendait le
+        // fichier introuvable dans le manifeste de précache.
+        globPatterns: ['**/*.{js,css,html,woff2,svg,png,ico,webmanifest}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/blasons\//],
+        cleanupOutdatedCaches: true,
+        clientsClaim: false,
+        skipWaiting: false,
+        runtimeCaching: [
+          // Une entrée Workbox ne couvre qu'une méthode (GET par défaut) :
+          // chaque méthode de l'API a la sienne, pour qu'aucune mutation Eden
+          // ne soit servie par le cache.
+          { urlPattern: /\/api\//, method: 'GET', handler: 'NetworkOnly' },
+          { urlPattern: /\/api\//, method: 'POST', handler: 'NetworkOnly' },
+          { urlPattern: /\/api\//, method: 'PUT', handler: 'NetworkOnly' },
+          { urlPattern: /\/api\//, method: 'PATCH', handler: 'NetworkOnly' },
+          { urlPattern: /\/api\//, method: 'DELETE', handler: 'NetworkOnly' },
+          {
+            urlPattern: /\/blasons\//,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'blasons',
+              expiration: { maxEntries: 200, maxAgeSeconds: 2592000 },
+            },
+          },
+        ],
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
   resolve: {
     tsconfigPaths: true,
   },

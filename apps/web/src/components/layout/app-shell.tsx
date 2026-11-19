@@ -5,6 +5,7 @@ import { useSession } from '../../lib/session';
 import { BottomTabBar } from './bottom-tab-bar';
 import { HexSeal } from './hex-seal';
 import { salonForPath } from './nav-items';
+import { PwaUpdatePrompt } from './pwa-update-prompt';
 import { Sidebar } from './sidebar';
 
 function MobileHeader() {
@@ -67,6 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <BottomTabBar />
+      <PwaUpdatePrompt />
     </div>
   );
 }
