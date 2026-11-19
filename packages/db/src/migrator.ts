@@ -8,6 +8,7 @@ import * as rateLimit from '../migrations/0005_rate_limit';
 import * as marketRelist from '../migrations/0006_market_relist';
 import * as blasons from '../migrations/0007_blasons';
 import * as entityContours from '../migrations/0008_entity_contours';
+import * as profiles from '../migrations/0012_profiles';
 import type { Database } from './index';
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -21,6 +22,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '0006_market_relist': marketRelist,
       '0007_blasons': blasons,
       '0008_entity_contours': entityContours,
+      '0012_profiles': profiles,
     };
   }
 }

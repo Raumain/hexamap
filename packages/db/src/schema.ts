@@ -182,6 +182,13 @@ export interface RateLimitTable {
   lastRequest: string;
 }
 
+export interface UserProfileTable {
+  user_id: string;
+  bio: string | null;
+  profile_public: Generated<boolean>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -200,4 +207,5 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  user_profiles: UserProfileTable;
 }
