@@ -10,6 +10,7 @@ import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
+import { friendRoutes } from './routes/friends';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
 import { refRoutes } from './routes/ref';
@@ -43,6 +44,7 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(cardRoutes)
   .use(tableauRoutes)
   .use(marketRoutes)
+  .use(friendRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });

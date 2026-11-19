@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsRoute = FriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportStatusRoute = ImportStatusRouteImport.update({
@@ -80,6 +86,7 @@ const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CollectionRoute: typeof CollectionRoute
+  FriendsRoute: typeof FriendsRoute
   ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -187,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friends': {
+      id: '/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof FriendsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/import-status': {
@@ -258,6 +278,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CollectionRoute: CollectionRoute,
+  FriendsRoute: FriendsRoute,
   ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
