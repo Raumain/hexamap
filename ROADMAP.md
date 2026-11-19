@@ -32,17 +32,12 @@ repo 17, at ~80 %, closed in practice by repo 19**.
 Verified today: `ci:check` green with **159 specs across 11 files**; the production image compresses
 text payloads in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518`
 in brotli (−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`),
-`/sw.js` (`text/javascript`, `no-cache`), 46 precache entries; Playwright **56 tests, 53 passed /
-3 skipped** (chromium 14 / 1, pwa 7, Pixel 7 16 / 1, iPhone 13 16 / 1).
+`/sw.js` (`text/javascript`, `no-cache`), 46 precache entries; Playwright **58 tests, 56 passed /
+2 skipped**, aucun flaky.
 
 ---
 
 ## 2. What remains, in order
-
-### P2 — BUG-008: drawer rows overlap their plates
-
-Row `h-16` (64 px) vs plate `w-14` + `aspect-[4/5]` (70 px), stride fixed at 64 by
-`estimateSize`. Align the two measures (`h-[76px]` + `estimateSize: () => 76`, or `w-12`).
 
 ### P2 — README: PWA section
 

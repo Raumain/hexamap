@@ -285,6 +285,12 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
 - **Le tableau de combo ne calcule rien.** `alignment.breakdown[].valid` et
   `alignment.multiplier` viennent du serveur ; `alignment.links` est un **nombre**. Aucun
   recalcul d'alignement ni de multiplicateur dans le navigateur.
+- **Une ligne de liste reçoit sa hauteur de son contenu.** Les lignes virtualisées de
+  `routes/tableau.tsx` ne déclarent ni `h-*` ni `min-h-*` : la planche `w-14` (`decorative`,
+  `aspect-[4/5]`, 70 px) et le `py-2` de la ligne fixent la hauteur, et `estimateSize` ne sert
+  qu'à l'estimation d'avant-mesure du virtualiseur. Déclarer une hauteur en plus de celle du
+  contenu a produit BUG-008 — une planche de 70 px dans une ligne de 64 px, mesurée à 64, donc
+  deux planches voisines recouvertes de 6 px.
 - **Aucune animation ne remplit vers l'avant sur un ancêtre de mise en page.** `<main>` porte
   `.enter-salon` avec `animation-fill-mode: backwards` : son `transform` disparaît à la fin des
   180 ms. Un `transform` — même `translateY(0)` — ferait de `<main>` le bloc conteneur de tout

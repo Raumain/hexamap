@@ -5,7 +5,116 @@
 
 ---
 
-# Phase 22 — Les Planches lisibles (BUG-006)
+# Phase 23 — Les lignes du tiroir (BUG-008)
+
+## Statut
+
+- **Phase** : 23 — Les lignes du tiroir (BUG-008)
+- **État** : Terminé
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-19
+- **Branche** : `fix/bug-008-tiroir-lignes`
+
+---
+
+## Objectif
+
+Dans le tiroir de sélection de La Planche, une ligne déclarait sa hauteur (`h-16`, 64 px) tandis
+que sa planche la tenait de sa largeur (`w-14`, `decorative`, donc `aspect-[4/5]` : 70 px), et le
+virtualiseur recevait 64 px en estimation comme en mesure : deux planches voisines se recouvraient
+de 6 px. La ligne ne déclare plus sa hauteur, elle est dimensionnée par sa planche plus 16 px de
+`py-2`, et le pas du virtualiseur suit la mesure. À domaine et contrats d'API constants : aucune
+migration, aucune dépendance nouvelle.
+
+## Étapes
+
+### 1. Spec-first — un cas rouge
+- [x] `packages/e2e/tests/mobile.spec.ts` : « mobile — deux planches du tiroir ne se recouvrent
+      pas », joué sur les deux projets tactiles, avec l'aide `measureDrawerRows`
+      (`button[data-index]` et son `article.exhibit`).
+- [x] Lancé sur `Pixel 7` contre l'image d'avant correction : rouge, `Expected: >= 74,
+      Received: 64`.
+
+### 2. La ligne
+- [x] `apps/web/src/routes/tableau.tsx` : `h-16` retiré, `py-2` ajouté — la ligne reçoit sa
+      hauteur de son contenu.
+- [x] `DRAWER_ROW_ESTIMATE = 86` déclarée au-dessus de `CardDrawer`, consommée par
+      `estimateSize`, documentée comme une estimation d'avant-mesure qui doit valoir la mesure.
+- [x] `items-center`, `measureElement`, `data-index`, `overscan: 8`, `w-14`, `aspect-[4/5]` et
+      `transition-colors` inchangés ; aucun `transition-all`.
+
+### 3. La preuve et la mémoire
+- [x] `mobile.spec.ts` vert sur les deux projets tactiles ; banc complet 58 tests, 56 passés,
+      2 ignorés, aucun flaky.
+- [x] `.docs/04-bugs.md` ferme BUG-008 ; `.docs/01-architecture.md` §4.9 porte la règle ;
+      `ROADMAP.md` §2 perd son entrée.
+- [x] Aucune migration, aucun changement de schéma ni de contrat d'API, `packages/spec` intact.
+
+## Critères d'acceptation
+
+1. [x] Deux planches consécutives du tiroir ne se recouvrent plus : le bas de l'une précède le
+       haut de l'autre.
+2. [x] L'écart vertical entre deux planches est compris entre 4 et 32 px.
+3. [x] La ligne mesure au moins 44 px (cible tactile).
+4. [x] Le pas du virtualiseur est supérieur ou égal à la hauteur mesurée de la ligne.
+5. [x] `aspect-[4/5]`, `w-14`, `measureElement` et `data-index` intacts ; aucun `transition-all`.
+6. [x] Le cas est rouge sur le code d'avant correction et vert après.
+7. [x] `ci:check` vert — 159 spécifications, 11 fichiers — et banc complet sans flaky.
+8. [x] Aucune migration, aucun schéma, aucune dépendance nouvelle.
+
+## Journal
+
+### 2026-11-19 — Phase 23 exécutée : les lignes du tiroir reprennent leur planche
+
+**Le constat.** Ouvrir un emplacement de La Planche montrait des planches collées : `h-16`
+(64 px) déclarait la hauteur d'une ligne dont la planche, `w-14` en `aspect-[4/5]`, mesurait
+70 px. `items-center` la centrait, elle débordait de 3 px en haut et en bas, et la ligne suivante
+commençant 64 px plus bas, **deux planches voisines se recouvraient de 6 px**. `measureElement`
+mesurait le bouton — dont la hauteur était imposée — donc le virtualiseur ne pouvait pas
+découvrir les 70 px.
+
+**Ce que la fiche appelait un écart de mesures était un doublon.** La hauteur de ligne était
+*déclarée*, la hauteur de planche *dérivée de sa largeur* : deux mesures indépendantes, et c'est
+celle qui mentait qui était mesurée. Réaligner les deux nombres (`h-[76px]` +
+`estimateSize: () => 76`) aurait corrigé l'occurrence en laissant la classe de défaut intacte,
+pour 6 px de respiration seulement. La ligne ne déclare donc plus sa hauteur : elle reçoit celle
+de son contenu, et `estimateSize` ne sert plus qu'à l'estimation d'avant-mesure.
+
+**Le prix assumé.** 86 px au lieu de 64 : environ sept lignes visibles au lieu de huit dans un
+tiroir de 76 vh. L'objet de la salle reste lisible, ce qui est le sujet de la fiche.
+
+**Deux observations de banc.** Le compte E2E ne possède pas forcément les quatre catégories — le
+run mesuré comptait 49 cartes et zéro région : le cas parcourt donc les quatre emplacements et
+tolère un tiroir vide, au lieu de supposer seize cartes réparties sur quatre catégories. Et un
+run du banc a rendu `/collection` sur la page de connexion, session non résolue ; le cas est hors
+du périmètre du tiroir et le run complet suivant a été vert sans flaky. Il reste une observation,
+pas une régression corrigée.
+
+**Vérification (Docker uniquement)**
+```
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/mobile.spec.ts --project="Pixel 7" -g "deux planches du tiroir"
+  avant correction : 1 failed — Expected: >= 74  Received: 64
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  58 tests, 56 passed, 2 skipped, aucun flaky
+
+docker compose --profile tools run --rm dev bun run ci:check
+  1/4 Lint  2/4 Typecheck  3/4 Base de données  4/4 Spécifications
+  159 pass, 0 fail, 808 expect() calls, 11 fichiers
+```
+
+**Le compte d'`expect()` n'est pas un invariant.** 808 assertions pour 159 tests et 11 fichiers :
+comme consigné aux phases 20 et 21, la mesure fluctue d'une exécution à l'autre, parce que
+certaines assertions vivent dans une boucle sur le référentiel. Les chiffres stables sont **159
+spécifications** et **11 fichiers**.
+
+**Portée** : aucune migration, aucun changement de schéma ni de contrat d'API, aucune dépendance
+nouvelle, `packages/spec`, `packages/db` et `packages/shared` intacts. Aucun commit.
+
+---
+
+# Historique — Phase 22 — Les Planches lisibles (BUG-006)
 
 ## Statut
 

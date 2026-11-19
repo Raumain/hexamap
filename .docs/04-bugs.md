@@ -13,7 +13,7 @@ de la PR qui la ferme.
 | BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Corrigé — PR à ouvrir sur `fix/bug-005-salles-secondaires-mobile` |
 | BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Corrigé — branche fix/bug-006-plates-illegibles |
 | BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`) |
-| BUG-008 | Les planches du tiroir se chevauchent | Basse | Ouvert |
+| BUG-008 | Les planches du tiroir se chevauchent | Basse | Corrigé (branche `fix/bug-008-tiroir-lignes`) |
 
 Gravités : `Haute` (donnée utilisateur fausse ou perte de données), `Moyenne`
 (comportement incorrect sans perte), `Basse` (robustesse, hygiène).
@@ -623,7 +623,7 @@ le fond, focus rendu à la grille) sont intactes.
 ## BUG-008 — Les planches du tiroir se chevauchent
 
 - **Gravité** : Basse
-- **Statut** : Ouvert
+- **Statut** : Corrigé
 - **Constaté le** : 2026-11-19
 - **Zone** : `apps/web/src/routes/tableau.tsx`
 
@@ -665,6 +665,62 @@ des lignes espacées de 64 px. `document.querySelectorAll` sur les lignes donne 
 
 À ne pas faire : retirer `aspect-[4/5]` de la planche décorative — c'est ce ratio qui
 la distingue des planches de collection.
+
+### Correction livrée
+
+- **La ligne ne déclare plus sa hauteur.** `apps/web/src/routes/tableau.tsx` : `h-16` retiré du
+  `<button>` de ligne, remplacé par `py-2`. La ligne est désormais dimensionnée par sa planche —
+  `w-14`, `decorative`, donc `aspect-[4/5]`, soit 70 px — plus 16 px de respiration, soit
+  **86 px**. `items-center`, `measureElement`, `data-index` et `overscan: 8` sont inchangés : la
+  mesure porte enfin sur un élément dont la hauteur est celle du contenu.
+- **Le pas suit la mesure.** `estimateSize: () => 64` devient
+  `estimateSize: () => DRAWER_ROW_ESTIMATE`, constante déclarée juste au-dessus de `CardDrawer`
+  et documentée : elle ne sert qu'à l'estimation d'avant-mesure du virtualiseur, et doit valoir la
+  mesure pour que le défilement ne saute pas au premier passage.
+- **Ce qui n'a pas changé.** `aspect-[4/5]`, `w-14`, `variant="compact"`, `gap-3`,
+  `transition-colors` (aucun `transition-all`) et le budget DOM de ≤ 18 nœuds non-SVG.
+
+**Preuve rouge, avant correction.**
+`packages/e2e/tests/mobile.spec.ts`, cas « mobile — deux planches du tiroir ne se recouvrent
+pas », joué sur `Pixel 7` contre l'image de production reconstruite depuis le code d'avant
+correction :
+
+```
+Error: La ligne du tiroir doit être plus haute que sa planche, sinon elle la laisse déborder.
+expect(received).toBeGreaterThanOrEqual(expected)
+Expected: >= 74
+Received:    64
+```
+
+La planche mesurant 70 px (`w-14` × 5/4) et la ligne 64 px, le pas du virtualiseur valait 64 :
+deux planches voisines se recouvraient de 6 px.
+
+**Preuve verte, après correction.** Le même cas sur les deux projets tactiles, puis le banc
+complet :
+
+```
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/mobile.spec.ts
+  34 passed, 2 skipped
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  58 tests, 56 passed, 2 skipped, aucun flaky
+```
+
+Le cas ne se contente pas de constater l'absence de recouvrement : il exige
+`row.height >= plate.height + 4`, `pitch >= row.height`, un écart compris entre 4 et 32 px, et
+une ligne d'au moins 44 px. Une nouvelle dérive de la hauteur de planche ou du pas sera donc vue.
+
+Le compte E2E ne possède pas forcément les quatre catégories : le cas parcourt les quatre
+emplacements et tolère un tiroir vide (« Aucune carte éligible pour cet emplacement. »), puis
+mesure le premier qui propose au moins deux planches.
+
+**À ne pas faire.** Redéclarer une hauteur fixe sur la ligne (`h-16`, `h-[76px]`) : c'est ce
+doublon hauteur déclarée / hauteur dérivée qui a produit le défaut, et une constante de plus ne
+le corrigerait qu'une fois. Et ne pas retirer `aspect-[4/5]` de la planche décorative : c'est ce
+ratio qui la distingue des planches de collection.
+
+**Vérification.** `bun run ci:check` : `1/4 Lint`, `2/4 Typecheck`, `3/4 Base de données`,
+`4/4 Spécifications` — **159 spécifications, 11 fichiers**. Aucune migration, aucun changement
+de schéma ni de contrat d'API, aucune dépendance nouvelle.
 
 ---
 
