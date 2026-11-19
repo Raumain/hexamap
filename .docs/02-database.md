@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-16.
+> Dernière mise à jour : 2026-11-19.
 
 ---
 
@@ -256,6 +256,7 @@ create table ref_regions (
   nom text not null,
   geom jsonb,
   blason_url text,
+  contour_url text,
   blason_credit text
 );
 
@@ -266,6 +267,7 @@ create table ref_departements (
   population integer not null default 0,
   geom jsonb,
   blason_url text,
+  contour_url text,
   blason_credit text
 );
 
@@ -473,6 +475,7 @@ export interface RefRegionTable {
   nom: string;
   geom: unknown | null;
   blason_url: string | null;
+  contour_url: string | null;
   blason_credit: string | null;
 }
 
@@ -483,6 +486,7 @@ export interface RefDepartementTable {
   population: number;
   geom: unknown | null;
   blason_url: string | null;
+  contour_url: string | null;
   blason_credit: string | null;
 }
 
