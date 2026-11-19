@@ -33,6 +33,7 @@ export const MARKET = {
   rarityLabel: 'Rareté',
   allValues: 'Toutes',
   buy: 'Acheter',
+  buying: 'Achat…',
   ownListing: 'Votre annonce',
   previous: 'Précédent',
   next: 'Suivant',
