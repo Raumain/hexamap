@@ -439,6 +439,15 @@ interface CardDrawerProps {
   onClose: () => void;
 }
 
+/**
+ * Hauteur nominale d'une ligne du tiroir. La ligne ne déclare plus sa hauteur :
+ * c'est sa planche qui la dimensionne — `w-14`, rendue `decorative`, donc
+ * `aspect-[4/5]`, soit 70 px — plus les 16 px de `py-2`. Cette constante ne sert
+ * qu'à l'estimation d'avant-mesure du virtualiseur : elle doit valoir la mesure,
+ * faute de quoi le défilement saute au premier passage.
+ */
+const DRAWER_ROW_ESTIMATE = 86;
+
 function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerProps) {
   const [search, setSearch] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -457,7 +466,7 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLButtonElement>({
     count: eligible.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 64,
+    estimateSize: () => DRAWER_ROW_ESTIMATE,
     getItemKey: (index) => eligible[index]?.id ?? index,
     overscan: 8,
   });
@@ -532,7 +541,7 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                       type="button"
                       disabled={usedElsewhere}
                       onClick={() => onSelect(slot, card)}
-                      className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="absolute top-0 left-0 flex w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 py-2 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
                       style={{ transform: `translateY(${virtualItem.start}px)` }}
                     >
                       <Card

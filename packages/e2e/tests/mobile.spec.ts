@@ -641,7 +641,107 @@ test.describe('mobile — les overlays restent ancrés à la fenêtre', () => {
   });
 });
 
-/* ── 8. Salles secondaires (BUG-005) ─────────────────────────────────────── */
+/* ── 8. Lignes du tiroir (BUG-008) ───────────────────────────────────────── */
+
+interface DrawerRowGeometry {
+  row: Box;
+  plate: Box;
+}
+
+/**
+ * Relève la géométrie des deux premières lignes du tiroir. Les lignes sont des
+ * boutons absolus translatés par le virtualiseur : `boundingBox()` porte donc
+ * déjà le pas réel, sans avoir à reconstituer `translateY`.
+ */
+async function measureDrawerRows(
+  drawer: Locator,
+): Promise<{ first: DrawerRowGeometry; second: DrawerRowGeometry }> {
+  const read = async (index: number): Promise<DrawerRowGeometry> => ({
+    row: requireBox(
+      await drawer.locator(`button[data-index="${index}"]`).boundingBox(),
+      `la ligne ${index + 1} du tiroir`,
+    ),
+    plate: requireBox(
+      await drawer.locator(`button[data-index="${index}"] article.exhibit`).first().boundingBox(),
+      `la planche de la ligne ${index + 1}`,
+    ),
+  });
+
+  return { first: await read(0), second: await read(1) };
+}
+
+test.describe('mobile — les lignes du tiroir contiennent leur planche', () => {
+  // Un tiroir de 76 vh sur un écran de 844 px montre les premières lignes en
+  // entier : la mesure ne dépend ni d'un défilement ni d'un rognage.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('mobile — deux planches du tiroir ne se recouvrent pas', async ({ page }) => {
+    await page.goto('/tableau');
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+    // Le compte E2E ne possède pas forcément les quatre catégories : un
+    // emplacement peut ouvrir un tiroir vide. On parcourt les quatre jusqu'à en
+    // trouver un qui propose au moins deux planches.
+    const triggers = page.getByRole('button', { name: /Emplacement libre|^Modifier$/ });
+    await expect(triggers.first()).toBeVisible();
+    const slots = await triggers.count();
+
+    let measured = false;
+    for (let slot = 0; slot < slots && !measured; slot += 1) {
+      await triggers.nth(slot).click();
+      const drawer = page.getByRole('dialog');
+      await expect(drawer).toBeVisible();
+
+      const rows = drawer.locator('button[data-index]');
+      // Un emplacement dont la catégorie manque au compte ouvre un tiroir vide :
+      // ce n'est pas le défaut mesuré, on passe à l'emplacement suivant. Le
+      // compte E2E gratte trois bordereaux, donc une catégorie au moins propose
+      // plusieurs planches : la boucle finit toujours par mesurer.
+      await expect(
+        rows.first().or(drawer.getByText('Aucune carte éligible pour cet emplacement.')),
+      ).toBeVisible();
+
+      if ((await rows.count()) >= 2) {
+        // Le virtualiseur mesure ses lignes après la première image : `toPass`
+        // attend que le pas se soit aligné sur la mesure, sans attendre un délai.
+        await expect(async () => {
+          const { first, second } = await measureDrawerRows(drawer);
+
+          expect(
+            first.row.height,
+            'La ligne du tiroir doit être plus haute que sa planche, sinon elle la laisse déborder.',
+          ).toBeGreaterThanOrEqual(first.plate.height + 4);
+          expect(second.row.height).toBeGreaterThanOrEqual(second.plate.height + 4);
+
+          const pitch = second.row.y - first.row.y;
+          expect(
+            pitch,
+            'Le pas du virtualiseur doit valoir la hauteur mesurée de la ligne.',
+          ).toBeGreaterThanOrEqual(first.row.height);
+          expect(
+            first.plate.y + first.plate.height,
+            'Deux planches du tiroir ne peuvent pas se recouvrir : la ligne doit être plus haute que sa planche.',
+          ).toBeLessThanOrEqual(second.plate.y + 0.5);
+          expect(pitch - first.plate.height).toBeGreaterThanOrEqual(4);
+          expect(pitch - first.plate.height).toBeLessThanOrEqual(32);
+          expect(first.row.height, 'La ligne reste une cible tactile.').toBeGreaterThanOrEqual(44);
+        }).toPass({ timeout: 5_000 });
+
+        measured = true;
+      }
+
+      await drawer.getByRole('button', { name: 'Fermer' }).click();
+      await expect(drawer).toBeHidden();
+    }
+
+    expect(
+      measured,
+      'Aucun emplacement ne propose deux planches : le tiroir ne peut pas être mesuré.',
+    ).toBe(true);
+  });
+});
+
+/* ── 9. Salles secondaires (BUG-005) ─────────────────────────────────────── */
 
 /**
  * Les deux salles secondaires que le roadmap nomme. « Les Archives » est listée
