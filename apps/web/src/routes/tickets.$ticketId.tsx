@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate, useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { RevealedCell } from '../components/revealed-cell';
@@ -32,6 +32,7 @@ export const Route = createFileRoute('/tickets/$ticketId')({
 });
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
+const TREASURE_HEADING_ID = 'pepite-decouverte-nom';
 
 function TicketPage() {
   const { ticketId } = Route.useParams();
@@ -40,7 +41,24 @@ function TicketPage() {
   const session = useSession();
   const ticketQuery = useQuery(currentTicketQueryOptions);
   const firedCells = useRef(new Set<number>());
+  const gridRef = useRef<HTMLFieldSetElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<TicketCell | null>(null);
+  const celebrationOpen = celebration !== null;
+
+  useEffect(() => {
+    if (!celebrationOpen) return;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCelebration(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      gridRef.current?.focus();
+    };
+  }, [celebrationOpen]);
 
   const mutation = useMutation({
     mutationFn: (variables: { ticketId: string; cellIndex: number }) =>
@@ -52,6 +70,10 @@ function TicketPage() {
       const primary = data.revealed.find((cell) => cell.index === variables.cellIndex);
       if (primary) {
         setAnnouncement(revealAnnouncement(variables.cellIndex, cellDisplayName(primary)));
+      }
+      if (data.effects.includes('TREASURE_FOUND')) {
+        const found = data.revealed.find((cell) => cell.kind === 'TREASURE');
+        if (found) setCelebration(found);
       }
     },
     onError: (_error, variables) => {
@@ -155,6 +177,7 @@ function TicketPage() {
   const pinsLabel = remaining === 1 ? '1 coup restant' : `${remaining} coups restants`;
   const treasure = ticket.cells.find((cell) => cell.revealed && cell.kind === 'TREASURE');
   const treasureCard = treasure && treasure.kind === 'TREASURE' ? treasure.card : null;
+  const celebratedCard = celebration && celebration.kind === 'TREASURE' ? celebration.card : null;
 
   return (
     <section className="space-y-6">
@@ -195,7 +218,9 @@ function TicketPage() {
           </div>
 
           <fieldset
-            className="grid grid-cols-4 gap-2 overscroll-none md:gap-3"
+            ref={gridRef}
+            tabIndex={-1}
+            className="grid grid-cols-4 gap-2 overscroll-none outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass md:gap-3"
             aria-label={TICKET.gridAriaLabel}
           >
             {ticket.cells.map((cell) => {
@@ -225,9 +250,15 @@ function TicketPage() {
           </p>
         ) : null}
 
-        {ticket.treasureFound && !treasureCard ? (
-          <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-brass">
-            {TICKET.treasureFound}
+        {treasureCard && !celebrationOpen ? (
+          <p className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.2em] text-brass">
+            <span>{TICKET.treasureFound}</span>
+            <Link
+              to="/collection"
+              className="underline decoration-brass/40 underline-offset-4 transition-colors duration-150 hover:text-vellum"
+            >
+              {TICKET.treasureFoundLink}
+            </Link>
           </p>
         ) : null}
 
@@ -288,31 +319,47 @@ function TicketPage() {
         {announcement}
       </div>
 
-      {ticket.treasureFound && treasureCard ? (
+      {celebratedCard ? (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Pépite découverte"
+          aria-labelledby={TREASURE_HEADING_ID}
           className="fixed inset-0 z-50 grid place-items-center bg-cabinet/85 p-6"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setCelebration(null);
+          }}
         >
           <div className="w-full max-w-sm text-center">
             <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-brass">
-              Découverte
+              {TICKET.treasureEyebrow}
             </p>
             <Card
-              type={treasureCard.category}
-              rarity={treasureCard.rarity}
-              name={treasureCard.nom || 'Pépite'}
-              score={treasureCard.score}
+              type={celebratedCard.category}
+              rarity={celebratedCard.rarity}
+              name={celebratedCard.nom || TICKET.treasureFallbackName}
+              score={celebratedCard.score}
               className="enter-plate mx-auto mt-5 w-52"
             />
-            <p className="mt-5 font-display text-lg text-vellum">{treasureCard.nom}</p>
-            <Link
-              to="/collection"
-              className="mt-5 inline-flex items-center justify-center rounded-sm border-2 border-brass bg-brass px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale"
-            >
-              Ranger dans le cadastre
-            </Link>
+            <h2 id={TREASURE_HEADING_ID} className="mt-5 font-display text-lg text-vellum">
+              {celebratedCard.nom || TICKET.treasureFallbackName}
+            </h2>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/collection"
+                onClick={() => setCelebration(null)}
+                className="inline-flex min-h-11 items-center justify-center rounded-sm border-2 border-brass bg-brass px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale"
+              >
+                {TICKET.treasureModalLink}
+              </Link>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={() => setCelebration(null)}
+                className="inline-flex min-h-11 items-center justify-center rounded-sm border border-brass/40 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-vellum/80 transition-colors duration-150 hover:border-brass hover:text-vellum"
+              >
+                {TICKET.closeModal}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
