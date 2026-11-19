@@ -1,0 +1,13 @@
+# Bordure TLS du banc e2e. Le banc doit être en HTTPS pour que l'origine
+# https://hexamap.test soit un contexte sécurisé, sans quoi le navigateur
+# n'expose même pas `navigator.serviceWorker` et le worker ne peut pas
+# s'enregistrer. L'AC interne de Caddy n'est dans aucun trust store : Playwright
+# ignore les erreurs de certificat par `ignoreHTTPSErrors: true`. Cela ne suffit
+# pas pour le worker : le téléchargement de son SCRIPT passe par la pile réseau
+# de Chrome et non par le routage CDP, d'où `--ignore-certificate-errors` en plus
+# sur le seul projet `pwa`. Ne PAS activer `encode` : c'est la compression de
+# l'API qu'on vérifie, pas celle d'un proxy.
+hexamap.test {
+	tls internal
+	reverse_proxy api:3000
+}
