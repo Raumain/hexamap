@@ -28,7 +28,7 @@ export function MoreSheet({ pathname, onClose }: MoreSheetProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[76vh] flex-col rounded-t-panel border-t border-brass/30 bg-cabinet-raised p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lifted"
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[76vh] flex-col rounded-t-panel border-t border-brass/30 bg-cabinet-raised pt-5 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lifted"
         >
           <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-veil-strong" />
 

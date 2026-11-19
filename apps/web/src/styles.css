@@ -323,6 +323,19 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* La gouttière horizontale du cabinet. Une encoche d'écran en paysage élargit
+     la marge au lieu de rogner le contenu ; `env()` valant 0 partout ailleurs,
+     le portrait et le bureau ne bougent pas d'un pixel. */
+  .gutter-safe {
+    padding-inline: max(1.25rem, env(safe-area-inset-left)) max(1.25rem, env(safe-area-inset-right));
+  }
+
+  @media (width >= 48rem) {
+    .gutter-safe {
+      padding-inline: max(2.5rem, env(safe-area-inset-left)) max(2.5rem, env(safe-area-inset-right));
+    }
+  }
 }
 
 @keyframes enter-salon {

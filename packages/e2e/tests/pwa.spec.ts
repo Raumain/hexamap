@@ -323,6 +323,10 @@ test('installation — les marges de zone sûre sont appliquées', async ({ page
 
   expect(cssText, 'La marge haute de zone sûre est compilée').toContain('safe-area-inset-top');
   expect(cssText, 'La marge basse de zone sûre est compilée').toContain('safe-area-inset-bottom');
+  // En paysage, l'encoche passe sur les côtés : le rail et les barres doivent
+  // s'en écarter, pas seulement s'écarter de la barre d'état et du bas d'écran.
+  expect(cssText, 'La marge gauche de zone sûre est compilée').toContain('safe-area-inset-left');
+  expect(cssText, 'La marge droite de zone sûre est compilée').toContain('safe-area-inset-right');
 
   const viewport = await page.locator('meta[name="viewport"]').getAttribute('content');
   expect(viewport, 'Le viewport couvre les zones sûres').toContain('viewport-fit=cover');
