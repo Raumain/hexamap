@@ -128,6 +128,39 @@ ensure_db() {
 
 db_url() { printf 'postgres://%s:%s@db:5432/%s' "$PG_USER" "$PG_PASS" "$1"; }
 
+# ---------------------------------------------------------------- branche de base
+
+# La PR d'une phase cible la branche de sa vague parente : elle doit exister sur
+# l'origine *avant* que la session démarre, sinon `gh pr create --base` échoue et
+# l'agent risque de se rabattre sur `main`, ce qui casse la chaîne.
+ensure_remote_branch() {
+  local branch=$1
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] '$branch' doit exister en local puis sur l'origine (push si absente)"
+    return 0
+  fi
+
+  if ! git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+    die "la branche '$branch' est absente en local : rejoue la vague précédente."
+  fi
+
+  if [ "$PUSH" -eq 0 ]; then
+    warn "--no-push : '$branch' ne sera pas publiée, les PR de phase échoueront."
+    return 0
+  fi
+
+  if git -C "$ROOT" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+    log "branche de base publiée : $branch"
+    return 0
+  fi
+
+  log "branche de base absente de l'origine : push de $branch"
+  git -C "$ROOT" push -u origin "$branch" >>"$LOGDIR/push.log" 2>&1 \
+    || die "push de '$branch' impossible : les PR de la vague ne pourraient pas la cibler."
+}
+
+
 # ---------------------------------------------------------------- worktrees
 
 worktree_path() { printf '%s/phase-%s' "$WT_ROOT" "$1"; }
@@ -392,9 +425,7 @@ main() {
 
     local parent
     parent=$(parent_branch "$wave")
-    if [ "$DRY_RUN" -eq 0 ] && ! git -C "$ROOT" show-ref --verify --quiet "refs/heads/$parent"; then
-      die "la branche parente '$parent' est absente : rejoue la vague précédente."
-    fi
+    ensure_remote_branch "$parent"
 
     log "vague $wave : ${batch[*]} — base $parent (parallèle max $MAX_PARALLEL)"
 

@@ -42,6 +42,27 @@ ton rapport : tu n'as pas le droit de changer le contrat en silence.
 Les skills se chargent avec l'outil `skill`, par identifiant. Si une skill ne se charge pas,
 applique ses étapes à la main et dis-le dans le rapport — ne saute pas l'étape.
 
+## Avant d'ouvrir la PR — la branche de base doit exister
+
+Ta PR cible `{{PARENT}}`. `gh pr create --base` échoue si cette branche n'est pas sur
+l'origine, et la tentation est alors de viser `main` : c'est la seule erreur qui casse toute la
+chaîne, parce que la PR afficherait le diff de tes dépendances au lieu du tien.
+
+```sh
+git ls-remote --exit-code --heads origin '{{PARENT}}'
+```
+
+- **Code de sortie 0** — la branche est là : ouvre la PR.
+- **Code de sortie 2** — elle manque : attends 2 minutes (`sleep 120`) et réessaie, **5 fois au
+  maximum**, soit 10 minutes. C'est une course possible avec le push du lanceur, pas un état
+  normal — ne boucle pas indéfiniment.
+- **Toujours absente après 10 minutes** — n'ouvre **aucune** PR et ne la cible **pas** sur
+  `main`. Écris le blocage dans `.docs/sessions/<slug>/review.md` avec la commande et sa sortie,
+  laisse ta branche poussée, et arrête-toi. Le lanceur accumulera la vague quand la cause sera
+  réparée.
+
+Ne choisis jamais `main` « en attendant » : c'est exactement le défaut que l'empilement évite.
+
 ## Exception explicite à la règle 8 d'`AGENTS.md`
 
 `AGENTS.md` interdit de commiter sans demande explicite. **La demande est ici** : le lanceur a

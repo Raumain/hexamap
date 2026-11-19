@@ -43,6 +43,14 @@ main ──┬─ feat/phase-26 ─┐
 Une vague dont une session échoue n'accumule rien : la chaîne s'arrête là plutôt que de
 faire partir la vague suivante d'un arbre qui ne contient pas ce que son brief lui promet.
 
+**La branche de base est garantie avant le départ.** `gh pr create --base` échoue si la
+branche n'est pas sur l'origine, et le repli naturel est de viser `main` — ce qui casserait la
+chaîne. Le lanceur vérifie donc `git ls-remote` sur la branche parente avant de lancer la
+moindre session, et la pousse si elle n'existe qu'en local. Côté agent, le préambule impose la
+même vérification avec une attente bornée (2 minutes, 5 fois) et un refus explicite plutôt
+qu'un repli sur `main`.
+
+
 
 ## Ce que fait le lanceur
 
