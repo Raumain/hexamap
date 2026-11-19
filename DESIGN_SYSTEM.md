@@ -56,6 +56,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/market` | **Le Comptoir** | Parcourir les lots mis en vente, acheter. |
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
 | `/import-status` | **Les Archives** | Suivre l'entrée des fonds cartographiques. |
+| `/card/$cardId` | **Le Cartel** | Lire la fiche complète d'une planche : cartel, lieu, réserves, mise à l'offre. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
 
 Le vocabulaire est fixe : un **bordereau** (ticket), une **planche** (carte possédée), un
@@ -452,6 +453,34 @@ Un **catalogue de vente**, pas une boutique.
 
 Un **panneau technique** : jauges de laiton (barres segmentées), compteurs mono, journal
 en lignes. Sobre, presque militaire, mais sur le même fond.
+
+### 8.7 Le Cartel — `/card/$cardId`
+
+La **fiche d'une planche**, atteinte depuis n'importe quelle vignette (Le Cadastre, Le
+Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
+
+- **À gauche, le montage.** La planche seule sur un carton `bg-cabinet-raised`, un cône de
+  lumière (`radial-gradient(120% 70% at 50% -10%, …)`, jamais un dégradé par rareté), le
+  code de référence encadré de deux filets de laiton, l'attribution du blason en mono 9 px.
+  Jusqu'à 380 px de large, centré, `lg:sticky` : la pièce reste au regard pendant qu'on lit.
+- **À droite, quatre feuilles empilées.**
+  1. **Cartel** — une feuille de vélin, sept lignes séparées par un filet d'encre : catégorie,
+     rareté (sceau + libellé, jamais la pastille sombre), score en Fraunces 3xl, référence,
+     date d'acquisition, provenance, état.
+  2. **Le lieu** — carton sombre ; population, département, région, communes homonymes,
+     coordonnées. Seules les valeurs présentes sont rendues ; aucune donnée n'est inventée.
+  3. **Réserves** — trois tuiles à filet pointillé et pastille « À paraître » (cote du marché,
+     détenteurs, chronique du lieu). Ces rubriques sont **visuellement vides** : on nomme le
+     manque, on ne le comble pas.
+  4. **Mise à l'offre** — filet de laiton. Sa propre planche non verrouillée et non vendue :
+     un formulaire de prix (entier entre 1 et 1 000 000). Déjà en vente : le prix, la date et
+     un renvoi vers Mes Offres. Verrouillée : la raison, sans action. Planche d'autrui en
+     vente : vendeur, prix et **Acquérir**. Planche d'autrui sans vente : la section
+     disparaît.
+- Aucune requête supplémentaire n'est nécessaire : la fiche, le propriétaire, le détail
+  géographique et l'annonce éventuelle viennent d'une seule réponse serveur.
+- Téléphone : une seule colonne, montage en premier, cibles tactiles de 44 px, chiffres
+  tabulaires, aucun défilement horizontal.
 
 ---
 

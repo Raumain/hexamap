@@ -21,6 +21,7 @@ import {
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '../components/ui/Card';
+import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
 import { COLLECTION, cardsShownLabel, collectionTotalLabel } from '../content/collection';
 import { CATEGORY_LABELS } from '../content/tickets';
@@ -59,18 +60,24 @@ const columns = columnHelper.columns([
       const card = info.row.original;
       return (
         <div className="flex items-center gap-3">
-          <Card
-            type={card.category}
-            rarity={card.rarity}
-            name={card.nom}
-            score={card.score}
-            refCode={card.refCode}
-            blasonUrl={card.blasonUrl}
-            blasonCredit={card.blasonCredit}
-            locked={card.locked}
-            variant="compact"
+          <CardLink
+            cardId={card.id}
+            label={cardLinkLabel(card.nom)}
             className="w-[84px] shrink-0 md:w-[96px]"
-          />
+          >
+            <Card
+              type={card.category}
+              rarity={card.rarity}
+              name={card.nom}
+              score={card.score}
+              refCode={card.refCode}
+              blasonUrl={card.blasonUrl}
+              blasonCredit={card.blasonCredit}
+              locked={card.locked}
+              variant="compact"
+              className="w-[84px] shrink-0 md:w-[96px]"
+            />
+          </CardLink>
           <div className="min-w-0 md:hidden">
             <p className="font-display text-[15px] font-semibold leading-tight text-vellum line-clamp-2">
               {card.nom}

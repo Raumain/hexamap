@@ -5,7 +5,125 @@
 
 ---
 
-# Phase 14 — Le Cabinet de cartographie (design system v4)
+# Phase 15 — Le Cartel (fiche de planche)
+
+## Statut
+
+- **Phase** : 15 — Le Cartel (fiche de planche)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/phase-15-cartel`
+
+---
+
+## Objectif
+
+Donner à chaque planche une **salle** : `/card/$cardId` affiche la fiche complète d'une carte
+possédée — le montage, le cartel, le lieu, les réserves, et l'action de vente ou d'achat quand
+elle a lieu d'être. Toute vignette de l'application y mène : Le Cadastre, Le Comptoir, Mes
+Offres, La Planche. La salle lit une seule réponse serveur (`GET /api/v1/cards/:id`) et ne
+recalcule rien.
+
+---
+
+## Étapes
+
+### 1. Client et libellés
+- [x] `apps/web/src/lib/card-detail.ts` : `cardDetailQueryKey`, `CardDetailApiError`,
+      `fetchCardDetail`, `CardDetail`, `cardDetailQueryOptions`, `cardDetailErrorMessage`
+      (`CARD_NOT_VISIBLE`, `CARD_NOT_FOUND`), calqué sur `lib/market.ts`.
+- [x] `apps/web/src/content/card-detail.ts` : `CARD_DETAIL`, `CARD_SOURCE_LABELS`, `stateLabel`.
+
+### 2. La salle
+- [x] `apps/web/src/components/ui/card-link.tsx` : `CardLink` (passe-plat typé vers
+      `/card/$cardId`) et `cardLinkLabel`.
+- [x] `apps/web/src/routes/card.$cardId.tsx` : garde de session identique aux autres salles
+      (`isPending` → ligne mono, sans utilisateur → `/login`), états chargement / erreur
+      avec `Réessayer` / succès.
+- [x] Deux colonnes à partir de `lg` : à gauche le montage (`lg:sticky`), à droite quatre
+      feuilles — cartel (vélin), lieu (carton sombre), réserves (tuiles pointillées
+      « À paraître »), mise à l'offre (formulaire, annonce en cours, verrou, ou `Acquérir`).
+
+### 3. Les planches deviennent cliquables
+- [x] `routes/collection.tsx` (cellule `nom` du registre).
+- [x] `routes/market.index.tsx` (`ListingCard`), `routes/market.mine.tsx` (`MyListingCard`).
+- [x] `routes/tableau.tsx` (`SlotRow`) : le lien enveloppe la planche seule, jamais les boutons
+      Modifier/Retirer ; l'épingle de laiton reste hors du lien.
+- [x] Inchangés volontairement : `components/revealed-cell.tsx` (la charge utile de révélation
+      ne porte pas `user_cards.id`) et `components/tableau/combo-board.tsx` (planche déjà dans
+      un `<button>` : contenu interactif imbriqué interdit).
+
+### 4. Navigation et documentation
+- [x] `components/layout/nav-items.ts` : `salonForPath('/card/…')` → `'Le Cartel'`.
+- [x] `DESIGN_SYSTEM.md` §2 (ligne de salle) et §8.7 (Le Cartel).
+- [x] Cette entrée.
+
+---
+
+## Critères d'acceptation
+
+1. [x] `/card/$cardId` rend la fiche depuis `GET /api/v1/cards/:id`, sans requête
+       supplémentaire ni recalcul côté navigateur.
+2. [x] Chaque planche du Cadastre, du Comptoir, de Mes Offres et de La Planche mène à la fiche.
+3. [x] Une planche du joueur, ni verrouillée ni en vente, propose un formulaire « Mettre à
+       l'offre » fonctionnel (prix entier 1 → 1 000 000, validation identique à Mes Offres).
+4. [x] Une planche d'autrui en vente propose « Acquérir » avec le même jeu d'invalidations que
+       Le Comptoir.
+5. [x] Mobile et desktop occupent toute la largeur, sans défilement horizontal ; cibles
+       tactiles ≥ 44 px.
+6. [x] Uniquement les jetons du `@theme`, libellés français, aucune dépendance nouvelle.
+7. [x] `lint`, `typecheck`, `bun test packages/spec`, `build` passent dans Docker.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 15 exécutée : Le Cartel livré
+
+**Ce qui a été construit**
+- `lib/card-detail.ts` : client de la fiche (même extraction d'erreur Eden que `lib/market.ts`,
+  clé de requête `['cards', 'detail', id]`, `staleTime` 15 s, `retry: false`).
+- `content/card-detail.ts` : tous les libellés de la salle, `CARD_SOURCE_LABELS` et `stateLabel`.
+- `components/ui/card-link.tsx` : `CardLink` + `cardLinkLabel`, anneau de laiton au focus.
+- `routes/card.$cardId.tsx` : le montage (`enter-plate`, cône de lumière, code de référence
+  entre deux filets, attribution du blason) et les quatre feuilles. Le formulaire de vente
+  invalide `myListings`, `marketListings`, `collection`, `collectionStats`, `tableauxList` et
+  la fiche ; l'achat ajoute la session. Chaque panneau porte son propre `useMutation`, donc
+  aucun hook conditionnel.
+- Quatre registres rendent la planche cliquable (`CardLink` porte la largeur, la planche garde
+  ses classes) ; `salonForPath` nomme la salle.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run lint
+  Checked 146 files in 105ms. No fixes applied.
+
+docker compose --profile tools run --rm dev bun run typecheck
+  tsc --noEmit × 6 workspaces (dont `tsr generate && tsc --noEmit` sur apps/web)
+
+docker compose --profile tools run --rm dev bun test packages/spec
+  140 pass, 0 fail, 746 expect() calls, 9 fichiers
+
+docker compose --profile tools run --rm dev bun run build
+  ✓ built in 869ms — chunk `card._cardId-CDcK01i0.js` 21,62 kB
+```
+- Pile de développement (`docker compose ps`) : `api`, `db`, `web` en marche. La route
+  `/card/$cardId` figure dans `routeTree.gen.ts` (généré par `tsr generate`, jamais édité à la
+  main) et Vite sert le module (`200` sur `/src/routes/card.$cardId.tsx`) ainsi que la page
+  (`200` sur `/card/<id>`) sans redémarrage.
+
+**Portée**
+- Aucune migration, aucune évolution du schéma. Le seul contrat d'API concerné est
+  `GET /api/v1/cards/:id`, déjà livré et laissé intact.
+- `components/revealed-cell.tsx` et `components/tableau/combo-board.tsx` restent sans lien,
+  pour les raisons consignées ci-dessus.
+- Aucun commit.
+
+---
+---
+
+# Historique — Phase 14 — Le Cabinet de cartographie (design system v4)
 
 ## Statut
 
