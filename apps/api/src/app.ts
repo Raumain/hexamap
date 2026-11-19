@@ -12,6 +12,8 @@ import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
+import { playerRoutes } from './routes/players';
+import { profileRoutes } from './routes/profile';
 import { refRoutes } from './routes/ref';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
@@ -34,7 +36,7 @@ const productionOrigins = new Set<string>([
   ...extraOrigins,
 ]);
 
-const publicRoutes = new Elysia({ prefix: '/api/v1' }).use(importStatusRoutes);
+const publicRoutes = new Elysia({ prefix: '/api/v1' }).use(playerRoutes).use(importStatusRoutes);
 
 const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(authPlugin)
@@ -43,6 +45,7 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(cardRoutes)
   .use(tableauRoutes)
   .use(marketRoutes)
+  .use(profileRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {
       return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
