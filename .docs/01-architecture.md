@@ -116,10 +116,49 @@ Règles d'implémentation (Phase 8) :
 - Chaque case révélée affiche la distance de Manhattan jusqu'à la Pépite : `|L1-L2| + |C1-C2|`.
 - **Anti-triche** : le serveur ne transmet jamais la position de la Pépite ni le contenu des cases non révélées.
 - **Tolérance aux référentiels incomplets** : un palier de rareté vide ne bloque jamais la génération. Une commune ou une rue est alors tirée dans le palier voisin le plus proche (palier plus bas prioritaire) et porte la rareté réelle de la ligne référentielle, donc un score cohérent. Les jumelés sont cherchés de la commune jusqu'au national, puis complétés par un vivier national. `REFERENCE_DATA_MISSING` reste réservé au cas où le référentiel ne contient aucun candidat pour la catégorie demandée.
+- **Rythme de grattage — le carnet de charges.** Un compte ne génère pas un ticket à la demande : il dépense une **charge**. `SCRATCH_CHARGE_CAP = 6`, `SCRATCH_REGEN_MS = 1 800 000` (30 min) et `SCRATCH_START_CHARGES = 6` vivent dans `game_config` (§4.1 de `.docs/02-database.md`) : aucune constante en dur, aucun `CHECK` sur le plafond. Une charge se régénère tant que le solde est sous le plafond ; **au plafond la régénération est suspendue** — rien ne s'accumule, rien n'est perdu. Un compte neuf démarre **au plafond**, jamais à 1 : la première session doit produire un vrai ticket, et la médaille « premier ticket gratté » doit frapper sur un objet réel.
+- **La limite porte sur la génération, pas sur la case.** « 1 carte toutes les 30 minutes » se lit « 1 ticket toutes les 30 minutes ». Compter les cases rendrait un ticket de 16 cases long de huit heures et contredirait le geste. « Stocker 6 cartes » se lit donc « 6 tickets en réserve ». Le ticket reste unique et actif : `tickets_one_active_per_user` n'est pas touché, la charge est bankée séparément.
+- **Le solde est dérivé, jamais incrémenté par une requête.** Il se calcule depuis `last_regen_at` :
+
+  ```text
+  solde = min(plafond, charges + ⌊max(0, now − last_regen_at) / regen⌋)
+  charges créditées g = solde − charges
+  si g > 0 et solde < plafond : last_regen_at += g × regen   # conserve le reste fractionnaire
+  si solde = plafond          : last_regen_at = now           # fige le compte
+  dépense depuis le plafond    : last_regen_at = now           # arme le compte à rebours
+  ```
+
+  Avancer `last_regen_at` de `g × regen` et non jusqu'à `now` est ce qui empêche de perdre les minutes déjà écoulées vers la charge suivante : c'est le seul détail qui distingue un carnet juste d'un carnet qui « avale » une minute à chaque lecture.
+- **Une seule transaction, un seul verrou.** La dépense d'une charge, la génération du ticket et le tirage se font sous `SELECT … FOR UPDATE` sur la ligne de charges : deux requêtes parallèles ne peuvent pas dépenser la même dernière charge.
+- **Pas de sondage.** L'API rend `charges` et `nextChargeAt` (`null` au plafond) ; le client fait défiler le compte à rebours localement à partir de ces deux valeurs et se resynchronise à chaque mutation. `/charges` n'est pas appelé chaque minute, et le service worker ne met jamais un solde en cache.
 
 ### 2.7 Rareté inversée des rues
 
 Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), tandis que les grandes villes ont des rues génériques. Une petite commune bien associée à sa rue unique peut rivaliser avec une métropole. C'est une mécanique centrale, pas un détail.
+
+### 2.8 Économie — les écus
+
+La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affichage** : la colonne reste `currency`, le grand-livre reste `currency_ledger`, et le renommer n'exige aucune migration.
+
+- **Un compte neuf démarre à 0 écu.** Le solde ne monte que par une ligne de `currency_ledger`, jamais par une écriture directe sur `user.currency`.
+- **Deux robinets seulement.** Les médailles (V1) et l'achat contre de l'argent réel (V1 ultérieure, non planifiée). Il n'existe **aucun bonus quotidien** : un robinet à taux fixe se règle mal et ne se révoque pas.
+- **Le robinet des médailles est fini.** Chaque prime est unique et versée une seule fois, ce qui borne l'inflation. C'est la différence structurelle avec une prime récurrente.
+- **Idempotence.** Une prime s'écrit `currency_ledger.reason = 'ACHIEVEMENT:<key>'` dans la transaction qui insère `user_achievements (user_id, achievement_key)` ; la clé primaire composite fait qu'un rejeu ne paie pas. `MARKET_BUY` et `MARKET_SELL` restent les deux autres motifs existants.
+- **Le catalogue vit dans `packages/shared`**, pas en base : clé, famille, seuil, montant. Il est verrouillé par `packages/spec`, aucune prime ne se modifie depuis un écran d'administration. Budget d'ouverture : ≈ 66 000 écus, dont ≈ 28 000 pour la seule famille « collection ».
+- **Aucune médaille ne récompense une dépense d'argent réel**, jamais : cela mêlerait le pay-to-win à la progression, et la boutique doit rester un raccourci, pas le chemin.
+- **Interrupteur.** `ACHIEVEMENT_PAYOUTS_ENABLED` coupe les primes sans migration, sans retirer les médailles déjà obtenues.
+- **Le ticket ne se vend jamais.** Vendre de la monnaie à valeur fixe est une microtransaction ; vendre des tickets aléatoires est un coffre à butin, et la réglementation française des jeux d'argent (ANJ) s'appliquerait. Le ticket gratuit reste la seule source de cartes — c'est aussi ce qui empêche la limite de charges de devenir un péage.
+
+### 2.9 Relations — amis et vitrine publique
+
+- **L'amitié est symétrique et consentie.** Une demande, une acceptation. Le statut `DECLINED` est conservé pour que la demande ne resurgisse pas, et seul le demandeur d'origine peut la rouvrir, après un délai de `game_config`.
+- **Une seule relation par paire**, quel que soit le sens de la demande : index unique sur `(least(a, b), greatest(a, b))`. Sans lui, deux demandes croisées créent deux amitiés.
+- **Seules les amitiés `ACCEPTED` comptent** pour les médailles sociales. Un élevage de comptes factices coûte donc une acceptation par compte et par jour, plafonnée par `FRIEND_REQUEST_DAILY_CAP`.
+- **Le blocage est unilatéral et silencieux** : il supprime toute relation pendante ou acceptée dans les deux sens et masque la vitrine aux deux comptes. Il ne notifie jamais la personne bloquée.
+- **La vitrine est publique par défaut, révocable.** `/players/:id` montre le pseudo, l'ancienneté, le nombre de cartes, la complétude par catégorie, le meilleur tableau, les médailles, les annonces ouvertes et le nombre d'amis. Elle ne montre **jamais** l'adresse électronique, le solde, la session, l'état `locked`, `grid` ni `treasure_index` — même liste que l'invariant de non-exposition du §2.6.
+- **Une vitrine privée répond `404`, pas `403`** : un 403 confirmerait l'existence du compte, exactement ce que la vitrine privée cherche à éviter. Même raisonnement que `CARD_NOT_VISIBLE`.
+- **`pseudo` devient une identité publique.** Il est aujourd'hui `required` côté Better Auth, `nullable` en base, sans contrôle de longueur ni d'unicité. La vitrine exige donc un index unique sur `lower(pseudo)` et une validation de forme (3 à 24 caractères) **avant** d'être rendue linkable.
+- **Les salles** (amis, vitrine) sont nommées dans `DESIGN_SYSTEM.md` au moment de leur phase, pas ici : la coquille et le rail restent les propriétaires de la nomenclature.
 
 ---
 
@@ -150,7 +189,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - **Tout s'exécute dans un conteneur.** Ne jamais lancer `bun`, `npm`, `tsc`, `vite` ou un script de build sur la machine hôte.
 - **Spec-first** : `packages/spec` est la source de vérité exécutable. Le code s'adapte aux tests de spécification, jamais l'inverse.
 - **Français uniquement** : aucun framework i18n, aucun texte anglais visible par le joueur.
-- **Serveur autoritaire** : le tirage, la position de la Pépite, les récompenses et la validation des combos sont décidés côté serveur.
+- **Serveur autoritaire** : le tirage, la position de la Pépite, les récompenses, la validation des combos, le carnet de charges, les médailles et la monnaie sont décidés côté serveur.
 - **Pas d'appel externe au runtime** : les API gouvernementales sont utilisées uniquement par le pipeline d'import.
 
 ### 4.2 API — Elysia

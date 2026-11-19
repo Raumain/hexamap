@@ -29,6 +29,13 @@
 | `ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes` | **Migrée** | `packages/db/migrations/0004_reference.ts` |
 | `rateLimit` | **Migrée** | `packages/db/migrations/0005_rate_limit.ts` |
 | Colonnes blasons : `ref_communes.blason_url`, `ref_communes.contour_url`, `ref_communes.blason_credit`, `ref_departements.blason_credit`, `ref_regions.blason_credit` | **Migrée** | `packages/db/migrations/0007_blasons.ts` |
+| `user_scratch_charges` | **Contrat** | Migrations `0009`+ (phase 26) |
+| `user_achievements` | **Contrat** | Migrations `0009`+ (phase 27) |
+| `friendships`, `blocks`, `user_profiles`, index `user_pseudo_lower_idx` | **Contrat** | Migrations `0009`+ (phases 28-29) |
+
+**Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
+appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
+DDL est déjà écrit dans ce fichier.
 
 > Tant qu'une table n'est pas au statut **Migrée**, elle ne doit pas être interrogée en runtime.
 
@@ -125,6 +132,22 @@ create table game_config (
   updated_at timestamptz not null default now()
 );
 ```
+
+Clés désormais **exigées** au démarrage (toute valeur absente est une erreur explicite, jamais
+un défaut silencieux dans le code) :
+
+| Clé | Type | Valeur V1 | Rôle |
+| :--- | :--- | ---: | :--- |
+| `SCRATCH_CHARGE_CAP` | number | `6` | Plafond du carnet de charges |
+| `SCRATCH_REGEN_MS` | number | `1800000` | Délai de régénération d'une charge (30 min) |
+| `SCRATCH_START_CHARGES` | number | `6` | Charges d'un compte neuf (démarre au plafond) |
+| `FRIEND_REQUEST_DAILY_CAP` | number | `20` | Demandes d'ami envoyées par jour et par compte |
+| `FRIEND_REQUEST_REOPEN_MS` | number | `604800000` | Délai avant de rouvrir une demande déclinée (7 j) |
+| `ACHIEVEMENT_PAYOUTS_ENABLED` | boolean | `true` | Interrupteur du robinet d'écus, sans migration |
+
+`ACHIEVEMENT_PAYOUTS_ENABLED` existe pour un seul scénario : une faille de farming découverte
+en production. Le passer à `false` doit arrêter les primes **sans** retirer les médailles déjà
+obtenues ni toucher au grand-livre.
 
 ### 4.2 Cartes possédées
 
@@ -246,6 +269,117 @@ create table currency_ledger (
 create index currency_ledger_user_idx on currency_ledger (user_id, created_at desc);
 ```
 
+`reason` est une liste **fermée**, documentée ici et nulle part ailleurs :
+
+| `reason` | Sens | Signe |
+| :--- | :--- | :--- |
+| `MARKET_BUY` | acheteur débité contre une carte | négatif |
+| `MARKET_SELL` | vendeur crédité par une vente | positif |
+| `ACHIEVEMENT:<key>` | prime d'une médaille, une seule fois par clé | positif |
+| `PURCHASE:<provider_ref>` | achat d'écus par un moyen de paiement (hors V1) | positif |
+
+`PURCHASE:<provider_ref>` porte la référence du prestataire pour qu'un webhook rejoué ne
+crédite pas deux fois : l'unicité se vérifie sur `(user_id, reason)` avant l'insertion.
+
+### 4.7 Carnet de charges
+
+```sql
+create table user_scratch_charges (
+  user_id text primary key references "user" ("id") on delete cascade,
+  charges smallint not null check (charges >= 0),
+  last_regen_at timestamptz not null default now()
+);
+```
+
+- **Aucune borne haute dans le `CHECK`.** Le plafond vit dans `game_config`
+  (`SCRATCH_CHARGE_CAP`) : l'écrire dans une contrainte transformerait un réglage de jeu en
+  migration.
+- **La ligne est créée paresseusement.** L'inscription ne passe par aucun `databaseHooks`
+  Better Auth aujourd'hui, donc la première lecture fait un `INSERT … ON CONFLICT DO NOTHING`
+  avec `charges = SCRATCH_START_CHARGES` et `last_regen_at = now()`, puis relit la ligne sous
+  `FOR UPDATE`. Une ligne absente vaut « carnet plein ».
+- `last_regen_at` est l'instant de la dernière charge **créditée**, jamais un `now()` de
+  confort : la formule de `.docs/01-architecture.md` §2.6 s'appuie dessus pour conserver le
+  reste fractionnaire du compte à rebours.
+- Un ticket n'existe pas sans charge dépensée ; l'index unique partiel
+  `tickets_one_active_per_user` est conservé tel quel.
+
+### 4.8 Médailles
+
+```sql
+create table user_achievements (
+  user_id text not null references "user" ("id") on delete cascade,
+  achievement_key text not null,
+  unlocked_at timestamptz not null default now(),
+  primary key (user_id, achievement_key)
+);
+
+create index user_achievements_key_idx on user_achievements (achievement_key);
+```
+
+- **Aucune colonne de progression.** La progression se recalcule depuis les tables source
+  (`tickets` ayant au moins une révélation, `user_cards`, `tableaux`, `market_listings` au
+  statut `SOLD`, `friendships` au statut `ACCEPTED`). Une colonne de compteur serait une
+  seconde vérité à réconcilier et un vecteur de rejeu.
+- La clé primaire **est** la clé d'idempotence du robinet : l'insertion de la ligne et celle du
+  `currency_ledger` se font dans la même transaction, et une insertion en conflit ne paie pas.
+- Le catalogue (clé, famille, seuil, montant) vit dans `packages/shared`, pas en base : aucune
+  modification de prime ne passe par un écran d'administration.
+
+### 4.9 Relations sociales et vitrine publique
+
+```sql
+create table friendships (
+  requester_id text not null references "user" ("id") on delete cascade,
+  addressee_id text not null references "user" ("id") on delete cascade,
+  status text not null default 'PENDING' check (status in ('PENDING', 'ACCEPTED', 'DECLINED')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  check (requester_id <> addressee_id),
+  primary key (requester_id, addressee_id)
+);
+
+-- Une seule ligne par paire, quel que soit le sens de la demande.
+create unique index friendships_pair_idx
+  on friendships (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
+
+create index friendships_addressee_idx on friendships (addressee_id, status);
+
+create table blocks (
+  blocker_id text not null references "user" ("id") on delete cascade,
+  blocked_id text not null references "user" ("id") on delete cascade,
+  created_at timestamptz not null default now(),
+  check (blocker_id <> blocked_id),
+  primary key (blocker_id, blocked_id)
+);
+
+create index blocks_blocked_idx on blocks (blocked_id);
+
+create table user_profiles (
+  user_id text primary key references "user" ("id") on delete cascade,
+  bio text,
+  profile_public boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+-- Identité publique : un pseudo qui sert d'URL doit être unique, sans tenir compte de la casse.
+create unique index user_pseudo_lower_idx on "user" (lower(pseudo)) where pseudo is not null;
+```
+
+- **Index ajouté par migration, pas par Better Auth.** `"user"` reste générée par le CLI ; un
+  index supplémentaire ne contredit pas cette génération, une colonne ajoutée à la main si.
+  C'est la raison d'être de `user_profiles` : la confidentialité et la biographie ne touchent
+  jamais la table d'authentification.
+- `pseudo` est aujourd'hui `required` côté Better Auth mais **nullable** en base, sans
+  contrainte de longueur ni d'unicité : l'index partiel est la première brique de la route
+  `/players/:id`, pas un confort.
+- Une ligne `DECLINED` est conservée pour que la demande ne resurgisse pas dans l'interface ;
+  seul le demandeur d'origine peut la rouvrir, et seulement après
+  `FRIEND_REQUEST_REOPEN_MS`.
+- Un blocage supprime toute relation `PENDING` ou `ACCEPTED` entre les deux comptes, dans les
+  deux sens — c'est une règle du service, pas une cascade SQL.
+- La vitrine ne lit **ni** `session`, **ni** `account`, **ni** `user.currency`.
+
 ---
 
 ## 5. Schéma des référentiels (import Open Data)
@@ -346,6 +480,7 @@ export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
 export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
 export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
 export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export interface UserTable {
   id: string;
@@ -470,6 +605,39 @@ export interface CurrencyLedgerTable {
   created_at: Generated<Date>;
 }
 
+export interface UserScratchChargeTable {
+  user_id: string;
+  charges: number;
+  last_regen_at: Generated<Date>;
+}
+
+export interface UserAchievementTable {
+  user_id: string;
+  achievement_key: string;
+  unlocked_at: Generated<Date>;
+}
+
+export interface FriendshipTable {
+  requester_id: string;
+  addressee_id: string;
+  status: Generated<FriendshipStatus>;
+  created_at: Generated<Date>;
+  responded_at: Date | null;
+}
+
+export interface BlockTable {
+  blocker_id: string;
+  blocked_id: string;
+  created_at: Generated<Date>;
+}
+
+export interface UserProfileTable {
+  user_id: string;
+  bio: string | null;
+  profile_public: Generated<boolean>;
+  updated_at: Generated<Date>;
+}
+
 export interface RefRegionTable {
   code: string;
   nom: string;
@@ -535,6 +703,11 @@ export interface Database {
   tableaux: TableauTable;
   market_listings: MarketListingTable;
   currency_ledger: CurrencyLedgerTable;
+  user_scratch_charges: UserScratchChargeTable;
+  user_achievements: UserAchievementTable;
+  friendships: FriendshipTable;
+  blocks: BlockTable;
+  user_profiles: UserProfileTable;
   ref_regions: RefRegionTable;
   ref_departements: RefDepartementTable;
   ref_communes: RefCommuneTable;
@@ -557,6 +730,21 @@ export interface Database {
 - Une carte ne peut être dans qu'une seule annonce **ouverte** (index unique partiel `market_listings_open_card_idx`).
 - Un achat est atomique : débit acheteur, crédit vendeur, transfert de `user_cards.user_id`, statut `SOLD`, `buyer_id`, `sold_at`.
 - Les cartes verrouillées (`locked = true`) ne peuvent pas être vendues ou supprimées.
+- Une seule ligne `user_scratch_charges` par utilisateur ; `charges >= 0`, et le plafond est lu
+  dans `game_config`, jamais dans une contrainte.
+- `last_regen_at` est l'instant de la dernière charge **créditée**. Il ne vaut `now()` que dans
+  deux cas : le solde est au plafond (figeage), ou une charge vient d'être dépensée depuis le
+  plafond (armement du compte à rebours).
+- La génération d'un ticket, la dépense de la charge et le tirage forment **une seule**
+  transaction, avec `SELECT … FOR UPDATE` sur la ligne de charges.
+- `user_achievements (user_id, achievement_key)` est la clé d'idempotence du robinet : la ligne
+  de `currency_ledger` s'écrit dans la même transaction, et une insertion en conflit ne paie pas.
+- Une seule ligne `friendships` par paire non ordonnée, quel que soit le sens de la demande.
+- Seules les relations `ACCEPTED` comptent pour les médailles sociales.
+- Un blocage interdit toute relation `PENDING` ou `ACCEPTED` entre les deux comptes.
+- `currency_ledger.reason` suit la liste fermée du §4.6 ; aucun autre préfixe n'est écrit.
+- `"user".pseudo` est unique sans tenir compte de la casse dès que l'index `user_pseudo_lower_idx`
+  est migré.
 
 ### 7.2 Tirage d'une carte d'un palier
 

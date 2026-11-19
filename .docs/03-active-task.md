@@ -5,6 +5,123 @@
 
 ---
 
+# Phase 26 — Le Carnet (charges de grattage)
+
+## Statut
+
+- **Phase** : 26 — Le Carnet (charges de grattage)
+- **État** : Contrat de données figé — implémentation non commencée
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/phase-26-le-carnet` (à créer)
+
+---
+
+## Contrat déjà figé (2026-11-19)
+
+La phase 26 ne commence pas par une découverte : le contrat est écrit et fait foi.
+
+- `.docs/01-architecture.md` **§2.6** porte les quatre règles du carnet (limite sur la
+  génération, solde dérivé, transaction unique, absence de sondage) et la formule normative qui
+  conserve le reste fractionnaire.
+- `.docs/01-architecture.md` **§2.8** nomme la monnaie (**écu**), **§2.9** fixe les règles des
+  amis et de la vitrine, et **§4.1** étend le serveur autoritaire au carnet, aux médailles et à
+  la monnaie.
+- `.docs/02-database.md` **§4.7** porte `user_scratch_charges`, **§4.1** les six clés de
+  `game_config`, **§7.1** les invariants, **§6** les types Kysely. Statut **Contrat** : le DDL
+  est écrit, aucune migration ne l'a appliqué.
+
+Toute divergence pendant l'implémentation commence par une modification de ces deux documents.
+
+## Objectif
+
+Un compte ne génère pas un ticket à la demande : il **dépense une charge**. Plafond 6, une
+charge toutes les 30 minutes, régénération suspendue au plafond, compte neuf au plafond. Le
+ticket reste unique et actif : `tickets_one_active_per_user` n'est **pas** touché.
+
+## Étapes
+
+### 1. Spec-first — cas rouges
+- [ ] `packages/spec/src/charges.spec.ts` : la formule dérivée, le reste fractionnaire conservé
+      (deux lectures successives ne « volent » pas de minutes), le figeage au plafond,
+      l'armement du compte à rebours à la dépense depuis le plafond, `nextChargeAt` nul au
+      plafond, `SCRATCH_CHARGE_CAP` lu depuis `game_config` (un plafond à 8 fonctionne sans
+      changement de code), et le refus `409 NO_CHARGE_LEFT` quand le carnet est vide.
+- [ ] Cas d'intégration : deux générations concurrentes avec une seule charge restante →
+      une seule réussit (vrai PostgreSQL, schéma isolé).
+
+### 2. Migration
+- [ ] `packages/db/migrations/0009_scratch_charges.ts` : `user_scratch_charges` exactement comme
+      `.docs/02-database.md` §4.7, **sans** borne haute dans le `CHECK`.
+- [ ] `packages/db/src/migrator.ts` : import + clé `'0009_scratch_charges'`.
+- [ ] `packages/db/src/schema.ts` : `UserScratchChargeTable` et l'entrée `Database`.
+- [ ] Semis des six clés de `game_config` (§4.1), avec erreur explicite si une clé manque.
+- [ ] Statut de la table passé à **Migrée** dans `.docs/02-database.md` §2.
+
+### 3. Service
+- [ ] `apps/api/src/services/charges.ts` : lecture dérivée, `INSERT … ON CONFLICT DO NOTHING`
+      paresseux, `SELECT … FOR UPDATE`, dépense, `nextChargeAt`.
+- [ ] Un seul propriétaire de la formule : aucune copie dans la route, aucune dans le front.
+
+### 4. API
+- [ ] `GET /api/v1/charges` → `{ charges, cap, nextChargeAt, regenMs }`, schéma `response`
+      TypeBox obligatoire (il alimente Eden Treaty).
+- [ ] La génération de ticket consomme une charge dans **sa** transaction ; `409 NO_CHARGE_LEFT`
+      avec un message français.
+
+### 5. Front
+- [ ] Le Relevé affiche le carnet (six points) et le compte à rebours, alimenté par
+      `charges` + `nextChargeAt`, remis à zéro localement et resynchronisé à chaque mutation.
+      Aucun `setInterval` de sondage vers `/charges`.
+
+### 6. Preuve
+- [ ] `docker compose --profile tools run --rm dev bun run ci:check` vert.
+- [ ] Banc E2E : le carnet se vide, le compte à rebours s'affiche, le bouton se désarme à zéro.
+
+## Critères d'acceptation
+
+1. [ ] Un compte neuf dispose de `SCRATCH_START_CHARGES` charges, au plafond.
+2. [ ] Une charge se régénère toutes les `SCRATCH_REGEN_MS` et le solde est **dérivé** :
+       aucun compteur incrémenté par une requête.
+3. [ ] Le plafond est lu dans `game_config` : le passer à 8 ne demande aucune migration.
+4. [ ] Deux lectures consécutives ne perdent aucune minute vers la charge suivante.
+5. [ ] Au plafond, la régénération est suspendue et `nextChargeAt` vaut `null`.
+6. [ ] Deux générations concurrentes avec une charge restante : une seule passe.
+7. [ ] `tickets_one_active_per_user` et l'unicité du ticket actif sont intacts.
+8. [ ] Aucun sondage : `/charges` n'est pas appelé en boucle, aucun solde en cache du worker.
+
+## Journal
+
+### 2026-11-19 — Contrat de l'économie figé, implémentation non commencée
+
+**Ce qui a été décidé et écrit, pas codé.** Les phases 26 à 30 sont planifiées dans
+`ROADMAP.md` §2, et le contrat de données des trois premières est figé dans les deux documents
+de mémoire : `user_scratch_charges` (§4.7), `user_achievements` (§4.8), `friendships`, `blocks`,
+`user_profiles` et l'index `user_pseudo_lower_idx` (§4.9), toutes au statut **Contrat**.
+
+**Trois faits vérifiés qui ont changé le contrat.**
+
+1. `tickets_one_active_per_user` est un index unique partiel sur `status = 'ACTIVE'` : stocker
+   six tickets aurait exigé de le supprimer. Le carnet banke donc des **charges**, pas des
+   tickets, et l'invariant du ticket unique survit.
+2. L'inscription ne passe par **aucun** `databaseHooks` Better Auth — `user.currency` tombe à 0
+   par défaut de colonne, et aucune ligne annexe n'est créée. La ligne de charges est donc créée
+   **paresseusement** (`ON CONFLICT DO NOTHING`) et non à l'inscription.
+3. `currency_ledger` n'a aujourd'hui que deux motifs écrits, `MARKET_BUY` et `MARKET_SELL`
+   (`apps/api/src/routes/market.ts:443`). La liste fermée du §4.6 les reprend tels quels et
+   ajoute `ACHIEVEMENT:<key>` et `PURCHASE:<provider_ref>`.
+
+**Deux pièges documentés avant d'être rencontrés.** Avancer `last_regen_at` de `g × regen` et
+non jusqu'à `now` : sinon chaque lecture avale la fraction de minute en cours et le carnet
+dérive. Et ne pas écrire le plafond dans un `CHECK` : un réglage de jeu deviendrait une
+migration.
+
+**Portée** : `ROADMAP.md`, `.docs/01-architecture.md` (§2.6, §2.8, §2.9, §4.1),
+`.docs/02-database.md` (§2, §4.1, §4.6 à §4.9, §6, §7.1), ce fichier. Aucune migration, aucun
+fichier de code, aucun commit.
+
+---
+
 # Phase 25 — Les encoches latérales
 
 ## Statut
