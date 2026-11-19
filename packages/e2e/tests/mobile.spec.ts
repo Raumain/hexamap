@@ -330,3 +330,53 @@ test('market — un double-appui n’achète qu’une fois', async ({ page }) =>
   expect(busy === 'true' || disabled, 'Le bouton n’annonce pas son attente').toBeTruthy();
   expect(buyCalls).toBe(1);
 });
+
+/* ── 7. Overlays ancrés à la fenêtre (BUG-007) ───────────────────────────── */
+
+/**
+ * Ouvre le tiroir de sélection d'un emplacement.
+ *
+ * Le déclencheur dépend de l'état de l'emplacement : un emplacement libre est
+ * un bouton dont le libellé contient « Emplacement libre », un emplacement
+ * rempli expose un bouton « Modifier ». Les deux ouvrent le même tiroir.
+ */
+async function openSlotDrawer(page: Page): Promise<void> {
+  // Un `count()` ne patiente pas : il répondrait avant que la collection ne soit
+  // chargée. Un localisateur patient attend le premier déclencheur disponible —
+  // un emplacement libre, ou « Modifier » pour un emplacement déjà rempli.
+  const trigger = page
+    .getByRole('button', { name: /Emplacement libre/ })
+    .or(page.getByRole('button', { name: 'Modifier' }))
+    .first();
+  await trigger.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+}
+
+test.describe('mobile — les overlays restent ancrés à la fenêtre', () => {
+  // Fenêtre courte : la page défile largement, l'écart entre le bloc conteneur
+  // de `main` et la fenêtre devient mesurable.
+  test.use({ viewport: { width: 390, height: 420 } });
+
+  test('mobile — le tiroir de sélection reste dans la fenêtre après défilement', async ({
+    page,
+  }) => {
+    await page.goto('/tableau');
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+    // Le clic amène le déclencheur dans la fenêtre : le défilement qui compte
+    // est donc celui qui suit l'ouverture.
+    await openSlotDrawer(page);
+
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(await page.evaluate(() => window.scrollY), 'la page doit être défilée').toBeGreaterThan(
+      0,
+    );
+
+    const sheet = page.getByRole('dialog');
+    const box = requireBox(await sheet.boundingBox(), 'le tiroir de sélection');
+    const height = viewportHeight(page);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(height + 1);
+    expect(Math.abs(box.y + box.height - height)).toBeLessThanOrEqual(1);
+  });
+});

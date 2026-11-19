@@ -463,3 +463,72 @@ test('canvas — aucun filtre autour de la grille de grattage', async ({ page })
 
   expect(offenders).toEqual([]);
 });
+
+/* ── Overlays : bloc conteneur et ancrage (BUG-007) ──────────────────────── */
+
+interface SheetBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function requireSheetBox(box: SheetBox | null): SheetBox {
+  if (box === null) throw new Error('Le tiroir de sélection n’a rendu aucune boîte.');
+  return box;
+}
+
+/**
+ * Ouvre le tiroir de sélection d'un emplacement : bouton d'emplacement libre
+ * s'il en reste un, sinon le bouton « Modifier » du premier emplacement rempli.
+ */
+async function openSlotDrawer(page: Page): Promise<void> {
+  // Un `count()` ne patiente pas : il répondrait avant que la collection ne soit
+  // chargée. Un localisateur patient attend le premier déclencheur disponible —
+  // un emplacement libre, ou « Modifier » pour un emplacement déjà rempli.
+  const trigger = page
+    .getByRole('button', { name: /Emplacement libre/ })
+    .or(page.getByRole('button', { name: 'Modifier' }))
+    .first();
+  await trigger.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+}
+
+test('design system — main ne conserve aucun transform après l’entrée en salle', async ({
+  page,
+}) => {
+  // `.enter-salon` anime `main` : en `both`, la valeur finale `translateY(0)`
+  // reste appliquée et fait de `main` le bloc conteneur des overlays `fixed`.
+  for (const room of ['/', '/tableau']) {
+    await page.goto(room);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const main = document.querySelector('main');
+          return main === null ? 'aucun main' : getComputedStyle(main).transform;
+        }),
+      )
+      .toBe('none');
+  }
+});
+
+test('bureau — le tiroir est rendu hors de main et dégage le rail', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/tableau');
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+  await openSlotDrawer(page);
+
+  const inMain = await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const main = document.querySelector('main');
+    return main?.contains(dialog) ?? false;
+  });
+  expect(inMain).toBe(false);
+
+  const box = requireSheetBox(await page.getByRole('dialog').boundingBox());
+  // Le rail mesure 232 px : `md:left-[232px]` doit l'épouser exactement, et non
+  // s'ajouter au `md:pl-[232px]` d'un ancêtre (≈ 464 px avant le portail).
+  expect(Math.abs(box.x - 232)).toBeLessThanOrEqual(1);
+  expect(Math.abs(box.x + box.width - 1280)).toBeLessThanOrEqual(1);
+});
