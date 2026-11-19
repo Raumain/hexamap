@@ -5,7 +5,247 @@
 
 ---
 
-# Phase 15 — Le Cartel (fiche de planche)
+# Phase 17 — L'Installation (application installable)
+
+## Statut
+
+- **Phase** : 17 — L'Installation
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/phase-17-installation`
+
+---
+
+## Objectif
+
+Rendre le cabinet installable : Chrome refusait l'installation faute de manifeste, d'icônes et
+de service worker. Domaine, API et base inchangés ; seule la couche web est concernée.
+
+## Étapes
+
+### 1. Dépendances et service worker
+- [x] `vite-plugin-pwa@2.0.0` + pairs déclarés (`workbox-build@7.4.1`, `workbox-window@7.4.1`,
+      `@vite-pwa/assets-generator@2.0.0`), installés dans Docker.
+- [x] `vite.config.ts` : `VitePWA` en `generateSW`, `registerType: 'prompt'`, `injectRegister: false`,
+      `manifest: false`, `filename: 'sw.js'`.
+- [x] `runtimeCaching` : **une entrée `NetworkOnly` par méthode HTTP** (`GET`, `POST`, `PUT`,
+      `PATCH`, `DELETE`) sur `/api/`. Une entrée Workbox ne couvre qu'une méthode : sans cela,
+      les mutations Eden (POST) n'auraient aucune route explicite.
+- [x] `/blasons/` en `StaleWhileRevalidate` (`maxEntries: 200`, 30 jours).
+- [x] `globPatterns` inclut `html` : `navigateFallback: '/index.html'` exige que la page soit
+      précachée, sinon Workbox lève `non-precached-url` à l'installation.
+
+### 2. Manifeste et icônes
+- [x] `public/manifest.webmanifest` statique : `standalone`, `portrait`, `#0c1210` en fond et en
+      thème, icônes 64/192/512 + maskable 512 + favicon SVG `sizes: any`.
+- [x] `pwa-assets.config.ts` + `bunx pwa-assets-generator` : `minimal2023Preset` dérivé du
+      favicon hexagonal, sortie dans `public/icons/` (le générateur écrit à côté de la source et
+      n'a pas de dossier de sortie : `assetName` préfixe `icons/`). PNG versionnés.
+- [x] `index.html` : manifeste, `apple-touch-icon` 180, trois `apple-mobile-web-app-*`, favicon ICO.
+
+### 3. Enregistrement et invitation
+- [x] `src/lib/pwa.ts` : magasin minimal autour de `registerSW`, `registerPwa()` renvoie la
+      fonction de mise à jour.
+- [x] `components/layout/pwa-update-prompt.tsx` : `role="status"`, « Nouvelle version
+      disponible », *Recharger* / *Plus tard*, au-dessus de la barre d'onglets
+      (`bottom-20 md:bottom-6`) avec `env(safe-area-inset-bottom)`.
+- [x] Monté dans `app-shell.tsx` ; `registerPwa()` appelé dans `main.tsx` après le rendu ;
+      `vite-plugin-pwa/client` référencé dans `vite-env.d.ts`.
+
+### 4. Hygiène
+- [x] `biome.json` exclut `apps/web/dev-dist`, `**/sw.js`, `**/workbox-*.js`.
+- [x] `.gitignore` : `apps/web/dev-dist`.
+
+## Critères d'acceptation
+
+1. [x] `dist/manifest.webmanifest`, `dist/sw.js`, `dist/workbox-*.js` produits par le build.
+2. [x] Le manifeste déclare `standalone` et les icônes 192/512/maskable.
+3. [x] `index.html` lie le manifeste et `apple-touch-icon`.
+4. [x] Cinq routes `NetworkOnly` (une par méthode) et deux motifs dans `navigateFallbackDenylist`.
+5. [x] Aucun cache des mutations `/api/`, aucun `skipWaiting`/`clientsClaim` : la mise à jour est
+       proposée, jamais imposée.
+
+## Journal
+
+### 2026-11-19 — Phase 17 exécutée : L'Installation livrée
+
+**Déviation assumée (vérifiée dans le service worker généré)**
+- La consigne initiale excluait `**/index.html` du précache tout en gardant
+  `navigateFallback: '/index.html'`. Le build passe, mais `dist/sw.js` contient alors
+  `createHandlerBoundToURL("/index.html")` **sans** entrée de précache correspondante : Workbox
+  lève `non-precached-url` à l'installation et le worker ne s'active jamais. `globPatterns`
+  inclut donc `html` et l'exclusion a disparu — 46 entrées de précache, dont `index.html`.
+
+**Vérification (Docker)**
+```
+docker compose --profile tools run --rm dev bun run --cwd apps/web typecheck
+  tsr generate && tsc --noEmit   (aucune erreur)
+docker compose --profile tools run --rm dev bun run --cwd apps/web build
+  ✓ built in 969ms
+  PWA v2.0.0  mode generateSW  precache 46 entries (1221.47 KiB)
+  files generated  dist/sw.js  dist/workbox-433ac1a8.js
+docker compose --profile tools run --rm dev bunx biome check apps/web biome.json
+  Checked 64 files in 48ms. No fixes applied.
+```
+
+**Portée** : aucune migration, aucun changement de contrat d'API, aucune dépendance à l'exécution
+(les quatre paquets sont des devDependencies). Aucun commit.
+
+---
+---
+
+# Historique — Phase 16 — Le Geste (ergonomie tactile et moteur de grattage)
+
+## Statut
+
+- **Phase** : 16 — Le Geste (ergonomie tactile et moteur de grattage)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/phase-16-le-geste`
+
+---
+
+## Objectif
+
+Rendre le grattage fiable au doigt et solder les restes de la phase mobile du `ROADMAP.md`
+(§Phase 14), à domaine et contrats d'API constants. La coquille, la navigation basse,
+`viewport-fit=cover`, le Cadastre virtualisé et les grilles du Comptoir ayant été livrés par
+les phases 14 et 15, la phase porte sur le **moteur de grattage** : un seul dessin par image,
+un rayon dérivé de la case, un redimensionnement non destructif, et la preuve E2E sur deux
+appareils.
+
+## Ce que le ROADMAP demandait et qui était déjà livré
+
+| Demande (`ROADMAP.md` §14.3) | Constat avant la phase |
+| :--- | :--- |
+| `AppShell`, rail `md:`, barre d'onglets, `CurrencyPill` | Livré en phase 14 (`layout/app-shell.tsx`, `sidebar.tsx`, `bottom-tab-bar.tsx`) |
+| `viewport-fit=cover` dans `index.html` | Déjà présent |
+| Cadastre mobile condensé (colonnes masquées, rail de filtres, virtualisation) | Livré (`collection.tsx`, `useWindowVirtualizer`, cellules `hidden md:block`) |
+| Grilles du Comptoir et de Mes Offres | Déjà `grid-cols-1 sm:grid-cols-2 xl:grid-cols-3` |
+| Tableau en 2×2 sur mobile | Sans objet : les emplacements sont une pile verticale, le tiroir est une feuille basse pleine largeur |
+| Garde anti-double-appui du marché | Déjà côté serveur (`FOR UPDATE` + `409 LISTING_NOT_OPEN`, prouvé par `market.spec.ts`) ; seule l'attente visuelle manquait |
+
+---
+
+## Étapes
+
+### 1. Spec-first — géométrie du pinceau
+- [x] `packages/shared/src/ui.ts` : `SCRATCH_REVEAL_THRESHOLD = 0.4` et
+      `scratchBrushRadius(w, h)` = `clamp(18, 40, round(min(w, h) × 0,18))`, exportés par le baril.
+- [x] `packages/spec/src/ui.spec.ts` : trois cas `Archi §4.6 — `.
+
+### 2. Moteur de grattage
+- [x] `components/scratch-cell.tsx` : import des deux constantes partagées, suppression de
+      `BRUSH_SIZE` et `REVEAL_THRESHOLD` locaux.
+- [x] Rayon recalculé dans `paint()` depuis le rectangle de la case ; `lineWidth = rayon × 2`,
+      arc de rayon `rayon` (l'ancienne constante était un diamètre).
+- [x] Un seul `requestAnimationFrame` en vol ; `flush()` trace `dernier point → point courant`,
+      incrémente le compteur et teste la couverture tous les 6 coups.
+- [x] `stopDrawing` vide le trait en attente **avant** `checkCoverage()` ; la frame est annulée au démontage.
+- [x] `ResizeObserver` non destructif : copie du tampon, repeinture, réapplication sous
+      transformation identité quand des coups ont déjà été portés.
+- [x] `select-none cursor-crosshair` sur le canvas, `select-none` sur le bouton.
+
+### 3. Ergonomie restante
+- [x] `layout/sidebar.tsx` : `pt-[env(safe-area-inset-top)]` sur le bloc de marque.
+- [x] `content/market.ts` + `routes/market.index.tsx` : libellé « Achat… » sur la seule ligne
+      en vol, `touch-manipulation`. Aucune garde client ajoutée.
+
+### 4. E2E mobile
+- [x] `packages/e2e/playwright.config.ts` : projets `chromium` (`testIgnore`), `Pixel 7` et
+      `iPhone 13` (`testMatch`), pour que les suites existantes ne tournent qu'une fois.
+- [x] `packages/e2e/tests/mobile.spec.ts` : 9 cas (navigation, débordement à 412 et 320 px,
+      cibles ≥ 44 px, grattage tactile, absence de défilement, registre condensé, double-appui).
+
+### 5. Mémoire
+- [x] `.docs/01-architecture.md` §4.6 : dessin par image, rayon dérivé, redimensionnement non destructif.
+- [x] `ROADMAP.md` : statut d'exécution de la phase 14.
+- [x] Cette entrée.
+
+---
+
+## Critères d'acceptation
+
+1. [x] `scratch-cell.tsx` contient **0** `useState`, **0** handler `onMouse*`/`onTouch*`, et un
+       `requestAnimationFrame` avec son `cancelAnimationFrame` de nettoyage.
+2. [x] Le rayon du pinceau suit la taille de la case (18 px à 76 px, 25 px à 140 px, borné 18–40)
+       et le seuil reste à 40 %.
+3. [x] Une rotation en cours de grattage conserve la zone déjà effacée.
+4. [x] Aucun débordement horizontal à 412 px et 320 px sur Le Relevé, Le Cadastre, Le Comptoir
+       et La Planche.
+5. [x] Les cibles de la barre d'onglets mesurent au moins 44 px.
+6. [x] Aucune dépendance nouvelle, aucune migration, aucun changement de contrat d'API.
+7. [x] `ci:check` vert : lint, typecheck, ping PostgreSQL, 143 spécifications.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 16 exécutée : Le Geste livré
+
+**Spec-first**
+- `packages/shared/src/ui.ts` : la géométrie du pinceau quitte le composant. `ui.spec.ts`
+  verrouille le seuil à 0,4, la croissance avec la case (76 → 18, 140 → 25) et les bornes
+  (10 → 18, 400 → 40).
+
+**Moteur**
+- L'ancienne `BRUSH_SIZE = 26` était un **diamètre** (13 px de rayon) ; la fonction partagée
+  rend un **rayon**, d'où `lineWidth = rayon × 2` et un arc de rayon `rayon`. Sur une case
+  mobile de ~78 px, le pinceau passe de 13 à 18 px de rayon : le geste est plus facile qu'avant,
+  pas plus exigeant.
+- `flush()` trace `dernier point → point courant` : la fusion des échantillons ne crée aucun trou,
+  puisque le segment couvre tout le trajet. `stopDrawing` vide la frame en attente avant de
+  tester la couverture, ce qui interdit le blocage à 39 %.
+- Le redimensionnement réapplique la copie sous `setTransform(1,0,0,1,0,0)` : sans cela la
+  transformation DPR posée par `paint()` aurait décalé et agrandi l'image restaurée.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  [hexamap] ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  143 pass, 0 fail, 751 expect() calls, 10 fichiers
+```
+Les deux échecs historiques `Plan §5.6 — un référentiel totalement vide reste une erreur explicite`
+passent désormais ; ils n'avaient pas la cause supposée (timeout) et sont tombés avec le reste
+de la suite sur une base saine.
+
+Banc E2E (`docker-compose.e2e.yml`, image de production) :
+```
+chromium   12 passed, 1 skipped
+Pixel 7     8 passed, 1 skipped
+iPhone 13   8 passed, 1 skipped
+découverte : 31 tests dans 3 fichiers (core-loop et design-system sous chromium seulement)
+```
+Le cas ignoré de `chromium` est la comparaison du multiplicateur, déjà ignorée en phase 14.
+
+**Écarts assumés**
+- **Marché à une colonne sous `sm`** : le ROADMAP demandait deux colonnes à 412 px. Avec une
+  vignette de 132 px, deux colonnes écraseraient chaque fiche à ~185 px. La grille reste
+  `grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4`, et le test E2E verrouille
+  l'absence de débordement plutôt qu'un nombre de colonnes.
+- **Pas d'`overscroll-behavior` sur `body`** : la grille de grattage porte déjà `overscroll-none`.
+  Une contention globale empêcherait le repli iOS mais gênerait la virtualisation de fenêtre du
+  Cadastre et le défilement général.
+- **Le grattage E2E se fait par appuis tactiles**, pas par un glissement synthétique :
+  l'API `page.touchscreen` de Playwright n'expose que `tap`, et un glissement CDP fusionné donne
+  une couverture instable (8 % à 39 %). Le glissement réel reste couvert par le test de
+  non-défilement. Le geste continu est vérifié à la main sur appareil.
+- **Le double-appui ne s'auto-vérifie pas encore** : `global-setup.ts` n'inscrit qu'un compte,
+  donc aucune annonce d'un autre joueur n'existe sur le banc. Le test est écrit, intercepte la
+  route avec 1,2 s de latence et s'ignore tant que la fixture croisée manque.
+- **`collection.tsx` et les grilles du marché n'ont pas été retouchés** : déjà responsives.
+
+**Portée**
+- Aucune migration, aucun changement de schéma, aucun changement de contrat d'API.
+- Aucune dépendance nouvelle.
+- Aucun commit.
+
+---
+---
+
+# Historique — Phase 15 — Le Cartel (fiche de planche)
 
 ## Statut
 

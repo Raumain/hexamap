@@ -197,6 +197,11 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - L'état React ne sert qu'aux transitions grossières : ticket chargé, case révélée, ticket épuisé, erreur.
 - Ne pas déclencher de re-render React à chaque mouvement de souris/doigt.
 - La révélation d'une case est une mutation serveur ; le Canvas ne fait qu'afficher le résultat.
+- **Un seul dessin par image (Phase 16).** `components/scratch-cell.tsx` accumule le point courant dans une `ref` et planifie un unique `requestAnimationFrame` qui trace le segment `dernier point → point courant`, puis incrémente le compteur de coups. Un trait encore en attente est **vidé synchroniquement** sur `pointerup`/`pointercancel`/`pointerleave` avant le test de couverture : aucune frame manquante ne peut laisser une case bloquée juste sous le seuil. La frame est annulée au démontage.
+- **Le rayon du pinceau dérive de la case.** `SCRATCH_REVEAL_THRESHOLD` et `scratchBrushRadius(w, h)` vivent dans `packages/shared/src/ui.ts`, verrouillés par `packages/spec/src/ui.spec.ts`. Rayon = `clamp(18, 40, round(min(w, h) × 0,18))` : 18 px sur une case mobile de ~78 px, 25 px sur une case de 140 px. Le composant ne déclare plus aucune constante de pinceau ni de seuil.
+- **Un redimensionnement conserve le grattage.** Si des coups ont déjà été portés, le `ResizeObserver` copie le tampon dans un canvas détaché, repeint la couverture à la nouvelle taille, puis réapplique la copie sous transformation identité : la zone déjà grattée survit à une rotation, mise à l'échelle comprise.
+- Le seuil reste **40 %** de pixels effacés (`alpha < 128`). Il n'est jamais abaissé côté client, et le serveur reste seul juge de la révélation.
+- Le geste reste **exclusivement Pointer Events** : aucun handler `onMouse*`/`onTouch*`, `setPointerCapture` conservé, `useState` interdit dans le composant.
 
 ### 4.7 Données Open Data
 
@@ -266,6 +271,34 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
 - **Le tableau de combo ne calcule rien.** `alignment.breakdown[].valid` et
   `alignment.multiplier` viennent du serveur ; `alignment.links` est un **nombre**. Aucun
   recalcul d'alignement ni de multiplicateur dans le navigateur.
+
+### 4.10 Installation — manifeste, icônes, service worker
+
+- **Le manifeste est un fichier statique** : `apps/web/public/manifest.webmanifest`, lié depuis
+  `index.html`. `vite-plugin-pwa` est configuré avec `manifest: false` et ne le génère pas.
+  `background_color` et `theme_color` valent `#0c1210` (la pièce du cabinet) ; `display` est
+  `standalone`, l'orientation `portrait`.
+- **Les icônes sont générées, jamais dessinées.** `apps/web/pwa-assets.config.ts` dérive
+  `minimal2023Preset` du favicon hexagonal vers `public/icons/` (64, 192, 512, maskable 512,
+  apple-touch 180). Le générateur écrit à côté de l'image source et n'offre pas de dossier de
+  sortie : `assetName` préfixe `icons/`. Les PNG sont **versionnés** ; `bunx pwa-assets-generator`
+  depuis `apps/web` est l'unique commande de régénération, et le build Docker n'a besoin
+  d'aucun réseau.
+- **Le service worker ne cache jamais l'API.** Cinq entrées `NetworkOnly` couvrent `/api/`, une
+  par méthode HTTP : une entrée Workbox ne s'applique qu'à une seule méthode, et `POST` porte
+  toutes les mutations Eden. `/blasons/` est en `StaleWhileRevalidate` (200 entrées, 30 jours),
+  le reste de `dist/` en précache.
+- **`navigateFallback: '/index.html'` exige `index.html` dans le précache** — `globPatterns`
+  contient donc `html`. Sans cette entrée, `createHandlerBoundToURL('/index.html')` lève
+  `non-precached-url` à l'installation : le worker ne s'active pas et le navigateur refuse
+  l'installation.
+- **La mise à jour est proposée, pas imposée.** `registerType: 'prompt'`, `skipWaiting: false`,
+  `clientsClaim: false`. `apps/web/src/lib/pwa.ts` porte l'enregistrement et
+  `components/layout/pwa-update-prompt.tsx` l'invitation française (« Recharger » / « Plus
+  tard »), montée par `app-shell.tsx`. Ce composant peut utiliser `useState` : il ne pilote pas
+  le canvas de grattage (§4.6).
+- `biome.json` exclut `apps/web/dev-dist`, `**/sw.js` et `**/workbox-*.js` : le code Workbox
+  généré n'est pas du code source. `.gitignore` exclut `apps/web/dev-dist`.
 
 ---
 

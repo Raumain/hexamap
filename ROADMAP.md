@@ -351,6 +351,18 @@ docker compose -f docker-compose.e2e.yml run --rm playwright -- test design-syst
 
 ## Phase 14 — Mobile-First Ergonomics & Touch Engine
 
+> **Execution status (2026-11-19) — delivered as repo Phase 16, `feat/phase-16-le-geste`.**
+> Shipped before this phase (repo Phases 14–15): `AppShell` + desktop rail + bottom tab bar,
+> `viewport-fit=cover`, the condensed virtualised Cadastre, the market/mine card grids, the
+> per-listing buy pending state, and the server-side `FOR UPDATE` + `409 LISTING_NOT_OPEN`
+> double-purchase guard. Delivered by Phase 16: rAF coalescing in `scratch-cell.tsx`, a
+> size-derived brush radius extracted to `packages/shared/src/ui.ts` (+ spec), the
+> non-destructive resize, `select-none`/`cursor-crosshair`, the sidebar top safe-area inset,
+> the « Achat… » pending label, and the Playwright `Pixel 7` / `iPhone 13` projects.
+> Deliberately not done: two-column market at 412 px (a 132 px thumbnail makes it unreadable),
+> and `overscroll-behavior` on `body` (scoped to the scratch grid instead, or it fights the
+> window virtualiser). See `.docs/03-active-task.md` for the measurements.
+
 ### 14.1 Current state audit
 
 **Working (better than the brief assumes):**
