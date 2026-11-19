@@ -5,7 +5,126 @@
 
 ---
 
-# Phase 18 — L'Économie des octets (compression de production)
+# Phase 19 — L'Installation vérifiée (suite PWA de bout en bout)
+
+## Statut
+
+- **Phase** : 19 — L'Installation vérifiée (suite PWA de bout en bout)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/pwa-e2e-suite`
+
+---
+
+## Objectif
+
+La couche PWA livrée en phase 17 n'avait aucune preuve : le manifeste, le service worker, le
+précache et l'invalidation des appels d'API n'étaient vérifiés qu'à la main. Le banc e2e servait
+`http://hexamap.test:3000`, donc une origine non sécurisée où `navigator.serviceWorker` n'existe
+pas et où le worker ne peut pas s'enregistrer : aucune suite n'était possiblement probante. La
+phase déplace la bordure du banc derrière Caddy en HTTPS avec une AC interne et ajoute 7 cas
+d'installation et de comportement hors ligne, à domaine et contrats d'API constants.
+
+---
+
+## Étapes
+
+### 1. Bordure TLS et contexte sécurisé
+- [x] `scripts/e2e/Caddyfile` : `tls internal`, `reverse_proxy api:3000`, `encode` laissé
+      désactivé pour que la compression mesurée reste celle de l'API.
+- [x] `docker-compose.e2e.yml` : service `proxy` sur le réseau du banc (aucun port publié), l'alias
+      `hexamap.test` déplacé de `api` vers `proxy` — deux adresses DNS pour la même origine
+      envoyaient des requêtes HTTP nues sur une origine `https`.
+- [x] `AUTH_COOKIE_SECURE: "true"` : plus aucune dérogation, les cookies `Secure` sont réellement
+      exercés.
+
+### 2. Configuration Playwright
+- [x] `packages/e2e/playwright.config.ts` : `ignoreHTTPSErrors: true` global ; `global-setup.ts`,
+      qui construit son contexte à la main, le répète explicitement.
+- [x] `testIgnore` en tableau, pour que `chromium` continue de ne jouer que les parcours de bureau.
+- [x] Projet `pwa` : `serviceWorkers: 'allow'` et `launchOptions.args:
+      ['--ignore-certificate-errors']`.
+- [x] `baseURL`, `E2E_BASE_URL`, `FRONTEND_URL`, `APP_URL` et `BETTER_AUTH_URL` passent en
+      `https://hexamap.test`.
+
+### 3. Suite `pwa.spec.ts`
+- [x] 7 cas : manifeste conforme ; le worker s'installe et contrôle ; la coquille est précachée ;
+      les appels d'API ne viennent jamais du cache ; un lien profond hors ligne retombe sur la
+      coquille ; aucun appel d'API dans une cache ; les marges de zone sûre sont appliquées.
+
+### 4. Revalidation des suites existantes
+- [x] Les trois suites (`core-loop`, `mobile`, `design-system`) rejouées sur la nouvelle origine,
+      sans régression.
+
+---
+
+## Critères d'acceptation
+
+1. [x] `tests/pwa.spec.ts` : 7/7 verts.
+2. [x] Banc complet : 35 passed, 3 skipped (chromium 12/1, pwa 7, Pixel 7 8/1, iPhone 13 8/1).
+3. [x] `ci:check` vert : lint, typecheck, ping PostgreSQL, 158 spécifications.
+4. [x] Aucune migration, aucun changement de schéma ni de contrat d'API.
+5. [x] `packages/spec`, `packages/db` et `packages/shared` intacts.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 19 exécutée : L'Installation vérifiée livrée
+
+**Le constat bloquant.** Une suite PWA était impossible sur le banc tel qu'il était : `http://`
+n'est pas un contexte sécurisé, donc `navigator.serviceWorker` n'est même pas exposé et
+`navigator.serviceWorker.register()` n'a rien à enregistrer. Le banc a donc reçu une bordure
+Caddy en `https://hexamap.test` avec une AC interne. Le premier effet collatéral a été l'alias :
+posé sur `api`, il produisait deux adresses DNS pour la même origine et des requêtes HTTP nues
+sur une origine `https`. Il appartient désormais au `proxy`.
+
+**`ignoreHTTPSErrors` ne suffit pas pour le worker.** L'option de Playwright passe par CDP et
+couvre les requêtes du document, des ressources et des `fetch`. Le téléchargement du **script**
+du worker emprunte la pile réseau de Chrome et n'y passe pas : l'enregistrement échouait en
+`SecurityError: An SSL certificate error occurred when fetching the script`. Le seul projet `pwa`
+ajoute donc `launchOptions.args: ['--ignore-certificate-errors']`. La conséquence est localisée
+au projet qui en a besoin, pas répandue sur tout le banc.
+
+**Le rechargement est obligatoire.** `clientsClaim: false` est un choix assumé de la phase 17 :
+le worker ne prend pas le contrôle du document qui l'a enregistré. Le premier chargement a donc
+`controller === null`, et le cas 2 le constate explicitement avant de recharger. Sans ce
+rechargement, tous les cas hors ligne seraient verts pour la mauvaise raison — ils testeraient
+le réseau, pas la cache.
+
+**Les cookies `Secure` n'ont posé aucun problème.** `AUTH_COOKIE_SECURE=true` remplace la
+dérogation `false` du banc HTTP : l'inscription, la session et le parcours critique passent sans
+changement, puisque l'origine est désormais `https`.
+
+**Écart de motif `NetworkOnly`.** Le worker généré est minifié : la classe Workbox y est aliasée
+et l'appel sans argument perd ses parenthèses, d'où `registerRoute(/\/api\//,new s.NetworkOnly,"GET")`.
+Le motif du cas 4 tolère donc le préfixe du module et la liste d'arguments vide, et le couplage à
+la sortie de Workbox reste localisé à ce fichier.
+
+**Boucle redondante retirée.** Le cas 6 itérait une seconde fois les caches pour ne regarder que
+celles des blasons, alors que la première boucle les couvre déjà. La boucle unique reste, avec le
+commentaire sur la StaleWhileRevalidate des blasons.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run lint
+  162 fichiers, aucune correction
+docker compose --profile tools run --rm dev bun run typecheck
+  6 workspaces, propre
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test tests/pwa.spec.ts
+  7 passed (29.8s)
+banc complet
+  35 passed, 3 skipped (1.2m)
+```
+
+**Portée** : aucune migration, aucun changement de schéma ni de contrat d'API, aucun changement
+dans `packages/spec`, `packages/db` ou `packages/shared`. Aucun commit.
+
+---
+---
+
+# Historique — Phase 18 — L'Économie des octets (compression de production)
 
 ## Statut
 

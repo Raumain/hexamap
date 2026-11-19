@@ -132,12 +132,14 @@ pour ne pas hériter des valeurs de développement de `.env` :
   `WEB_DIST_DIR` (défaut `./public`) désigne le dossier des fichiers construits.
 - **Cache** : `/assets/*` (noms hachés) est servi `public, max-age=31536000,
   immutable` ; `index.html` est `no-cache` ; le reste est `public, max-age=0,
-  must-revalidate`. Les réponses portent un ETag fort (`If-None-Match` → `304`).
+  must-revalidate`. Les réponses portent un ETag **faible** `W/"<taille>-<mtime>"`
+  (`If-None-Match` → `304`) : un validateur faible désigne des représentations sémantiquement
+  équivalentes, ce qui est exactement le rapport gzip / identité (`.docs/01-architecture.md` §6.1).
 - **CORS** : en production (`NODE_ENV=production`), seules les origines de
   `FRONTEND_URL` et de `TRUSTED_ORIGINS` obtiennent un en-tête CORS ; toute autre
   origine est refusée. `credentials: true` est nécessaire aux cookies Better Auth.
-- **Cookies** : `Secure` est forcé en production. Le banc E2E le désactive
-  explicitement via `AUTH_COOKIE_SECURE=false` (HTTP simple dans Docker).
+- **Cookies** : `Secure` est forcé en production. Le banc E2E l'exerce aussi
+  réellement : `AUTH_COOKIE_SECURE=true`, parce que son origine est en HTTPS.
 
 ## Tests de bout en bout (Playwright)
 
@@ -145,21 +147,33 @@ Le banc E2E utilise **sa propre base** (`hexamap_e2e`, volume dédié) : il ne t
 jamais `hexamap_pgdata` ni aux référentiels importés en développement.
 
 ```sh
-docker compose -f docker-compose.e2e.yml up -d --build db api
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm seed
 docker compose -f docker-compose.e2e.yml run --rm playwright
 docker compose -f docker-compose.e2e.yml down -v
 ```
 
-Comme en production, le banc E2E n'a **qu'un conteneur applicatif** : `api` sert
-l'API et le SPA, et porte l'alias `hexamap.test`. Il écoute sur **`3000`** — Nginx
-écoutait sur `80` avant la Phase 12 —, donc l'origine du banc est
-`http://hexamap.test:3000` pour `E2E_BASE_URL`, `FRONTEND_URL`, `APP_URL` et
-`BETTER_AUTH_URL`. Playwright attend qu'il soit `healthy` et que la tâche `seed`
-soit terminée avant de démarrer.
+Le banc termine TLS sur une **bordure Caddy** (`proxy`) avec une AC interne :
+l'origine du banc est `https://hexamap.test`, et Playwright lance Chrome avec
+`ignoreHTTPSErrors: true` puisque cette AC n'est dans aucun trust store. Le
+conteneur `api` sert l'API et le SPA derrière ce proxy ; l'alias `hexamap.test`
+appartient au proxy, jamais à `api` (deux adresses DNS pour la même origine
+enverraient des requêtes HTTP nues sur une origine `https`). Playwright attend que
+l'`api` soit `healthy` et que la tâche `seed` soit terminée avant de démarrer.
 
-Le parcours couvert est `packages/e2e/tests/core-loop.spec.ts` : inscription,
-génération d'un ticket, grattage complet, inventaire, marché. Les sélecteurs sont
-orientés utilisateur (`getByRole`, `getByLabel`) : aucun sélecteur CSS fragile.
+Le banc est en HTTPS pour une raison mécanique : sans **contexte sécurisé**, le
+navigateur n'expose pas `navigator.serviceWorker` et le service worker ne peut pas
+s'enregistrer. C'est aussi ce qui permet d'exercer de vrais cookies `Secure`
+(`AUTH_COOKIE_SECURE=true`, sans dérogation). Le service worker n'est donc
+vérifiable que sur cette origine HTTPS ou sur le build de production servi en
+`http://localhost:8080` — jamais sur une IP LAN en HTTP.
+
+Les parcours couverts sont `packages/e2e/tests/core-loop.spec.ts` (inscription,
+génération d'un ticket, grattage complet, inventaire, marché),
+`tests/mobile.spec.ts` (projets Pixel 7 et iPhone 13) et
+`tests/pwa.spec.ts` (7 cas d'installation et hors ligne, projet `pwa`). Les
+sélecteurs sont orientés utilisateur (`getByRole`, `getByLabel`) : aucun sélecteur
+CSS fragile.
 
 ## Inspecter la base de données
 

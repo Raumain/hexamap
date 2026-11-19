@@ -221,6 +221,17 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - E2E : Playwright, sélecteurs par rôle et libellés français.
 - **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db ping`, dossier `packages/db/src/ping.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
 - **Base de test dédiée, imposée par le garde-fou.** `ci:check` exige `TEST_DATABASE_URL` et refuse de démarrer si elle est absente, si elle égale `DATABASE_URL`, ou si `NODE_ENV=production`. La suite de spécifications ne touche donc jamais les référentiels importés en développement. `packages/db` réexporte `sql` de Kysely pour que les specs puissent lancer du SQL brut sans dépendance propre.
+- **Banc E2E — HTTPS.** `docker-compose.e2e.yml` termine TLS sur une bordure Caddy et une AC
+  interne, parce qu'un service worker ne s'enregistre que dans un contexte sécurisé : en HTTP,
+  `navigator.serviceWorker` n'existe même pas. `ignoreHTTPSErrors` est posé sur l'ensemble des
+  projets, l'AC n'étant dans aucun trust store ; `global-setup.ts`, qui construit son contexte à
+  la main, doit le répéter. Le seul projet `pwa` ajoute `launchOptions.args:
+  ['--ignore-certificate-errors']`, parce que le téléchargement du **script** du worker passe par
+  la pile réseau de Chrome et non par le routage CDP : sans ce commutateur, l'enregistrement
+  échoue en `SecurityError`. L'alias `hexamap.test` appartient au `proxy`, jamais à `api` — deux
+  adresses DNS pour la même origine enverraient des requêtes HTTP nues sur une origine `https`.
+  `encode` reste désactivé dans le `Caddyfile` : la compression mesurée doit rester celle de
+  l'API.
 
 ### 4.9 Design system : jetons, métaux, planches, coquille
 
@@ -299,6 +310,13 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   le canvas de grattage (§4.6).
 - `biome.json` exclut `apps/web/dev-dist`, `**/sw.js` et `**/workbox-*.js` : le code Workbox
   généré n'est pas du code source. `.gitignore` exclut `apps/web/dev-dist`.
+- **La preuve est `packages/e2e/tests/pwa.spec.ts`, 7 cas**, joués par le seul projet `pwa`
+  (`serviceWorkers: 'allow'`, commutateur Chrome `--ignore-certificate-errors`). Le cas
+  « le worker s'installe et contrôle » constate d'abord `controller === null` sur le premier
+  chargement : `clientsClaim: false` impose un rechargement avant que `controller` soit non nul.
+  Le cas 7 est une assertion **structurelle** — `env(safe-area-inset-*)` vaut toujours `0` sous
+  Playwright, une mesure ne prouverait rien ; il vérifie que les déclarations survivent à la
+  compilation et que `viewport-fit=cover` est présent.
 
 ---
 
