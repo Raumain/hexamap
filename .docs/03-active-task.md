@@ -5,7 +5,264 @@
 
 ---
 
-# Phase 21 — Les Salles retrouvées (BUG-005)
+# Phase 22 — Les Planches lisibles (BUG-006)
+
+## Statut
+
+- **Phase** : 22 — Les Planches lisibles (BUG-006)
+- **État** : Terminé
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-19
+- **Branche** : `fix/bug-006-plates-illegibles`
+
+---
+
+## Objectif
+
+À 390 px, une planche doit rester une planche. La case grattée rend la carte **entière**, plus la
+variante `decorative` : la gravure porte elle-même son en-tête, son nom, son sceau de rareté et son
+score, et c'est la largeur de la case qui la dimensionne. Un bandeau de 16 px, au-dessus d'elle et
+dans la case, garde `Jumelé` et la distance de Manhattan hors de l'illustration. Le registre du
+Cadastre agrandit sa planche au lieu de la comprimer, et la charge utile de révélation gagne le
+blason que la case ne transmettait pas. À domaine, schéma et contrats d'API constants : aucune
+migration, aucune dépendance nouvelle.
+
+---
+
+## Étapes
+
+### 1. Le blason dans le contrat
+- [x] Le contrat de la charge utile de révélation est verrouillé avant toute implémentation :
+      `maskedCardSchema` porte déjà `refCode`, la phase constate que les deux constructeurs ne
+      remplissent ni `blasonUrl` ni `blasonCredit`.
+- [x] Le cas de spécification est écrit rouge d'abord, dans `packages/spec`, sur la forme de la
+      charge utile — le repli `blason_url ?? contour_url` devient une propriété du contrat, pas
+      une convention de chaque gabarit.
+
+### 2. Le blason dans la réponse
+- [x] Le repli `blason_url ?? contour_url` quitte ses trois copies en ligne de
+      `apps/api/src/services/draw.ts` pour une aide unique, `blasonOf`, partagée par
+      `resolveCardAssets` et `resolveCardMeta`.
+- [x] Les deux constructeurs remplissent la charge utile : `routes/tickets.ts` pour la réponse de
+      grattage, `loadMaskedTicket` de `services/ticket.ts` pour la lecture persistée. Un champ
+      ajouté à `maskedCardSchema` est produit par les deux, jamais par un seul.
+
+### 3. La case révélée
+- [x] `components/revealed-cell.tsx` rend la planche **entière**, plus la variante `decorative` :
+      en-tête, nom, pied, `RaritySeal` et score sont lus sur la carte, comme au Cadastre. Elle est
+      posée en `h-auto w-full` dans un conteneur `flex-1` : c'est la largeur de la case qui la
+      dimensionne.
+- [x] Un **bandeau de 16 px** (`h-4`) surmonte la planche, à l'intérieur de la case : marque
+      `Jumelé` à gauche sur les cases `TWIN`, distance de Manhattan à droite, les deux en
+      `text-[10px]`. Rien ne recouvre plus la gravure.
+- [x] La grille du ticket **reste `grid-cols-4` à toute largeur** : quatre colonnes sont la
+      géométrie du domaine (`index = ligne * 4 + colonne`), dont dépend la distance de Manhattan
+      annoncée par la pastille. Ce sont les cases qui gagnent de la hauteur, pas la grille qui perd
+      une colonne : `ScratchCell`, `LockedCell`, case révélée et placeholders de chargement
+      partagent `aspect-[3/5]` — aucune ligne irrégulière.
+- [x] À la demande de l'utilisateur, la ligne « Bordereau <id> » et l'astuce clavier
+      (« sélectionnez une case et appuyez sur Entrée ou Espace pour la révéler ») quittent la salle
+      du ticket : la promesse ne tenait pas sur téléphone. Le compteur de coups en quatre points
+      reste, désormais aligné à droite ; le gestionnaire `onKeyDown` et l'anneau `focus-visible`
+      restent aussi, parce que `packages/e2e/global-setup.ts` gratte ses fixtures par `focus()`
+      puis `press('Enter')`.
+
+### 4. Le registre lisible
+- [x] Le Cadastre passe sa planche de 84/96 px à **120/140 px**, sa première piste de grille de 96
+      à 140 px, et sa foulée de virtualiseur de 152/142 à **220/192** — `measureElement` et
+      l'estimation s'accordent.
+- [x] `flex-wrap` sur la rangée de pastilles et étiquette remontée de `text-[9px]` à `text-[10px]`,
+      deux corrections imposées par le banc (voir le journal).
+- [x] La Rue garde son absence d'image : `ref_odonymes` n'a aucune colonne de blason,
+      `resolveCardAssets` rend `null` pour `RUE`, et la légende porte déjà l'identité.
+
+### 5. La preuve et la mémoire
+- [x] `packages/e2e/tests/mobile.spec.ts` : `mobile — une case révélée affiche nom, rareté et score
+      sans chevauchement` et `mobile — le registre montre une planche lisible`, joués sur les deux
+      projets tactiles, chacun attachant une capture (`case-revelee-390.png`, `registre-390.png`).
+- [x] `.docs/04-bugs.md` ferme BUG-006, `.docs/01-architecture.md` §4.9 porte la règle
+      décorative-et-légende, `ROADMAP.md` §2 perd son entrée.
+- [x] `.docs/02-database.md` et `packages/db/migrations/` restent intacts : la charge utile est
+      additive, aucune colonne, aucune table, aucune migration.
+
+---
+
+## Critères d'acceptation
+
+1. [x] La planche révélée garde sa proportion de carte à 390 px — `hauteur / largeur` à 0,06 près
+       de `7 / 5` — et son nom, son sceau de rareté et son score restent à l'intérieur de la case.
+2. [x] Aucun texte visible de la case ne descend sous 10 px.
+3. [x] À 390 px, le registre du Cadastre montre une planche d'au moins **120 px**, de rapport 7/5 à
+       0,05 près, et la page ne défile pas horizontalement.
+4. [x] Les trois sortes de cases partagent `aspect-[3/5]` : aucune ligne irrégulière dans la grille.
+5. [x] Le tableau affiché reste **4 × 4** à toute largeur — 16 cases, 4 colonnes distinctes, 4 lignes
+       distinctes — verrouillé par `mobile.spec.ts` : « La grille affichée doit rester 4 × 4, sinon
+       la distance à la pépite ne correspond plus à ce que le joueur voit. »
+6. [x] La charge utile de révélation porte `blasonUrl` et `blasonCredit`, produits par les deux
+       constructeurs, et le repli `blason_url ?? contour_url` n'a qu'un propriétaire, `blasonOf`.
+7. [x] `mobile.spec.ts` vert sur les deux projets tactiles ; banc complet : **56 tests, 53 passés,
+       3 ignorés**, aucun flaky.
+8. [x] `ci:check` vert — `1/4 Lint`, `2/4 Typecheck`, `3/4 Base de données`, `4/4 Spécifications`,
+       **159 spécifications, 11 fichiers**.
+9. [x] Aucune migration, aucun changement de schéma, aucune dépendance nouvelle.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 22 exécutée : Les Planches lisibles livrées
+
+**Le constat.** À 390 px, une case grattée accordait 64 × 50 px à une planche dont le contenu a un
+plancher structurel de 41 px de texte, plus un écu de Département de 46 px : le contenu débordait et
+`overflow-hidden` le coupait. Le registre du Cadastre rendait la même planche à 84 px.
+
+**Ce qui a été fait.** La case grattée ne rend plus une planche porteuse de texte : elle monte la
+miniature `decorative` existante (`aria-hidden`, `aspect-[4/5]`, hauteur bornée à `w-auto`), la
+distance de Manhattan en pastille absolue de coin, et une légende **hors** de `article.exhibit` —
+nom en `text-[10px]` avec `line-clamp-2`, blason de 14 px quand il existe, `RaritySeal`
+(`size={16}`), marque `Jumelé`, score en `text-[10px]` et `tabular-nums`. La grille du ticket
+**reste `grid-cols-4` à toute largeur**, et les trois sortes de cases passent de `aspect-[4/5]` à
+`aspect-[2/3]`. Le Cadastre agrandit sa planche de 84/96 à **120/140 px**, sa piste de 96 à 140 px,
+sa foulée de 152/142 à **220/192**.
+
+**Ce que la charge utile cachait.** `refCode` était déjà dans le contrat : le défaut tenait à
+`revealed-cell.tsx`, qui ne le transmettait pas, d'où l'écu Département imprimant le repli `'—'` de
+`Card.tsx:43`. Le repli `blason_url ?? contour_url` vivait en trois copies dans `draw.ts` ; il n'a
+plus qu'un propriétaire, `blasonOf`, partagé par `resolveCardAssets` et `resolveCardMeta`, et les
+deux constructeurs — `routes/tickets.ts` et `loadMaskedTicket` — remplissent `blasonUrl` et
+`blasonCredit`.
+
+**Deux corrections que le banc a imposées, pas le plan.** L'élargissement de la planche du Cadastre
+faisait naître un débordement horizontal de **2 px** à 320 px : un test existant l'a attrapé avant
+livraison, la rangée de pastilles a reçu `flex-wrap` et son étiquette est remontée de `text-[9px]` à
+`text-[10px]`. Ce n'est pas un choix de conception, c'est le filet qui a fonctionné. Et
+`design-system.spec.ts`, cas « canvas — aucun filtre… », interrogeait `count()` avant que la requête
+du ticket n'ait répondu : le défaut était **préexistant**, il n'est apparu que parce que le nouveau
+cas laisse un ticket actif derrière lui. Corrigé par un localisateur `.or()` patient — la leçon déjà
+consignée en phase 20, qui n'avait alors pas été appliquée partout. Deux miniatures décoratives
+portaient enfin un texte fixe sous 10 px (`departement-card.tsx:44` à 8 px, `rue-card.tsx:52` à
+9 px), toutes deux passées à `text-[10px]`.
+
+**Le budget de nœuds n'a pas bougé, par construction.** La légende est **sœur** de
+`article.exhibit` : le plafond de ≤ 18 nœuds non-SVG, mesuré sur la planche elle-même par
+`design-system.spec.ts`, ne compte pas un élément qu'elle n'englobe pas. Aucun gabarit n'a été
+alourdi pour devenir lisible.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  [hexamap] ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  159 pass, 0 fail, 810 expect() calls, Ran 159 tests across 11 files
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  56 tests, 53 passed, 3 skipped, aucun flaky
+  chromium  14 passed, 1 skipped
+  pwa        7 passed
+  Pixel 7   16 passed, 1 skipped
+  iPhone 13 16 passed, 1 skipped
+```
+
+Avant la phase, le même banc annonçait **52 tests, 49 passés, 3 ignorés** — `chromium` 14/1, `pwa` 7,
+`Pixel 7` 14/1, `iPhone 13` 14/1 : les deux cas neufs, joués sur les deux projets tactiles, portent
+le delta de quatre exécutions.
+
+**Le compte d'`expect()` n'est pas un invariant.** 810 assertions pour 159 tests et 11 fichiers :
+comme l'a consigné la phase 21, la mesure fluctue d'une exécution à l'autre, parce que les
+assertions vivent parfois dans une boucle sur le référentiel. Les chiffres stables sont **159
+spécifications** et **11 fichiers**.
+
+**Portée** : aucune migration, aucun changement de schéma, aucune dépendance nouvelle,
+`.docs/02-database.md` et `packages/db/migrations/` intacts. Aucun commit.
+
+### 2026-11-19 — Correction après revue
+
+**La faute.** L'entrée précédente célébrait un tableau en trois colonnes sous `sm`. C'était une
+erreur : le ticket est un plateau 4 × 4 (`index = ligne * 4 + colonne`) et la pastille de coin
+annonce la distance de Manhattan calculée sur cette géométrie. À 390 px, le tableau se rendait
+3 + 3 + 3 + 3 + 3 + 1, et trois colonnes visibles valent quatre colonnes logiques : la pastille
+décrivait un plateau que le joueur ne voyait pas.
+
+**La correction garde la géométrie du domaine et donne de la hauteur aux cases.** La grille
+redevient `grid-cols-4` à toute largeur, et les trois sortes de cases passent de `aspect-[4/5]` à
+`aspect-[2/3]` : sur une case d'environ 78 px de large, c'est la hauteur qui porte la légende, pas
+la largeur qui gagne une colonne. Les micro-tailles suivent les 66 px utiles — nom en `text-[10px]`
+sur deux lignes, blason de 14 px, `RaritySeal` (`size={16}`), score en `text-[10px]` — et aucun
+texte visible ne descend sous 10 px.
+
+**La géométrie est désormais assertée.** Le cas `mobile — une case révélée affiche nom, rareté et
+score sans chevauchement` relève les seize cases, arrondit leurs décalages au pixel et exige
+exactement 4 colonnes distinctes et 4 lignes distinctes, avec le message « La grille affichée doit
+rester 4 × 4, sinon la distance à la pépite ne correspond plus à ce que le joueur voit. » Une
+retouche responsive future ne peut donc plus rejouer le défaut en silence.
+
+**Deux retraits demandés par l'utilisateur.** La ligne « Bordereau <id> » — les huit premiers
+caractères de l'UUID du ticket, en majuscules, écrits en ligne dans le JSX sans clé `TICKET.*` — et
+l'astuce clavier ne sont plus rendues : la promesse « sélectionnez une case et appuyez sur Entrée
+ou Espace » ne tenait pas sur téléphone. Le compteur de coups en quatre points reste, désormais
+aligné à droite ; le gestionnaire `onKeyDown` et son anneau `focus-visible` restent aussi, parce que
+`packages/e2e/global-setup.ts` gratte ses fixtures par `focus()` puis `press('Enter')`.
+
+**Vérification rejouée (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  [hexamap] ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  159 pass, 0 fail — 159 tests, 11 fichiers
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  56 tests, 53 passed, 3 skipped, aucun flaky
+  chromium 14 passed, 1 skipped | pwa 7 passed
+  Pixel 7 16 passed, 1 skipped | iPhone 13 16 passed, 1 skipped
+```
+
+### 2026-11-19 — La carte reprend la case
+
+**La légende était un mauvais échange.** Elle achetait de la lisibilité avec la taille de la carte.
+À quatre colonnes, la largeur de la case est fixée par la fenêtre et la planche ne peut jamais la
+dépasser : la légende dépensait donc 30 à 55 px de la seule dimension encore libre, la hauteur, et
+la carte s'écrasait. Rendre la case à sa planche rend à la carte sa proportion.
+
+**Ce qui a changé.** `components/revealed-cell.tsx` ne monte plus la variante `decorative` : il rend
+la planche entière, en `h-auto w-full` dans un conteneur `flex-1`. La planche est dimensionnée par
+sa largeur, jamais par sa hauteur — un `h-full` accompagné d'un `aspect-[5/7]` produisait une
+planche de 70 px dans une boîte de 66 px, et `flex-shrink` cassait le rapport. Un bandeau de 16 px
+reste au-dessus d'elle, dans la case : `Jumelé` à gauche, distance de Manhattan à droite, les deux
+en 10 px. Les trois sortes de cases et les placeholders de chargement partagent `aspect-[3/5]`, et
+la grille reste `grid-cols-4` à toute largeur.
+
+**La Rue a dû être complétée.** Elle est désormais la seule surface de lecture de la case : son
+pied affiche le score — il imprimait l'ornement « Rue de France » et aucun score, donc une rue
+révélée n'en montrait aucun —, son nom descend à un plancher de 10 px
+(`clamp(13px,8.6cqi,21px)` → `clamp(10px,8.6cqi,21px)`), et son bloc « Occurrences » rejoint la
+densité seconde.
+
+**Ce que la largeur impose.** Sous `@container (max-width: 110px)`, la classe `.plate-optional`
+déclarée dans `styles.css` efface la densité seconde — l'unité `pts`, le code de référence d'une
+région ou d'une commune, les occurrences d'une rue. Sans elle, le pied poussait le sceau de rareté
+hors de la planche sur un écran de 390 px : le banc a attrapé un débordement de 10 px avant
+livraison.
+
+**Le banc assert la proportion.** La boîte de la planche révélée doit garder `hauteur / largeur` à
+0,06 près de `7 / 5` — « La planche doit garder sa proportion de carte, sinon elle redevient une
+vignette. » Le plancher de 60 px de large s'écrit `Math.min(60, cellBox.width - 16)`, parce que
+60 px n'est pas atteignable à 390 px.
+
+**Vérification rejouée (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  [hexamap] ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  159 pass, 0 fail — 159 tests, 11 fichiers
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  56 tests, 53 passed, 3 skipped, aucun flaky
+  chromium 14 passed, 1 skipped | pwa 7 passed
+  Pixel 7 16 passed, 1 skipped | iPhone 13 16 passed, 1 skipped
+```
+
+---
+---
+
+# Historique — Phase 21 — Les Salles retrouvées (BUG-005)
 
 ## Statut
 

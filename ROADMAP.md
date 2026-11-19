@@ -29,26 +29,15 @@ Original roadmap → repo mapping: its Phase 12 = repo 12; **its Phase 13 = repo
 design system was rewritten once); **its Phase 14 = repo 14/15 partially + 16**; **its Phase 15 =
 repo 17, at ~80 %, closed in practice by repo 19**.
 
-Verified today: `ci:check` green with **158 specs**; the production image compresses text payloads
-in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518` in brotli
-(−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`), `/sw.js`
-(`text/javascript`, `no-cache`), 46 precache entries; Playwright **39 passed / 3 skipped**
-(chromium 14 / 1, pwa 7, Pixel 7 and iPhone 13 9 / 1 each).
+Verified today: `ci:check` green with **159 specs across 11 files**; the production image compresses
+text payloads in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518`
+in brotli (−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`),
+`/sw.js` (`text/javascript`, `no-cache`), 46 precache entries; Playwright **56 tests, 53 passed /
+3 skipped** (chromium 14 / 1, pwa 7, Pixel 7 16 / 1, iPhone 13 16 / 1).
 
 ---
 
 ## 2. What remains, in order
-
-### P2 — BUG-006: plates illegible at small sizes
-
-`clamp()` floors are fixed px, the Département shield floors at 46 px, the scratched cell gives the
-plate only 64 × 50 px, and `revealed-cell.tsx` passes no `blasonUrl` at all.
-
-- Use the existing `decorative` miniature with a caption, widen the scratched-cell plate
-  (`grid-cols-3` below `sm`), move the distance to a corner badge.
-- Prerequisite (spec-first): confirm the reveal payload carries `blasonUrl` / `refCode`; extend
-  `packages/spec` then the select and the Eden type if it does not.
-- Acceptance: a photographed 390 px screen shows name, rarity and score without overlap.
 
 ### P2 — BUG-008: drawer rows overlap their plates
 

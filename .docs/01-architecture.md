@@ -296,6 +296,28 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   `<main>` et ne sont pas concernés. `packages/e2e` verrouille l'invariant :
   `getComputedStyle(main).transform === 'none'` après l'entrée en salle, et tiroir rendu hors
   de `<main>`.
+- **Une planche ne rend du texte qu'à partir de 120 px.** Les quatre gabarits partagent cette
+  limite : au-dessous, ils sont utilisés par la variante `decorative`
+  (`apps/web/src/components/ui/cards/card-shell.ts:44`), une miniature `aria-hidden` en
+  `aspect-[4/5]`. La case grattée, elle, ne bascule plus en miniature : elle rend la planche
+  **entière**, qui porte sa propre lecture — en-tête, nom, pied, sceau de rareté et score —, posée
+  en `h-auto w-full` : c'est la largeur de la case qui la dimensionne. Un **bandeau de 16 px**,
+  à l'intérieur de la case et au-dessus de la planche, garde la marque `Jumelé` et la distance de
+  Manhattan hors de la gravure. Le tableau du ticket se montre **`grid-cols-4` à toute largeur**,
+  avec des cases en **`aspect-[3/5]`** : le nombre de colonnes est la géométrie du domaine
+  (`index = ligne * 4 + colonne`) dont dépend la pastille de distance de Manhattan, donc jamais
+  une décision responsive ; `packages/e2e` assert quatre colonnes distinctes et quatre lignes
+  distinctes. Aucun texte visible ne descend sous **10 px**. Sous
+  `@container (max-width: 110px)`, la classe `.plate-optional` retire la densité seconde — l'unité
+  `pts`, le code de référence d'une région ou d'une commune, les occurrences d'une rue —, de sorte
+  que le nom, le score et le sceau tiennent toujours dans la planche ; le pied d'une rue porte
+  désormais son score, et son nom a un plancher de 10 px. Le budget de ≤ 18 nœuds non-SVG
+  s'applique à une planche qui rend sa structure complète : aucune légende n'a été ajoutée, donc
+  le budget est inchangé. La charge utile de révélation porte `blasonUrl` et
+  `blasonCredit`, remplis par les deux constructeurs — `routes/tickets.ts` pour la réponse de
+  grattage, `loadMaskedTicket` de `services/ticket.ts` pour la lecture persistée — et le repli
+  `blason_url ?? contour_url` n'a qu'un propriétaire, l'aide `blasonOf`, partagée par
+  `resolveCardAssets` et `resolveCardMeta`.
 
 ### 4.10 Installation — manifeste, icônes, service worker
 
