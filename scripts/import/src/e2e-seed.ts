@@ -128,8 +128,20 @@ try {
       .execute();
   }
 
+  // `global-setup.ts` prépare jusqu'à 8 tickets pour un même compte : le plafond
+  // de charges du banc doit donc le dépasser. Ce plafond vit dans `game_config`,
+  // jamais dans le code — le relever ne demande aucune migration.
+  const benchChargeCap = 30;
+  for (const key of ['SCRATCH_CHARGE_CAP', 'SCRATCH_START_CHARGES']) {
+    await db
+      .insertInto('game_config')
+      .values({ key, value: benchChargeCap })
+      .onConflict((oc) => oc.column('key').doUpdateSet({ value: benchChargeCap }))
+      .execute();
+  }
+
   console.log(
-    `[e2e] Référentiel prêt : ${communes.length} communes, ${odonymeRows.length} odonymes, ${links.size} liens.`,
+    `[e2e] Référentiel prêt : ${communes.length} communes, ${odonymeRows.length} odonymes, ${links.size} liens, ${benchChargeCap} charges.`,
   );
 } finally {
   await db.destroy();
