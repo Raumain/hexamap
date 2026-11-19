@@ -5,6 +5,7 @@ import {
   accountPath,
   authDirectory,
   CATEGORIES,
+  CATEGORY_LABELS,
   type Category,
   E2E_PASSWORD,
   storageStatePath,
@@ -152,7 +153,7 @@ async function obtainTicket(page: Page): Promise<void> {
 }
 
 async function scratchTicket(page: Page): Promise<void> {
-  const scratchable = page.getByRole('button', { name: /^Case \d+ à gratter$/ });
+  const scratchable = page.getByRole('button', { name: /^Case \d+, non révélée$/ });
 
   // 16 cases, 4 coups de grattoir (+2 par Station-service) : même boucle que le
   // parcours critique, la borne évite une boucle infinie si le ticket se bloque.
@@ -173,7 +174,9 @@ async function scratchTicket(page: Page): Promise<void> {
     }
   }
 
-  await page.getByText('Aucun ticket actif.').waitFor({ state: 'visible', timeout: STACK_TIMEOUT });
+  await page
+    .getByText(/Ce bordereau est soldé|Aucun ticket actif/)
+    .waitFor({ state: 'visible', timeout: STACK_TIMEOUT });
 }
 
 async function waitForCountBelow(
@@ -199,16 +202,15 @@ async function ownedCategories(page: Page): Promise<Category[]> {
     .getByRole('table', { name: 'Liste des cartes de votre collection' })
     .waitFor({ state: 'visible', timeout: STACK_TIMEOUT });
 
-  const filter = page.getByLabel('Catégorie');
   const owned: Category[] = [];
 
   for (const category of CATEGORIES) {
-    await filter.selectOption(category);
+    await page.getByRole('button', { name: CATEGORY_LABELS[category], exact: true }).click();
     const shown = await settledShownCards(page);
     if (shown > 0) owned.push(category);
   }
 
-  await filter.selectOption('');
+  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
   return owned;
 }
 
