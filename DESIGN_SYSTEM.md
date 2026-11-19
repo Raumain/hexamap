@@ -57,6 +57,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
 | `/import-status` | **Les Archives** | Suivre l'entrée des fonds cartographiques. |
 | `/card/$cardId` | **Le Cartel** | Lire la fiche complète d'une planche : cartel, lieu, réserves, mise à l'offre. |
+| `/players/$playerId` | **La Vitrine** | Lire la fiche publique d'un joueur : complétude, meilleur tableau, médailles, annonces, amis. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
 
 Le vocabulaire est fixe : un **bordereau** (ticket), une **planche** (carte possédée), un
@@ -481,6 +482,16 @@ Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
   géographique et l'annonce éventuelle viennent d'une seule réponse serveur.
 - Téléphone : une seule colonne, montage en premier, cibles tactiles de 44 px, chiffres
   tabulaires, aucun défilement horizontal.
+
+### 8.8 La Vitrine — `/players/$playerId`
+
+La **fiche publique d'un joueur**, en deux colonnes à partir de `lg`, une seule requête
+serveur et aucun recalcul : pseudo, ancienneté, biographie en vélin, complétude en quatre
+tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et amis.
+
+- Liste blanche stricte : jamais l'adresse électronique, le solde, l'état `locked`, la
+  `grid` d'un ticket ni la Pépite (§2.6).
+- Une vitrine privée répond `404` : un `403` confirmerait l'existence du compte.
 
 ---
 
