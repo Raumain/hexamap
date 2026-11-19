@@ -90,7 +90,9 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
 
 test.describe('sécurité CORS en production', () => {
   const apiUrl = process.env.E2E_API_URL ?? 'http://localhost:3000';
-  const frontendUrl = process.env.E2E_FRONTEND_URL ?? 'http://localhost:8080';
+  // Le banc sert désormais HTTPS derrière Caddy : l'origine autorisée est celle
+  // du contexte sécurisé, pas l'ancienne `http://hexamap.test:3000`.
+  const frontendUrl = process.env.E2E_FRONTEND_URL ?? 'https://hexamap.test';
 
   test('autorise uniquement l’origine du frontend', async ({ request }) => {
     const allowed = await request.get(`${apiUrl}/api/v1/health`, {

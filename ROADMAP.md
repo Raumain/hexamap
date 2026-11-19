@@ -23,16 +23,17 @@ Docker, French UI, server authoritative, no external call at runtime.
 | 15 | Le Cartel (card detail room) | Done — PR #16 branch |
 | 16 | Le Geste (touch engine, mobile e2e) | Done — PR #16 |
 | 17 | L'Installation (manifest, icons, service worker) | Done — PR #15 |
+| 19 | La Preuve d'installation (suite PWA, banc e2e HTTPS) | Done |
 
 Original roadmap → repo mapping: its Phase 12 = repo 12; **its Phase 13 = repo 13 + 14** (the
 design system was rewritten once); **its Phase 14 = repo 14/15 partially + 16**; **its Phase 15 =
-repo 17, at ~80 %**.
+repo 17, at ~80 %, closed in practice by repo 19**.
 
 Verified today: `ci:check` green with **158 specs**; the production image compresses text payloads
 in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518` in brotli
 (−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`), `/sw.js`
-(`text/javascript`, `no-cache`), 46 precache entries; Playwright chromium 12 passed / 1 skipped,
-Pixel 7 and iPhone 13 8 / 1 each.
+(`text/javascript`, `no-cache`), 46 precache entries; Playwright **35 passed / 3 skipped**
+(chromium 12 / 1, pwa 7, Pixel 7 and iPhone 13 8 / 1 each).
 
 ---
 
@@ -48,17 +49,6 @@ the treasure modal overlay is mis-sized when the page is scrolled.
 - Fix `.enter-salon` to `fill-mode: backwards` (`apps/web/src/styles.css`), or portal the overlays.
 - Acceptance: after scrolling, the drawer's box stays within `innerHeight`; one Playwright mobile
   case asserts it. This restores BUG-004's modal geometry too.
-
-### P2 — PWA end-to-end suite (last item of the original Phase 15)
-
-Nothing today verifies the service worker: no `pwa.spec.ts`, no `pwa` Playwright project, no
-`serviceWorkers` setting.
-
-- `packages/e2e/tests/pwa.spec.ts`, 7 cases: manifest conforms; worker installs and controls; shell
-  precached; **`/api/*` never served from cache**; deep link offline falls back to the shell; no
-  `/api/` entry in any cache; safe-area paddings applied.
-- Add a project with `serviceWorkers: 'allow'`.
-- Acceptance: 7/7 green on the production image, plus `ci:check` unaffected.
 
 ### P2 — BUG-005: secondary rooms unreachable on mobile
 
@@ -125,7 +115,7 @@ Install, offline behaviour, and the "tickets and balances are never cached" rule
 | `backend` network `internal: true` blocking the published port | **Covered** | `api` attaches to both `backend` and `public` |
 | Removing nginx loses gzip/brotli | **Covered** | in-process gzip + brotli, 13 specs, measured on the production image |
 | `navigateFallback` without a precached `index.html` | **Hit and fixed** | Otherwise `non-precached-url` at install; `html` is in `globPatterns` |
-| A stale service worker pinning players | **Partially mitigated** | `registerType: 'prompt'` + French banner + `cleanupOutdatedCaches`, but no e2e proof (P2) |
+| A stale service worker pinning players | **Covered** | `pwa.spec.ts`, 7 cases, on the HTTPS bench: install, precache, offline shell fallback, no `/api/` entry in any cache |
 | Any future transform on `<main>` re-breaks every `fixed` overlay | **New** | BUG-007 is systemic; the portal option removes the class of bug |
 
 Invariants, unchanged: `import type { App }` is the only cross-boundary import; `scratch-cell.tsx`

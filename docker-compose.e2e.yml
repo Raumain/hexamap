@@ -1,14 +1,17 @@
 # Banc E2E isolé : base dédiée, jamais la base de développement.
 #
-#   docker compose -f docker-compose.e2e.yml up -d --build db api
+#   docker compose -f docker-compose.e2e.yml up -d --build db api proxy
 #   docker compose -f docker-compose.e2e.yml run --rm playwright
 #   docker compose -f docker-compose.e2e.yml down -v
 #
-# Pas de service web : l'API est la bordure du banc et sert aussi la SPA
-# compilée. L'API tourne dans son image de production (NODE_ENV=production),
-# donc la liste blanche CORS est réellement appliquée. Les cookies `Secure` sont
-# désactivés uniquement ici : le banc est servi en HTTP simple dans le réseau
-# Docker (`AUTH_COOKIE_SECURE=false`).
+# Pas de service web : Caddy est la bordure TLS du banc et relaie vers l'API, qui
+# sert aussi la SPA compilée. L'API tourne dans son image de production
+# (NODE_ENV=production), donc la liste blanche CORS est réellement appliquée.
+#
+# Le banc est servi en HTTPS (`https://hexamap.test`, certificat de l'AC interne
+# de Caddy) : un service worker ne s'enregistre que dans un contexte sécurisé,
+# et `AUTH_COOKIE_SECURE=true` fait exercer la politique de cookies réellement
+# appliquée en production.
 name: hexamap-e2e
 
 services:
@@ -40,26 +43,45 @@ services:
       WEB_DIST_DIR: /app/public
       SERVE_WEB: "true"
       DATABASE_URL: postgres://hexamap:hexamap@db:5432/hexamap_e2e
-      # Origine unique du banc : l'API écoute sur 3000 et sert elle-même la SPA
-      # (Nginx écoutait sur 80 avant la Phase 12). Les trois valeurs doivent
-      # rester identiques pour que Better Auth et CORS voient la même origine.
-      APP_URL: http://hexamap.test:3000
-      BETTER_AUTH_URL: http://hexamap.test:3000
-      FRONTEND_URL: http://hexamap.test:3000
+      # Origine unique du banc : le navigateur ne voit que la bordure Caddy, qui
+      # relaie vers l'API sur 3000. Les trois valeurs doivent rester identiques
+      # pour que Better Auth et CORS voient la même origine.
+      APP_URL: https://hexamap.test
+      BETTER_AUTH_URL: https://hexamap.test
+      FRONTEND_URL: https://hexamap.test
       BETTER_AUTH_SECRET: e2e-secret-e2e-secret-e2e-secret-32
-      AUTH_COOKIE_SECURE: "false"
+      # Le banc est réellement en HTTPS : la politique de cookies de production
+      # est exercée, pas contournée.
+      AUTH_COOKIE_SECURE: "true"
       TRUSTED_ORIGINS: ""
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
     depends_on:
       db:
         condition: service_healthy
-    # L'API est la bordure du banc : elle porte l'alias `hexamap.test` et sert
-    # aussi la SPA compilée.
+    # L'API n'écoute que sous son nom de service : c'est Caddy qui porte
+    # l'origine publique. Si l'API répondait aussi à `hexamap.test`, le DNS
+    # rendrait deux adresses et certaines requêtes atteindraient un serveur HTTP
+    # simple sur une origine https.
+    networks:
+      - e2e
+
+  proxy:
+    image: caddy:2.8-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./scripts/e2e/Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
       e2e:
         aliases:
           - hexamap.test
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   seed:
     build:
@@ -85,9 +107,9 @@ services:
     environment:
       CI: "1"
       HOME: /tmp
-      E2E_BASE_URL: http://hexamap.test:3000
+      E2E_BASE_URL: https://hexamap.test
       E2E_API_URL: http://api:3000
-      E2E_FRONTEND_URL: http://hexamap.test:3000
+      E2E_FRONTEND_URL: https://hexamap.test
     volumes:
       # Dépendances installées dans le conteneur de dev (`bun install`) : la
       # version de @playwright/test et celle des navigateurs de l'image sont
@@ -97,6 +119,8 @@ services:
     command: ["npx", "--no-install", "playwright", "test"]
     depends_on:
       api:
+        condition: service_healthy
+      proxy:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
