@@ -1,0 +1,9 @@
+# Vagues d'exécution — onglets, pas d'espaces.
+#
+# wave    phase   slug            branche                          migration                statut
+# Le statut `blocked` fait refuser la phase par le lanceur, avec sa raison.
+1	26	le-carnet	feat/phase-26-le-carnet	0009_scratch_charges	ready
+1	28	les-amis	feat/phase-28-les-amis	0010_friendships	ready
+2	27	les-medailles	feat/phase-27-les-medailles	0011_achievements	ready
+3	29	la-vitrine	feat/phase-29-la-vitrine	0012_profiles	ready
+4	30	la-boutique	feat/phase-30-la-boutique	-	blocked
