@@ -27,6 +27,8 @@ export interface CardMeta {
   nom: string;
   score: number;
   editionBonus: number;
+  blasonUrl: string | null;
+  blasonCredit: string | null;
 }
 
 function referenceMissing(): HttpError {
@@ -241,36 +243,51 @@ export async function resolveCardMeta(
     case 'REGION': {
       const row = await exec
         .selectFrom('ref_regions')
-        .select(['nom'])
+        .select(['nom', 'blason_url', 'contour_url', 'blason_credit'])
         .where('code', '=', refCode)
         .executeTakeFirst();
       if (!row) {
         throw referenceMissing();
       }
-      return { nom: row.nom, score: editionScore(rarity), editionBonus: 0 };
+      return {
+        nom: row.nom,
+        score: editionScore(rarity),
+        editionBonus: 0,
+        ...blasonOf(row),
+      };
     }
     case 'DEPARTEMENT': {
       const row = await exec
         .selectFrom('ref_departements')
-        .select(['nom', 'population'])
+        .select(['nom', 'population', 'blason_url', 'contour_url', 'blason_credit'])
         .where('code', '=', refCode)
         .executeTakeFirst();
       if (!row) {
         throw referenceMissing();
       }
       const bonus = departementPopulationBonus(row.population);
-      return { nom: row.nom, score: editionScore(rarity) + bonus, editionBonus: bonus };
+      return {
+        nom: row.nom,
+        score: editionScore(rarity) + bonus,
+        editionBonus: bonus,
+        ...blasonOf(row),
+      };
     }
     case 'COMMUNE': {
       const row = await exec
         .selectFrom('ref_communes')
-        .select(['nom', 'score_base'])
+        .select(['nom', 'score_base', 'blason_url', 'contour_url', 'blason_credit'])
         .where('code_insee', '=', refCode)
         .executeTakeFirst();
       if (!row) {
         throw referenceMissing();
       }
-      return { nom: row.nom, score: row.score_base, editionBonus: 0 };
+      return {
+        nom: row.nom,
+        score: row.score_base,
+        editionBonus: 0,
+        ...blasonOf(row),
+      };
     }
     case 'RUE': {
       const row = await exec
@@ -281,7 +298,14 @@ export async function resolveCardMeta(
       if (!row) {
         throw referenceMissing();
       }
-      return { nom: row.nom_affichage, score: row.score_base, editionBonus: 0 };
+      // Une rue n'a pas de blason : `ref_odonymes` ne porte aucune colonne d'image.
+      return {
+        nom: row.nom_affichage,
+        score: row.score_base,
+        editionBonus: 0,
+        blasonUrl: null,
+        blasonCredit: null,
+      };
     }
   }
 }
@@ -367,6 +391,21 @@ export interface CardAssets {
 }
 
 /**
+ * Règle unique du repli visuel : le blason, sinon le contour géographique.
+ * Toutes les lectures d'assets (cartes, marché, révélation) passent par ici.
+ */
+export function blasonOf(row: {
+  blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
+}): CardAssets {
+  return {
+    blasonUrl: row.blason_url ?? row.contour_url,
+    blasonCredit: row.blason_credit,
+  };
+}
+
+/**
  * Résout les assets de blason d'une liste de cartes par lots groupés par
  * catégorie (au plus 3 requêtes ; les rues n'ont pas de blason). Retourne une
  * map indexée par `category:ref_code`, avec `{ blasonUrl: null, blasonCredit:
@@ -399,10 +438,7 @@ export async function resolveCardAssets(
           .where('code', 'in', uniqueRefs)
           .execute();
         for (const r of rows) {
-          result.set(cardNomKey('REGION', r.code), {
-            blasonUrl: r.blason_url ?? r.contour_url,
-            blasonCredit: r.blason_credit,
-          });
+          result.set(cardNomKey('REGION', r.code), blasonOf(r));
         }
         break;
       }
@@ -413,10 +449,7 @@ export async function resolveCardAssets(
           .where('code', 'in', uniqueRefs)
           .execute();
         for (const r of rows) {
-          result.set(cardNomKey('DEPARTEMENT', r.code), {
-            blasonUrl: r.blason_url ?? r.contour_url,
-            blasonCredit: r.blason_credit,
-          });
+          result.set(cardNomKey('DEPARTEMENT', r.code), blasonOf(r));
         }
         break;
       }
@@ -427,10 +460,7 @@ export async function resolveCardAssets(
           .where('code_insee', 'in', uniqueRefs)
           .execute();
         for (const r of rows) {
-          result.set(cardNomKey('COMMUNE', r.code_insee), {
-            blasonUrl: r.blason_url ?? r.contour_url,
-            blasonCredit: r.blason_credit,
-          });
+          result.set(cardNomKey('COMMUNE', r.code_insee), blasonOf(r));
         }
         break;
       }

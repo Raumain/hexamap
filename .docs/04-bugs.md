@@ -11,7 +11,7 @@ de la PR qui la ferme.
 | BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Ouvert |
 | BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
 | BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Corrigé — PR à ouvrir sur `fix/bug-005-salles-secondaires-mobile` |
-| BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Ouvert |
+| BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Corrigé — branche fix/bug-006-plates-illegibles |
 | BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`) |
 | BUG-008 | Les planches du tiroir se chevauchent | Basse | Ouvert |
 
@@ -360,7 +360,7 @@ anonyme.
 ## BUG-006 — Les planches sont illisibles en petit format
 
 - **Gravité** : Moyenne
-- **Statut** : Ouvert
+- **Statut** : Corrigé — branche `fix/bug-006-plates-illegibles`
 - **Constaté le** : 2026-11-19
 - **Zone** : `apps/web/src/components/ui/cards/*`,
   `components/revealed-cell.tsx`, `routes/collection.tsx`
@@ -416,7 +416,8 @@ plus un écu de 46 px selon la catégorie.
 
 ### Correction proposée
 
-1. **Agrandir la planche dans la case grattée** : `grid-cols-3` sous `sm`, et déplacer
+1. **Agrandir la planche dans la case grattée** : trois colonnes sous `sm` (piste écartée, voir
+   le correctif : elle découple la grille affichée de la distance de Manhattan), et déplacer
    la distance de Manhattan dans une pastille absolue en coin plutôt que sur une ligne
    réservée. Le budget tactile de 44 px reste tenu.
 2. **Un vrai gabarit miniature.** `card-shell.ts` accepte déjà `decorative` (art seul,
@@ -434,6 +435,74 @@ plus un écu de 46 px selon la catégorie.
 
 À ne pas faire : descendre un texte sous 10 px, supprimer le sceau de rareté (la rareté
 ne doit jamais reposer sur la seule couleur) ou réduire la case sous 44 px de côté.
+
+### Correctif (2026-11-19)
+
+- **La case grattée rend la planche entière.** Elle ne monte plus la miniature décorative : la
+  planche garde sa structure complète — en-tête, nom, pied, sceau de rareté et score — et c'est
+  elle qui porte la lecture, exactement comme au Cadastre. Un **bandeau de 16 px** la surmonte,
+  à l'intérieur de la case : marque `Jumelé` à gauche sur les cases `TWIN`, distance de Manhattan
+  à droite, les deux en `text-[10px]`. Plus rien ne recouvre la gravure.
+- **La grille du ticket reste `grid-cols-4` à toute largeur**, et les trois sortes de cases
+  (`ScratchCell`, `LockedCell`, case révélée) plus les placeholders de chargement partagent
+  `aspect-[3/5]` : aucune ligne irrégulière, et la case donne à la planche une largeur et une
+  hauteur de carte.
+- **La ligne « Bordereau <id> » et l'astuce clavier ont été retirées** à la demande de
+  l'utilisateur : la promesse « sélectionnez une case et appuyez sur Entrée ou Espace » ne tenait
+  pas sur téléphone. Le compteur de coups en quatre points reste, aligné à droite, et le
+  gestionnaire `onKeyDown` reste avec son anneau `focus-visible` — `packages/e2e/global-setup.ts`
+  gratte ses fixtures par `focus()` puis `press('Enter')`.
+- **La tentative en trois colonnes a été annulée.** Elle découplait la grille affichée de la
+  distance de Manhattan : à 390 px le tableau se rendait 3 + 3 + 3 + 3 + 3 + 1, et trois colonnes
+  visibles valent quatre colonnes logiques. Les cases reprennent de la hauteur plutôt que la
+  grille des colonnes.
+- **La charge utile de révélation gagne `blasonUrl` et `blasonCredit`.** `refCode` y était
+  déjà : le défaut tenait à `revealed-cell.tsx`, qui ne le transmettait pas, d'où l'écu
+  Département imprimant le repli `'—'` de `Card.tsx:43`. Le repli
+  `blason_url ?? contour_url` n'a plus qu'un propriétaire, l'aide `blasonOf`, partagée par
+  `resolveCardAssets` et `resolveCardMeta` ; les deux constructeurs remplissent la charge
+  utile — `routes/tickets.ts` pour la réponse de grattage, `loadMaskedTicket` de
+  `services/ticket.ts` pour la lecture persistée.
+- **Le Cadastre agrandit sa planche** au lieu de basculer en légende : 84/96 px deviennent
+  **120/140 px**, la première piste de grille passe de 96 à 140 px et la foulée du virtualiseur
+  de 152/142 à **220/192**, pour que `measureElement` et l'estimation s'accordent.
+- **La Rue garde son absence d'image.** `ref_odonymes` n'a aucune colonne de blason,
+  `resolveCardAssets` rend `null` pour `RUE` (`draw.ts:437-440`), et emprunter le contour du
+  département d'appartenance coûterait une recherche supplémentaire pour un ornement que le nom
+  porte déjà.
+- **La planche Rue a été complétée, parce qu'elle est désormais la seule surface de lecture.**
+  Son pied affiche le score — il imprimait auparavant l'ornement « Rue de France » et aucun
+  score, donc une rue révélée n'en montrait aucun —, son plancher typographique du nom descend de
+  13 à **10 px** (`clamp(10px,8.6cqi,21px)`), et son bloc « Occurrences » rejoint la densité
+  seconde.
+- **`.plate-optional` efface la densité seconde sous 110 px.** La règle vit dans
+  `apps/web/src/styles.css`, sous `@container (max-width: 110px)` : elle masque l'unité `pts`, le
+  code de référence d'une région ou d'une commune, et le bloc d'occurrences d'une rue. Sans elle,
+  le pied poussait le sceau de rareté hors de la planche sur un écran de 390 px — le banc a
+  attrapé un débordement de 10 px du sceau avant livraison.
+- **Le banc vérifie la proportion.** La boîte de la planche révélée doit garder
+  `hauteur / largeur` à 0,06 près de `7 / 5` : « La planche doit garder sa proportion de carte,
+  sinon elle redevient une vignette. » Le plancher de 60 px de large s'écrit
+  `Math.min(60, cellBox.width - 16)`, parce que 60 px n'est pas atteignable à 390 px.
+
+Deux corrections ont été **imposées par le banc, pas choisies**. La rangée de pastilles du
+Cadastre a reçu `flex-wrap` — l'élargissement de la planche faisait apparaître un débordement
+horizontal de **2 px** à 320 px, attrapé par un test existant — et son étiquette `text-[9px]`
+est remontée à `text-[10px]`. Par ailleurs `design-system.spec.ts`, cas « canvas — aucun
+filtre… », interrogeait `count()` avant que la requête du ticket n'ait répondu : défaut
+preexistant, révélé par le ticket actif que le nouveau cas laisse derrière lui, corrigé par un
+localisateur `.or()` patient. Deux miniatures décoratives portaient enfin un texte fixe sous
+10 px (`departement-card.tsx:44`, `text-[8px]` ; `rue-card.tsx:52`, `text-[9px]`), toutes deux
+passées à `text-[10px]`.
+
+**La règle qui reste** : le tableau se montre **4 × 4 à toute largeur** — les quatre colonnes sont
+la géométrie du domaine (`index = ligne * 4 + colonne`), jamais un choix de mise en page, car la
+pastille de distance annonce une distance calculée sur cette grille et mentirait sur un plateau
+redessiné. **La lecture vit sur la planche elle-même** : un plateau de téléphone n'a aucune largeur
+à céder, donc une planche n'est jamais rétrécie pour faire de la place à un texte hors d'elle —
+elle reçoit la case et c'est sa densité seconde qui tombe. Aucun texte visible sous **10 px** ; le
+budget de ≤ 18 nœuds non-SVG reste mesuré sur `article.exhibit`, qui rend désormais sa structure
+complète sans qu'aucune légende ne soit ajoutée.
 
 ---
 

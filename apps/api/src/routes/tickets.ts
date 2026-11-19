@@ -49,6 +49,8 @@ const maskedCardSchema = t.Object(
     rarity: raritySchema,
     score: t.Integer(),
     nom: t.String(),
+    blasonUrl: t.Union([t.String(), t.Null()]),
+    blasonCredit: t.Union([t.String(), t.Null()]),
   },
   { additionalProperties: false },
 );
@@ -344,6 +346,8 @@ export const ticketRoutes = new Elysia({ name: 'routes.tickets', prefix: '/ticke
                 rarity,
                 score: meta.score,
                 nom: meta.nom,
+                blasonUrl: meta.blasonUrl,
+                blasonCredit: meta.blasonCredit,
               },
             });
 

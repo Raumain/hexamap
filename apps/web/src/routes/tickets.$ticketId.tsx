@@ -189,10 +189,7 @@ function TicketPage() {
         <p className="max-w-xl text-sm leading-relaxed text-vellum/70">{TICKET.subtitle}</p>
       </header>
 
-      <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-vellum/60">
-          Bordereau {ticket.id.slice(0, 8).toUpperCase()}
-        </span>
+      <div className="mx-auto flex w-full max-w-2xl items-center justify-end">
         <span className="flex items-center gap-2" role="img" aria-label={pinsLabel}>
           {[0, 1, 2, 3].map((pin) => (
             <span
@@ -241,8 +238,6 @@ function TicketPage() {
               return <LockedCell key={cell.index} index={cell.index} />;
             })}
           </fieldset>
-
-          <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">{TICKET.keyboardHint}</p>
         </div>
 
         {ticket.renovationPending ? (
@@ -410,7 +405,7 @@ function StatusBadge({ status }: { status: Ticket['status'] }) {
 
 function LockedCell({ index }: { index: number }) {
   return (
-    <div className="relative flex aspect-square items-center justify-center rounded-[2px] border border-dashed border-ink/20 bg-ink/[0.03]">
+    <div className="relative flex aspect-[3/5] items-center justify-center rounded-[2px] border border-dashed border-ink/20 bg-ink/[0.03]">
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -441,7 +436,7 @@ function LoadingBoard() {
         <div className="vellum rounded-sheet p-4 md:p-5">
           <div className="grid grid-cols-4 gap-2 md:gap-3">
             {[...Array(16).keys()].map((index) => (
-              <div key={index} className="aspect-square rounded-[2px] bg-ink/[0.06]" />
+              <div key={index} className="aspect-[3/5] rounded-[2px] bg-ink/[0.06]" />
             ))}
           </div>
         </div>

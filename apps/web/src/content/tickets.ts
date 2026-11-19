@@ -57,7 +57,6 @@ export const TICKET = {
   notCurrent: "Ce ticket n'est plus votre ticket actif.",
   goToCurrent: 'Reprendre le ticket actif',
   gridAriaLabel: 'Grille du ticket',
-  keyboardHint: 'Astuce : sélectionnez une case et appuyez sur Entrée ou Espace pour la révéler.',
   renovationPending: 'Rénovation en attente : la prochaine carte gagne un palier.',
   treasureFound: 'Pépite trouvée !',
   treasureFoundLink: 'Voir dans le cadastre',
@@ -78,6 +77,16 @@ export function cellLabel(index: number): string {
 
 export function lockedCellLabel(index: number): string {
   return `Case ${index + 1} : verrouillée`;
+}
+
+export function distanceLabel(distance: number): string {
+  return distance === 0 ? 'Pépite' : `${distance} pas`;
+}
+
+export function distanceAriaLabel(distance: number): string {
+  return distance === 0
+    ? 'Distance à la pépite : aucune, vous y êtes.'
+    : `Distance à la pépite : ${distance} pas.`;
 }
 
 export function revealAnnouncement(index: number, name: string): string {

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 
 // Phase 16 « Le Geste » — la coquille mobile.
 //
@@ -13,6 +13,17 @@ import { expect, type Page, test } from '@playwright/test';
 const CABINET_NAV = 'nav[aria-label="Salles du cabinet"]';
 const COLLECTION_TABLE = 'Liste des cartes de votre collection';
 const SCRATCH_CELL = /^Case \d+, non révélée$/;
+
+// BUG-006 puis phase 22 : la case révélée rend une **vraie planche** — elle
+// n'est plus `decorative`, donc plus `aria-hidden` : la planche porte elle-même
+// son nom, son sceau de rareté et son score. Le sélecteur reste borné au
+// plateau, pour ne jamais attraper la planche de la modale de Pépite.
+const REVEALED_PLATE = 'article.exhibit';
+const RARITY_SEAL = /^Rareté : /;
+// Un score est une suite de chiffres, éventuellement espacée par groupes de
+// milliers, suivie ou non de son unité selon le pied de planche. Aucun libellé
+// n'est supposé : le texte est la seule signature.
+const SCORE_TEXT = /^\d[\d\s]*(\s*(?:pts|points))?$/;
 
 // BUG-005 : le cinquième contrôle de la barre basse et la feuille qu'il ouvre.
 // Le nom accessible du contrôle vaut exactement « Plus », d'où `exact` dans les
@@ -59,6 +70,43 @@ interface Point {
 function requireBox(box: Box | null, label: string): Box {
   if (box === null) throw new Error(`Aucune boîte rendue pour ${label}.`);
   return box;
+}
+
+/** Une boîte doit tenir dans une autre, à un pixel d'arrondi près. */
+function assertInside(inner: Box, outer: Box, label: string): void {
+  const tolerance = 1;
+  const left = outer.x - tolerance;
+  const top = outer.y - tolerance;
+  const right = outer.x + outer.width + tolerance;
+  const bottom = outer.y + outer.height + tolerance;
+
+  expect(inner.x, `${label} déborde à gauche de la case`).toBeGreaterThanOrEqual(left);
+  expect(inner.y, `${label} déborde en haut de la case`).toBeGreaterThanOrEqual(top);
+  expect(inner.x + inner.width, `${label} déborde à droite`).toBeLessThanOrEqual(right);
+  expect(inner.y + inner.height, `${label} déborde en bas`).toBeLessThanOrEqual(bottom);
+}
+
+/**
+ * Deux boîtes sont disjointes dès qu'elles ne se recouvrent plus sur un axe.
+ * Le pixel de tolérance absorbe les arrondis sous-pixel du rendu : un contact
+ * de bord n'est pas un chevauchement, un texte posé sur un autre en est un.
+ */
+function assertApart(first: Box, second: Box, label: string): void {
+  const overlapWidth =
+    Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x);
+  const overlapHeight =
+    Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y);
+
+  const apart = overlapWidth <= 1 || overlapHeight <= 1;
+  const width = Math.max(overlapWidth, 0).toFixed(1);
+  const height = Math.max(overlapHeight, 0).toFixed(1);
+
+  expect(apart, `${label} : chevauchement de ${width} × ${height} px`).toBe(true);
+}
+
+/** Taille de police effective, en pixels : en deçà de 10 px rien n'est lisible. */
+function readFontSize(locator: Locator): Promise<number> {
+  return locator.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize));
 }
 
 function viewportHeight(page: Page): number {
@@ -294,6 +342,147 @@ test('mobile — gratter ne fait pas défiler la page', async ({ page }) => {
   expect(after).toBe(before);
 });
 
+/* ── 4 bis. Case révélée : le cartel reste lisible (BUG-006) ─────────────── */
+
+test('mobile — une case révélée affiche nom, rareté et score sans chevauchement', async ({
+  page,
+}) => {
+  // Aucun ticket actif n'est supposé : `global-setup.ts` gratte des bordereaux
+  // jusqu'à posséder les quatre catégories et peut laisser le compte sans
+  // ticket ouvert. Le cas s'en procure donc un lui-même.
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Le relevé topographique' })).toBeVisible();
+
+  // Localisateur patient : `count()` ne patiente pas et répondrait avant que le
+  // tableau de bord n'ait rendu son état. « Reprendre » n'est qu'un repli, pour
+  // le cas où une exécution précédente aurait laissé un bordereau entamé.
+  const openBoard = page
+    .getByRole('button', { name: 'Obtenir un ticket' })
+    .or(page.getByRole('button', { name: 'Ouvrir un nouveau ticket' }))
+    .or(page.getByRole('link', { name: 'Reprendre mon ticket' }))
+    .first();
+  await expect(openBoard).toBeVisible();
+  await openBoard.click();
+  await expect(page.getByRole('group', { name: 'Grille du ticket' })).toBeVisible();
+
+  const scratchable = page.getByRole('button', { name: SCRATCH_CELL });
+  const board = page.getByRole('group', { name: 'Grille du ticket' });
+  const plates = board.locator(REVEALED_PLATE);
+
+  // Borne au nombre de cases du bordereau : une révélation qui n'arrive pas
+  // s'arrête là au lieu de boucler jusqu'au délai du test.
+  const cells = await scratchable.count();
+  expect(cells, 'Le bordereau doit présenter au moins une case à gratter.').toBeGreaterThan(0);
+
+  for (let attempt = 0; attempt < cells && (await plates.count()) === 0; attempt += 1) {
+    const box = requireBox(await scratchable.first().boundingBox(), 'la première case à gratter');
+
+    for (const [rx, ry] of SCRATCH_TAPS) {
+      await page.touchscreen.tap(box.x + box.width * rx, box.y + box.height * ry);
+      // Cadence entre deux appuis, comme le cas de grattage existant : aucune
+      // attente d'état ne passe par une pause (voir la borne patiente plus bas).
+      await page.waitForTimeout(120);
+      if ((await plates.count()) > 0) break;
+      if ((await scratchable.count()) === 0) break;
+    }
+  }
+
+  // La dernière révélation est une mutation serveur : la planche n'apparaît
+  // qu'après la réponse. La borne est patiente, jamais endormie ; si elle
+  // expire, le message français ci-dessous nomme la cause.
+  const revealed = await expect
+    .poll(() => plates.count(), { timeout: 15_000 })
+    .toBeGreaterThan(0)
+    .then(() => true)
+    .catch(() => false);
+
+  expect(revealed, 'Aucune case révélée après avoir gratté tout le bordereau.').toBe(true);
+
+  const plate = plates.first();
+  await expect(plate).toBeVisible();
+
+  // La planche est montée dans un cadre qui la centre, lui-même dans la case :
+  // la case est donc la grand-mère de la planche, pas sa mère.
+  const cell = plate.locator('xpath=../..');
+  await expect(cell).toBeVisible();
+
+  // La planche n'est plus une vignette : son nom est son propre titre, son
+  // score le texte numérique de son pied, son sceau le même rôle d'image
+  // qu'avant. Trois planches titrent en `h3`, la Rue écrit son nom dans un
+  // paragraphe typographique : le premier des deux est le nom.
+  const name = cell.locator('h3, p').first();
+  const score = cell.getByText(SCORE_TEXT).last();
+  const seal = cell.getByRole('img', { name: RARITY_SEAL }).first();
+
+  await expect(name, 'Le nom de la carte révélée doit être rendu').toBeVisible();
+  await expect(score, 'Le score de la carte révélée doit être rendu').toBeVisible();
+  await expect(seal, 'Le sceau de rareté de la carte révélée doit être rendu').toBeVisible();
+
+  // La grille est un 4 × 4 logique : `index = ligne * 4 + colonne`. Afficher
+  // trois colonnes ferait mentir la pastille de distance, qui mesure des écarts
+  // de lignes et de colonnes. On mesure donc les décalages réels des cases.
+  const boardCells = page.getByRole('group', { name: 'Grille du ticket' }).locator(':scope > *');
+  const boardOffsets = await boardCells.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { x: Math.round(rect.x), y: Math.round(rect.y) };
+    }),
+  );
+  const geometryMessage =
+    'La grille affichée doit rester 4 × 4, sinon la distance à la pépite ne correspond plus à ce que le joueur voit.';
+  const columns = new Set(boardOffsets.map((offset) => offset.x)).size;
+  const rows = new Set(boardOffsets.map((offset) => offset.y)).size;
+
+  expect(boardOffsets.length, geometryMessage).toBe(16);
+  expect(columns, geometryMessage).toBe(4);
+  expect(rows, geometryMessage).toBe(4);
+
+  const cellBox = requireBox(await cell.boundingBox(), 'la case révélée');
+  const plateBox = requireBox(await plate.boundingBox(), 'la planche de la case révélée');
+  const nameBox = requireBox(await name.boundingBox(), 'le nom de la carte révélée');
+  const scoreBox = requireBox(await score.boundingBox(), 'le score de la carte révélée');
+  const sealBox = requireBox(await seal.boundingBox(), 'le sceau de rareté de la carte révélée');
+
+  // Le défaut d'origine est un débordement : la planche sortait de sa case.
+  // Chaque élément mesuré doit donc tenir dans la case.
+  assertInside(plateBox, cellBox, 'La planche');
+  assertInside(nameBox, cellBox, 'Le nom');
+  assertInside(scoreBox, cellBox, 'Le score');
+  assertInside(sealBox, cellBox, 'Le sceau de rareté');
+
+  // Tenir dans la case ne suffit pas : deux textes superposés restent
+  // illisibles même lorsque leurs boîtes sont dans le cadre. La planche n'est
+  // plus comparée au nom : elle le **contient** désormais, c'est la lecture
+  // voulue. Ce sont les trois lectures qui ne doivent jamais se recouvrir.
+  assertApart(nameBox, scoreBox, 'Le nom recouvre le score');
+  assertApart(scoreBox, sealBox, 'Le score recouvre le sceau de rareté');
+  assertApart(nameBox, sealBox, 'Le nom recouvre le sceau de rareté');
+
+  // La planche n'est plus une vignette : elle doit occuper la case. Le plancher
+  // de 60 px est la cible ; à 390 px, la piste du plateau fait ~65 px et la
+  // case n'en laisse passer que l'intérieur, donc le plancher suit la case
+  // plutôt que d'affirmer un débordement impossible.
+  const ratioMessage =
+    'La planche doit garder sa proportion de carte, sinon elle redevient une vignette.';
+  const minimumPlateWidth = Math.min(60, cellBox.width - 16);
+  expect(plateBox.width, ratioMessage).toBeGreaterThanOrEqual(minimumPlateWidth);
+  const plateRatio = plateBox.height / plateBox.width;
+  expect(Math.abs(plateRatio - 7 / 5), ratioMessage).toBeLessThanOrEqual(0.06);
+
+  // Plancher de lisibilité : à moins de 10 px, aucun texte de planche n'est
+  // lisible sur un téléphone, quelle que soit la largeur disponible.
+  const nameSize = await readFontSize(name);
+  const scoreSize = await readFontSize(score);
+  expect(nameSize, 'Le nom de la carte est rendu sous 10 px').toBeGreaterThanOrEqual(10);
+  expect(scoreSize, 'Le score de la carte est rendu sous 10 px').toBeGreaterThanOrEqual(10);
+
+  // Preuve jointe au rapport : la revue lit la case, pas seulement des nombres.
+  await test.info().attach('case-revelee-390.png', {
+    contentType: 'image/png',
+    body: await page.screenshot(),
+  });
+});
+
 /* ── 5. Registre condensé ────────────────────────────────────────────────── */
 
 test('mobile — la collection reste condensée', async ({ page }) => {
@@ -312,6 +501,56 @@ test('mobile — la collection reste condensée', async ({ page }) => {
 
   const name = ((await row.locator('td').first().textContent()) ?? '').trim();
   expect(name.length, 'Le nom de la planche reste visible').toBeGreaterThan(0);
+});
+
+test('mobile — le registre montre une planche lisible', async ({ page }) => {
+  await page.goto('/collection');
+  await expect(page.getByRole('heading', { name: 'Ma collection' })).toBeVisible();
+
+  const table = page.getByRole('table', { name: COLLECTION_TABLE });
+  await expect(table).toBeVisible();
+
+  const plate = table.locator('article.exhibit').first();
+  await expect(plate).toBeVisible();
+
+  const box = requireBox(await plate.boundingBox(), 'la planche du registre');
+
+  // Seconde moitié du défaut : à 84 px la planche était une vignette muette.
+  // C'est la largeur qui fait basculer la planche de `decorative` à complète,
+  // donc 120 px est la mesure qui prouve la correction (BUG-006).
+  const width = box.width;
+  const gap = Math.abs(box.height / box.width - 7 / 5);
+
+  expect(width, 'La planche du registre doit mesurer au moins 120 px').toBeGreaterThanOrEqual(120);
+  // 7/5 est le rapport des planches : une vignette étirée trahirait un
+  // agrandissement de boîte plutôt qu'un rendu à l'échelle.
+  expect(gap, 'La planche du registre doit garder le rapport 7/5').toBeLessThanOrEqual(0.05);
+
+  // Le bloc condensé porte le nom, la ligne « Catégorie · N pts » et le sceau :
+  // agrandir la planche ne doit pas les faire disparaître de la ligne.
+  const row = table.locator('tbody tr').first();
+  await expect(row).toBeVisible();
+
+  const name = row
+    .locator('p')
+    .filter({ hasNotText: /·\s*\d[\d\s]*pts/ })
+    .first();
+  const label = ((await name.textContent()) ?? '').trim();
+  const scoreLine = row.getByText(/·\s*\d[\d\s]*pts/).first();
+  const seal = row.getByRole('img', { name: RARITY_SEAL }).first();
+
+  await expect(name, 'Le nom de la planche doit rester lisible').toBeVisible();
+  expect(label.length, 'Le nom de la planche est vide').toBeGreaterThan(0);
+  await expect(scoreLine, 'La ligne « Catégorie · score » doit rester lisible').toBeVisible();
+  await expect(seal, 'Le sceau de rareté doit rester visible dans la ligne').toBeVisible();
+
+  // Une planche élargie ne doit pas pousser le registre hors de la fenêtre.
+  await assertNoHorizontalOverflow(page, '/collection');
+
+  await test.info().attach('registre-390.png', {
+    contentType: 'image/png',
+    body: await page.screenshot(),
+  });
 });
 
 /* ── 6. Achat : un double-appui n'achète qu'une fois ─────────────────────── */

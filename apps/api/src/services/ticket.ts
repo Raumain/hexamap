@@ -6,6 +6,7 @@ import {
   type DrawnCard,
   drawCard,
   type Executor,
+  resolveCardAssets,
   resolveCardMeta,
   resolveCardNoms,
   weightedCategory,
@@ -35,6 +36,8 @@ export interface MaskedCard {
   rarity: Rarity;
   score: number;
   nom: string;
+  blasonUrl: string | null;
+  blasonCredit: string | null;
 }
 
 export interface MaskedCell {
@@ -264,18 +267,23 @@ export async function loadMaskedTicket(
   }
 
   const noms = await resolveCardNoms(exec, [...cardsById.values()]);
+  // Assets résolus une fois pour tout le lot : au plus trois requêtes, pas une par case.
+  const assets = await resolveCardAssets(exec, [...cardsById.values()]);
 
   const revealsMap = new Map<number, RevealInfo>();
   for (const r of reveals) {
     let card: MaskedCard | null = null;
     const stored = r.card_user_id ? cardsById.get(r.card_user_id) : undefined;
     if (stored) {
+      const asset = assets.get(cardNomKey(stored.category, stored.ref_code));
       card = {
         category: stored.category,
         refCode: stored.ref_code,
         rarity: stored.rarity,
         score: stored.score,
         nom: noms.get(cardNomKey(stored.category, stored.ref_code)) ?? '',
+        blasonUrl: asset?.blasonUrl ?? null,
+        blasonCredit: asset?.blasonCredit ?? null,
       };
     }
     revealsMap.set(r.cell_index, { distance: r.distance, card });

@@ -280,7 +280,7 @@ export function ScratchCell({
       aria-busy={pending || undefined}
       onKeyDown={handleKeyDown}
       className={[
-        'carbon relative block aspect-square w-full touch-none select-none overflow-hidden rounded-[2px] p-0 text-left',
+        'carbon relative block aspect-[3/5] w-full touch-none select-none overflow-hidden rounded-[2px] p-0 text-left',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-vellum',
         isDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab',
       ].join(' ')}
