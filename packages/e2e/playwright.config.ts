@@ -34,8 +34,21 @@ export default defineConfig({
   },
   projects: [
     {
+      // Les parcours écrits pour le bureau ne sont pas rejoués sous une coquille
+      // mobile : `mobile.spec.ts` porte les seuls contrôles tactiles.
       name: 'chromium',
+      testIgnore: /mobile\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'Pixel 7',
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'iPhone 13',
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
     },
   ],
 });
