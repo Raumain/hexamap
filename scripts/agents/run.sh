@@ -4,8 +4,15 @@
 # Le graphe des phases vit dans scripts/agents/phases.tsv, le préambule commun dans
 # scripts/agents/prompts/_commun.md, et le brief de chaque phase dans prompts/<n>.md.
 #
-# Ce script NE fusionne rien dans `main`. Il produit des branches, il ouvre des PR en
-# brouillon, et il vérifie que la vague fusionnée passe `ci:check`. La revue reste humaine.
+# Les branches sont EMPILÉES : une vague part de la branche d'accumulation de la vague
+# précédente, jamais de `main`. Une phase dont le brief dit « la phase X est fusionnée »
+# la voit donc réellement dans son arbre.
+#
+#   main ──┬─ feat/phase-26 ─┐
+#          └─ feat/phase-28 ─┴─ agents/wave-1 ── feat/phase-27 ── agents/wave-2 ── …
+#
+# Chaque PR de phase cible la branche de sa vague parente. La dernière branche
+# d'accumulation est celle qui remonte vers `main`. Ce script ne fusionne rien dans `main`.
 
 set -Eeuo pipefail
 
@@ -26,6 +33,7 @@ DRY_RUN=0
 KEEP=0
 ALLOW_DIRTY=0
 AUTO=1
+PUSH=1
 ONLY_WAVE=""
 ONLY_PHASE=""
 
@@ -37,13 +45,14 @@ usage() {
   cat <<'TXT'
 Usage : scripts/agents/run.sh [options]
 
-  --wave N        Ne joue que la vague N
+  --wave N        Ne joue que la vague N et les suivantes
   --phase N       Ne joue qu'une phase (implique sa vague)
   --parallel N    Sessions simultanées dans une vague (défaut 2)
   --dry-run       Affiche les commandes sans rien lancer
   --keep          Conserve les worktrees après exécution
   --allow-dirty   Autorise un arbre de travail non propre
   --no-auto       N'ajoute pas `opencode run --auto` (approbations manuelles)
+  --no-push       Ne pousse pas les branches d'accumulation
   -h, --help      Ce texte
 
 Variables : BASE, WT_ROOT, LOGDIR, MAX_PARALLEL, SESSION_TIMEOUT.
@@ -59,12 +68,16 @@ while [ $# -gt 0 ]; do
     --keep)        KEEP=1; shift ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --no-auto)     AUTO=0; shift ;;
+    --no-push)     PUSH=0; shift ;;
     -h|--help)     usage; exit 0 ;;
     *)             die "option inconnue : $1" ;;
   esac
 done
 
 dc() { docker compose "$@" </dev/null; }
+wave_branch()   { printf 'agents/wave-%s' "$1"; }
+# La vague 1 part de BASE ; les suivantes partent de l'accumulation précédente.
+parent_branch() { if [ "$1" -eq 1 ]; then printf '%s' "$BASE"; else wave_branch "$(( $1 - 1 ))"; fi; }
 
 # ---------------------------------------------------------------- préalables
 
@@ -115,6 +128,39 @@ ensure_db() {
 
 db_url() { printf 'postgres://%s:%s@db:5432/%s' "$PG_USER" "$PG_PASS" "$1"; }
 
+# ---------------------------------------------------------------- branche de base
+
+# La PR d'une phase cible la branche de sa vague parente : elle doit exister sur
+# l'origine *avant* que la session démarre, sinon `gh pr create --base` échoue et
+# l'agent risque de se rabattre sur `main`, ce qui casse la chaîne.
+ensure_remote_branch() {
+  local branch=$1
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] '$branch' doit exister en local puis sur l'origine (push si absente)"
+    return 0
+  fi
+
+  if ! git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+    die "la branche '$branch' est absente en local : rejoue la vague précédente."
+  fi
+
+  if [ "$PUSH" -eq 0 ]; then
+    warn "--no-push : '$branch' ne sera pas publiée, les PR de phase échoueront."
+    return 0
+  fi
+
+  if git -C "$ROOT" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+    log "branche de base publiée : $branch"
+    return 0
+  fi
+
+  log "branche de base absente de l'origine : push de $branch"
+  git -C "$ROOT" push -u origin "$branch" >>"$LOGDIR/push.log" 2>&1 \
+    || die "push de '$branch' impossible : les PR de la vague ne pourraient pas la cibler."
+}
+
+
 # ---------------------------------------------------------------- worktrees
 
 worktree_path() { printf '%s/phase-%s' "$WT_ROOT" "$1"; }
@@ -136,20 +182,19 @@ seed_worktree() {
 }
 
 prepare_worktree() {
-  local phase=$1 branch=$2 wt
+  local phase=$1 branch=$2 base=$3 wt
   wt=$(worktree_path "$phase")
 
-  if git -C "$ROOT" worktree list --porcelain | grep -qx "worktree $wt"; then
-    log "worktree réutilisé : $wt"
-  elif git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
-    log "worktree sur la branche existante $branch"
+  if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+    log "branche $branch déjà présente : reprise"
     if [ "$DRY_RUN" -eq 0 ]; then
-      git -C "$ROOT" worktree add -q "$wt" "$branch"
+      git -C "$ROOT" worktree add -q "$wt" "$branch" 2>/dev/null \
+        || git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$base"
     fi
   else
-    log "worktree + branche $branch depuis $BASE"
+    log "worktree + branche $branch depuis $base"
     if [ "$DRY_RUN" -eq 0 ]; then
-      git -C "$ROOT" worktree add -q -b "$branch" "$wt" "$BASE"
+      git -C "$ROOT" worktree add -q -b "$branch" "$wt" "$base"
     fi
   fi
 
@@ -159,21 +204,22 @@ prepare_worktree() {
 # ---------------------------------------------------------------- prompt
 
 substitute() {
-  local file=$1 slug=$2 branch=$3 migration=$4 test_db=$5
+  local file=$1 slug=$2 branch=$3 migration=$4 test_db=$5 parent=$6
   sed -e "s|{{SLUG}}|$slug|g" \
       -e "s|{{BRANCH}}|$branch|g" \
       -e "s|{{MIGRATION}}|$migration|g" \
       -e "s|{{TEST_DB_URL}}|$(db_url "$test_db")|g" \
+      -e "s|{{PARENT}}|$parent|g" \
       "$file"
 }
 
 build_prompt() {
-  local phase=$1 slug=$2 branch=$3 migration=$4 test_db=$5 out=$6
+  local phase=$1 slug=$2 branch=$3 migration=$4 test_db=$5 parent=$6 out=$7
 
   {
-    substitute "$PROMPTS/_commun.md" "$slug" "$branch" "$migration" "$test_db"
+    substitute "$PROMPTS/_commun.md" "$slug" "$branch" "$migration" "$test_db" "$parent"
     printf '\n---\n\n'
-    substitute "$PROMPTS/$phase.md" "$slug" "$branch" "$migration" "$test_db"
+    substitute "$PROMPTS/$phase.md" "$slug" "$branch" "$migration" "$test_db" "$parent"
     cat <<PARAMS
 
 ---
@@ -182,6 +228,7 @@ build_prompt() {
 
 - Phase : $phase ($slug)
 - Branche à pousser : \`$branch\`
+- **PR en brouillon : base \`$parent\`, jamais \`main\`.**
 - Migration réservée : \`$migration\` — tu n'en prends aucune autre.
 - Base de test : \`$(db_url "$test_db")\`
 - Worktree : \`$(worktree_path "$phase")\` — tu y es déjà, ne sors pas.
@@ -195,13 +242,13 @@ PARAMS
 # ---------------------------------------------------------------- session
 
 launch() {
-  local phase=$1 slug=$2 branch=$3 migration=$4 test_db=$5
+  local phase=$1 slug=$2 branch=$3 migration=$4 test_db=$5 parent=$6
   local wt prompt logfile
   wt=$(worktree_path "$phase")
   prompt="$LOGDIR/prompt-$phase-$slug.md"
   logfile="$LOGDIR/session-$phase-$slug.log"
 
-  build_prompt "$phase" "$slug" "$branch" "$migration" "$test_db" "$prompt"
+  build_prompt "$phase" "$slug" "$branch" "$migration" "$test_db" "$parent" "$prompt"
 
   local -a args=(run --archived --title "Hexamap · phase $phase · $slug")
   if [ "$AUTO" -eq 1 ]; then
@@ -218,30 +265,35 @@ launch() {
     >"$logfile" 2>&1
 }
 
-# ---------------------------------------------------------------- vérification de vague
+# ---------------------------------------------------------------- accumulation de vague
 
-verify_wave() {
-  local wave=$1
-  shift
+# Fusionne les branches de la vague dans `agents/wave-<n>`, partie de la branche
+# parente, puis vérifie l'ensemble. C'est cette branche que la vague suivante prend
+# comme base, et c'est elle qui remonte vers `main` à la fin de la chaîne.
+build_wave() {
+  local wave=$1 parent=$2
+  shift 2
   local -a branches=("$@")
-  local wt="$WT_ROOT/integration"
-  local test_db="hexamap_test_wave$wave"
+  local branch wt
+  branch=$(wave_branch "$wave")
+  wt="$WT_ROOT/integration-$wave"
 
-  ensure_db "$test_db"
+  ensure_db "hexamap_test_wave$wave"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] intégration de ${branches[*]} sur $BASE, puis ci:check"
+    log "[dry-run] $branch = $parent + ${branches[*]}, puis ci:check, puis push"
     return 0
   fi
 
   git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
   rm -rf "$wt"
-  git -C "$ROOT" worktree add -q -B agents/integration "$wt" "$BASE"
+  # -B réinitialise l'accumulation : une reprise de vague ne doit pas empiler deux fois.
+  git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$parent"
   seed_worktree "$wt"
 
   local b conflicted
   for b in "${branches[@]}"; do
-    if ! git -C "$wt" merge --no-ff --no-edit -m "agents: intégration $b" "$b" >/dev/null 2>&1; then
+    if ! git -C "$wt" merge --no-ff --no-edit -m "agents: intégrer $b dans $branch" "$b" >/dev/null 2>&1; then
       conflicted=$(git -C "$wt" diff --name-only --diff-filter=U)
       # `routeTree.gen.ts` est généré : on ne le fusionne jamais à la main, on le régénère.
       if [ "$conflicted" = "apps/web/src/routeTree.gen.ts" ]; then
@@ -250,7 +302,7 @@ verify_wave() {
         git -C "$wt" add apps/web/src/routeTree.gen.ts
         git -C "$wt" commit -q --no-edit
       else
-        warn "conflit réel en intégrant $b :"
+        warn "conflit réel en intégrant $b dans $branch :"
         printf '%s\n' "$conflicted" >&2
         warn "rien n'est résolu automatiquement. Corrige à la main dans $wt, puis relance."
         return 1
@@ -258,9 +310,23 @@ verify_wave() {
     fi
   done
 
-  log "ci:check sur la vague $wave (${branches[*]})"
-  ( cd "$wt" && dc --profile tools run --rm -e "TEST_DATABASE_URL=$(db_url "$test_db")" \
-      dev bun run ci:check )
+  log "ci:check sur $branch (${branches[*]})"
+  if ! ( cd "$wt" && dc --profile tools run --rm -e "TEST_DATABASE_URL=$(db_url "hexamap_test_wave$wave")" \
+        dev bun run ci:check ); then
+    warn "ci:check échoue sur $branch : la vague suivante ne partira pas de là."
+    return 1
+  fi
+
+  if [ "$PUSH" -eq 1 ]; then
+    log "push de $branch"
+    git -C "$ROOT" push -u origin "$branch" >>"$LOGDIR/push.log" 2>&1 \
+      || warn "push de $branch impossible : les PR ne pourront pas la cibler en ligne."
+  fi
+
+  # Le worktree doit disparaître, la branche reste : la vague suivante en part.
+  git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
+  rm -rf "$wt"
+  return 0
 }
 
 # ---------------------------------------------------------------- rapport
@@ -273,19 +339,21 @@ report() {
   for row in "${rows[@]}"; do
     label=${row%%|*}
     status=${row#*|}
-    printf '  %-18s %s\n' "$label" "$status"
+    printf '  %-22s %s\n' "$label" "$status"
   done
   printf '\n'
-  log "Branches :"
+  log "Branches de phase :"
   git -C "$ROOT" branch --list 'feat/phase-*' --format='  %(refname:short)'
+  log "Branches d'accumulation :"
+  git -C "$ROOT" branch --list 'agents/wave-*' --format='  %(refname:short)'
   printf '\n'
   log "Journaux : $LOGDIR"
   log "Worktrees : $WT_ROOT (supprimés sauf --keep)"
   printf '\n'
   log "Étape suivante, à la main :"
-  printf "  1. relire les PR en brouillon (gh pr list --author @me)\n"
+  printf "  1. relire les PR de phase, chacune ciblant la branche de sa vague parente\n"
   printf "  2. consolider .docs/sessions/*/journal.md dans .docs/03-active-task.md\n"
-  printf "  3. fusionner les PR dans l'ordre des vagues\n"
+  printf "  3. fusionner la DERNIÈRE branche agents/wave-* dans main\n"
 }
 
 cleanup() {
@@ -297,11 +365,10 @@ cleanup() {
     return 0
   fi
   local wt
-  for wt in "$WT_ROOT"/phase-* "$WT_ROOT/integration"; do
+  for wt in "$WT_ROOT"/phase-* "$WT_ROOT"/integration-*; do
     [ -d "$wt" ] || continue
     git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
   done
-  git -C "$ROOT" branch -D agents/integration >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------- boucle
@@ -356,7 +423,11 @@ main() {
       seen[$p2]=1
     done
 
-    log "vague $wave : ${batch[*]} (parallèle max $MAX_PARALLEL)"
+    local parent
+    parent=$(parent_branch "$wave")
+    ensure_remote_branch "$parent"
+
+    log "vague $wave : ${batch[*]} — base $parent (parallèle max $MAX_PARALLEL)"
 
     local -a pids=()
     local i p s b m
@@ -364,12 +435,12 @@ main() {
       p=${batch[$i]}; s=${batch_slugs[$i]}
       b=${batch_branches[$i]}; m=${batch_migrations[$i]}
       ensure_db "hexamap_test_$p"
-      prepare_worktree "$p" "$b"
+      prepare_worktree "$p" "$b" "$parent"
       if [ "$DRY_RUN" -eq 0 ]; then
-        launch "$p" "$s" "$b" "$m" "hexamap_test_$p" &
+        launch "$p" "$s" "$b" "$m" "hexamap_test_$p" "$parent" &
         pids+=("$!")
       else
-        launch "$p" "$s" "$b" "$m" "hexamap_test_$p"
+        launch "$p" "$s" "$b" "$m" "hexamap_test_$p" "$parent"
         pids+=("0")
       fi
     done
@@ -388,12 +459,19 @@ main() {
       fi
     done
 
-    if [ "$DRY_RUN" -eq 0 ] && [ "$rc" -eq 0 ]; then
-      if verify_wave "$wave" "${batch_branches[@]}"; then
-        results+=("vague $wave|vérifiée")
-      else
-        results+=("vague $wave|NON vérifiée")
-      fi
+    # Une chaîne trouée ne peut pas continuer : la vague suivante partirait d'un
+    # arbre qui ne contient pas ce que son brief lui promet.
+    if [ "$rc" -ne 0 ]; then
+      warn "vague $wave incomplète : la chaîne s'arrête ici, rien n'est accumulé."
+      results+=("vague $wave|chaîne interrompue")
+      break
+    fi
+
+    if build_wave "$wave" "$parent" "${batch_branches[@]}"; then
+      results+=("vague $wave|accumulée dans $(wave_branch "$wave")")
+    else
+      results+=("vague $wave|NON accumulée")
+      break
     fi
   done
 

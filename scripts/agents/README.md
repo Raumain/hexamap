@@ -24,6 +24,34 @@ C'est une parallélisation à deux, pas à cinq. Les domaines sont disjoints, le
 l'est pas : `migrator.ts`, `schema.ts`, `routeTree.gen.ts`, `nav-items.ts` et
 `03-active-task.md` sont touchés par plusieurs phases. D'où les garde-fous ci-dessous.
 
+## Branches empilées
+
+Une phase ne part jamais de `main` : elle part de la branche d'accumulation de sa vague
+parente. C'est ce qui rend vrai le paragraphe « la phase X est déjà fusionnée » des briefs.
+
+```
+main ──┬─ feat/phase-26 ─┐
+       └─ feat/phase-28 ─┴─ agents/wave-1 ── feat/phase-27 ── agents/wave-2 ── feat/phase-29 ── agents/wave-3
+```
+
+- **PR de phase** → la branche de sa vague parente (vague 1 : `main`, ou `BASE`).
+- **`agents/wave-N`** = la base parente + toutes les branches de la vague N, fusionnées et
+  vérifiées par un `ci:check`. C'est une vraie branche, poussée, pas un worktree jetable.
+- **La dernière `agents/wave-*`** est celle qui remonte vers `main`. Une seule PR à relire en
+  dernier, et elle contient tout.
+
+Une vague dont une session échoue n'accumule rien : la chaîne s'arrête là plutôt que de
+faire partir la vague suivante d'un arbre qui ne contient pas ce que son brief lui promet.
+
+**La branche de base est garantie avant le départ.** `gh pr create --base` échoue si la
+branche n'est pas sur l'origine, et le repli naturel est de viser `main` — ce qui casserait la
+chaîne. Le lanceur vérifie donc `git ls-remote` sur la branche parente avant de lancer la
+moindre session, et la pousse si elle n'existe qu'en local. Côté agent, le préambule impose la
+même vérification avec une attente bornée (2 minutes, 5 fois) et un refus explicite plutôt
+qu'un repli sur `main`.
+
+
+
 ## Ce que fait le lanceur
 
 1. **Préalable** : binaires présents, `.env` là, PostgreSQL répond, arbre de travail propre,
@@ -38,9 +66,10 @@ l'est pas : `migrator.ts`, `schema.ts`, `routeTree.gen.ts`, `nav-items.ts` et
 4. **Une session** : `opencode run --auto --archived --title …` avec le prompt composé
    (préambule + brief + paramètres). `--archived` garde les runs scriptés hors de la liste des
    sessions.
-5. **Une vérification de vague** : un worktree d'intégration, les branches fusionnées dans
-   l'ordre, puis `ci:check`. C'est la vraie preuve : elle porte sur la **combinaison**, pas sur
-   chaque branche séparément.
+5. **Une branche d'accumulation par vague** : `agents/wave-N` part de la branche parente,
+   fusionne les branches de la vague, puis passe `ci:check`. C'est la vraie preuve : elle porte
+   sur la **combinaison**, pas sur chaque branche séparément. Elle est poussée, et la vague
+   suivante en part.
 
 Il ne fusionne jamais dans `main`, et il n'ouvre pas les PR lui-même : la skill
 `02-pull-request` le fait dans chaque session.
@@ -92,6 +121,9 @@ n'existent pas.
 - **Le lanceur ne teste pas son propre chemin nominal** : `--dry-run` est vérifié, un run réel
   ne l'est pas. La première exécution doit être surveillée (`--keep` pour inspecter les
   worktrees si une session échoue).
+- **Il pousse `agents/wave-N`.** C'est un écart assumé à « ne rien pousser sans demande » : sans
+  cette branche sur l'origine, aucune PR de phase ne peut la cibler. `--no-push` l'annule, au
+  prix de PR locales impossibles.
 - **Un conflit non généré arrête la vague.** Si deux branches touchent la même ligne de
   `migrator.ts`, rien n'est résolu automatiquement : le lanceur imprime les fichiers en conflit
   et s'arrête. C'est volontaire — une résolution devinée serait pire qu'un arrêt.
@@ -104,6 +136,7 @@ n'existent pas.
 
 ## Après le lancement, à la main
 
-1. Relire les PR en brouillon : `gh pr list --author @me`.
+1. Relire les PR en brouillon : `gh pr list --author @me`. Chacune cible la branche de sa
+   vague parente.
 2. Consolider `.docs/sessions/*/journal.md` dans `.docs/03-active-task.md`.
-3. Fusionner dans l'ordre des vagues — jamais en parallèle, c'est le même dépôt.
+3. Fusionner **la dernière** `agents/wave-*` dans `main` — une seule PR, et elle contient tout.
