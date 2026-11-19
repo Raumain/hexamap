@@ -63,7 +63,7 @@ const columns = columnHelper.columns([
           <CardLink
             cardId={card.id}
             label={cardLinkLabel(card.nom)}
-            className="w-[84px] shrink-0 md:w-[96px]"
+            className="w-[120px] shrink-0 md:w-[140px]"
           >
             <Card
               type={card.category}
@@ -75,17 +75,17 @@ const columns = columnHelper.columns([
               blasonCredit={card.blasonCredit}
               locked={card.locked}
               variant="compact"
-              className="w-[84px] shrink-0 md:w-[96px]"
+              className="w-[120px] shrink-0 md:w-[140px]"
             />
           </CardLink>
           <div className="min-w-0 md:hidden">
             <p className="font-display text-[15px] font-semibold leading-tight text-vellum line-clamp-2">
               {card.nom}
             </p>
-            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/60">
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
               {CATEGORY_LABELS[card.category]} · {scoreFormatter.format(card.score)} pts
             </p>
-            <div className="mt-1.5 flex items-center gap-2">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <RarityBadge rarity={card.rarity} />
               <span className="font-mono text-[10px] tabular-nums text-vellum/55">
                 {dateFormatter.format(new Date(card.acquiredAt))}
@@ -138,7 +138,7 @@ const columns = columnHelper.columns([
 ]);
 
 const gridTemplate =
-  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[96px_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,0.6fr)] md:py-2';
+  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[140px_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,0.6fr)] md:py-2';
 
 const inputClass =
   'h-10 rounded-[2px] border border-veil bg-cabinet-sunk px-3 text-[13px] text-vellum placeholder:text-vellum/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass';
@@ -301,9 +301,12 @@ function CollectionTable({ items, total }: CollectionTableProps) {
   const rows = table.getRowModel().rows;
   // Un seul défilement : celui de la fenêtre. Pas de conteneur imbriqué, donc
   // pas de double barre de défilement sur mobile (DESIGN_SYSTEM.md §8.2).
+  // Le pas se déduit de la planche : 120 × 7/5 = 168, plus py-3 (24) donne 192 sur
+  // mobile ; 140 × 7/5 = 196, plus 24 donne 220 sur bureau. `measureElement` reste
+  // l'autorité, l'estimation ne dimensionne que la barre de défilement.
   const rowVirtualizer = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => (isDesktop ? 152 : 142),
+    estimateSize: () => (isDesktop ? 220 : 192),
     scrollMargin,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 8,
