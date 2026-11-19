@@ -6,6 +6,7 @@ import { FormError } from '../components/form-error';
 import { RevealedCell } from '../components/revealed-cell';
 import { ScratchCell } from '../components/scratch-cell';
 import { Card } from '../components/ui/Card';
+import { OverlayPortal } from '../components/ui/overlay-portal';
 import {
   CATEGORY_LABELS,
   lockedCellLabel,
@@ -320,48 +321,50 @@ function TicketPage() {
       </div>
 
       {celebratedCard ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={TREASURE_HEADING_ID}
-          className="fixed inset-0 z-50 grid place-items-center bg-cabinet/85 p-6"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setCelebration(null);
-          }}
-        >
-          <div className="w-full max-w-sm text-center">
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-brass">
-              {TICKET.treasureEyebrow}
-            </p>
-            <Card
-              type={celebratedCard.category}
-              rarity={celebratedCard.rarity}
-              name={celebratedCard.nom || TICKET.treasureFallbackName}
-              score={celebratedCard.score}
-              className="enter-plate mx-auto mt-5 w-52"
-            />
-            <h2 id={TREASURE_HEADING_ID} className="mt-5 font-display text-lg text-vellum">
-              {celebratedCard.nom || TICKET.treasureFallbackName}
-            </h2>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                to="/collection"
-                onClick={() => setCelebration(null)}
-                className="inline-flex min-h-11 items-center justify-center rounded-sm border-2 border-brass bg-brass px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale"
-              >
-                {TICKET.treasureModalLink}
-              </Link>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                onClick={() => setCelebration(null)}
-                className="inline-flex min-h-11 items-center justify-center rounded-sm border border-brass/40 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-vellum/80 transition-colors duration-150 hover:border-brass hover:text-vellum"
-              >
-                {TICKET.closeModal}
-              </button>
+        <OverlayPortal>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={TREASURE_HEADING_ID}
+            className="fixed inset-0 z-50 grid place-items-center bg-cabinet/85 p-6"
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) setCelebration(null);
+            }}
+          >
+            <div className="w-full max-w-sm text-center">
+              <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-brass">
+                {TICKET.treasureEyebrow}
+              </p>
+              <Card
+                type={celebratedCard.category}
+                rarity={celebratedCard.rarity}
+                name={celebratedCard.nom || TICKET.treasureFallbackName}
+                score={celebratedCard.score}
+                className="enter-plate mx-auto mt-5 w-52"
+              />
+              <h2 id={TREASURE_HEADING_ID} className="mt-5 font-display text-lg text-vellum">
+                {celebratedCard.nom || TICKET.treasureFallbackName}
+              </h2>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  to="/collection"
+                  onClick={() => setCelebration(null)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-sm border-2 border-brass bg-brass px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale"
+                >
+                  {TICKET.treasureModalLink}
+                </Link>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={() => setCelebration(null)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-sm border border-brass/40 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-vellum/80 transition-colors duration-150 hover:border-brass hover:text-vellum"
+                >
+                  {TICKET.closeModal}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </OverlayPortal>
       ) : null}
     </section>
   );

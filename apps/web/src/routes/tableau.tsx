@@ -10,6 +10,7 @@ import { MultiplierPanel } from '../components/tableau/multiplier-panel';
 import { TextField } from '../components/text-field';
 import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
+import { OverlayPortal } from '../components/ui/overlay-portal';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import {
   drawerTitleLabel,
@@ -472,105 +473,107 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="fixed inset-0 z-40" role="presentation">
-      <div className="absolute inset-0 bg-cabinet/80" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="fixed inset-x-0 bottom-0 z-40 flex max-h-[76vh] flex-col rounded-t-panel border-t border-brass/30 bg-cabinet-raised p-5 shadow-lifted md:left-[232px]"
-      >
-        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-veil-strong" />
+    <OverlayPortal>
+      <div className="fixed inset-0 z-40" role="presentation">
+        <div className="absolute inset-0 bg-cabinet/80" onClick={onClose} aria-hidden="true" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="fixed inset-x-0 bottom-0 z-40 flex max-h-[76vh] flex-col rounded-t-panel border-t border-brass/30 bg-cabinet-raised p-5 shadow-lifted md:left-[232px]"
+        >
+          <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-veil-strong" />
 
-        <div className="flex items-start justify-between gap-4">
-          <h2 id={titleId} className="font-display text-xl text-vellum">
-            {drawerTitleLabel(TABLEAU_SLOT_LABELS[slot])}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={TABLEAU.drawerClose}
-            className="rounded-[2px] border border-veil px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/70 transition-colors duration-150 hover:border-brass/40 hover:text-brass"
-          >
-            {TABLEAU.drawerClose}
-          </button>
-        </div>
-
-        <div className="mt-4 border-b border-veil pb-4">
-          <TextField
-            label={TABLEAU.searchLabel}
-            placeholder={TABLEAU.searchPlaceholder}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            tone="dark"
-          />
-          <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55">
-            {resultsLabel(eligible.length)}
-          </p>
-        </div>
-
-        {eligible.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center p-6 text-center">
-            <p className="font-display text-base italic text-vellum/60">{TABLEAU.noResults}</p>
+          <div className="flex items-start justify-between gap-4">
+            <h2 id={titleId} className="font-display text-xl text-vellum">
+              {drawerTitleLabel(TABLEAU_SLOT_LABELS[slot])}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={TABLEAU.drawerClose}
+              className="rounded-[2px] border border-veil px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/70 transition-colors duration-150 hover:border-brass/40 hover:text-brass"
+            >
+              {TABLEAU.drawerClose}
+            </button>
           </div>
-        ) : (
-          <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto pt-3">
-            <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
-              {virtualItems.map((virtualItem) => {
-                const card = eligible[virtualItem.index];
-                if (!card) return null;
-                const usedElsewhere = Object.entries(selection).some(
-                  ([usedSlot, usedCard]) => usedSlot !== slot && usedCard?.id === card.id,
-                );
-                return (
-                  <button
-                    key={card.id}
-                    ref={rowVirtualizer.measureElement}
-                    data-index={virtualItem.index}
-                    type="button"
-                    disabled={usedElsewhere}
-                    onClick={() => onSelect(slot, card)}
-                    className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ transform: `translateY(${virtualItem.start}px)` }}
-                  >
-                    <Card
-                      type={card.category}
-                      rarity={card.rarity}
-                      name={card.nom}
-                      score={card.score}
-                      refCode={card.refCode}
-                      blasonUrl={card.blasonUrl}
-                      blasonCredit={card.blasonCredit}
-                      locked={card.locked}
-                      variant="compact"
-                      decorative
-                      className="w-14 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-display text-[15px] text-vellum">{card.nom}</p>
-                      <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
-                        {CATEGORY_LABELS[card.category]} · {card.refCode}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <RaritySeal rarity={card.rarity} size={18} />
-                      <p className="mt-1 font-mono text-[11px] tabular-nums text-brass">
-                        {scoreFormatter.format(card.score)}
-                      </p>
-                    </div>
-                    {usedElsewhere ? (
-                      <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-warn">
-                        {TABLEAU.usedElsewhere}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
+
+          <div className="mt-4 border-b border-veil pb-4">
+            <TextField
+              label={TABLEAU.searchLabel}
+              placeholder={TABLEAU.searchPlaceholder}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              tone="dark"
+            />
+            <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55">
+              {resultsLabel(eligible.length)}
+            </p>
+          </div>
+
+          {eligible.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center p-6 text-center">
+              <p className="font-display text-base italic text-vellum/60">{TABLEAU.noResults}</p>
             </div>
-          </div>
-        )}
+          ) : (
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto pt-3">
+              <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
+                {virtualItems.map((virtualItem) => {
+                  const card = eligible[virtualItem.index];
+                  if (!card) return null;
+                  const usedElsewhere = Object.entries(selection).some(
+                    ([usedSlot, usedCard]) => usedSlot !== slot && usedCard?.id === card.id,
+                  );
+                  return (
+                    <button
+                      key={card.id}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualItem.index}
+                      type="button"
+                      disabled={usedElsewhere}
+                      onClick={() => onSelect(slot, card)}
+                      className="absolute top-0 left-0 flex h-16 w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{ transform: `translateY(${virtualItem.start}px)` }}
+                    >
+                      <Card
+                        type={card.category}
+                        rarity={card.rarity}
+                        name={card.nom}
+                        score={card.score}
+                        refCode={card.refCode}
+                        blasonUrl={card.blasonUrl}
+                        blasonCredit={card.blasonCredit}
+                        locked={card.locked}
+                        variant="compact"
+                        decorative
+                        className="w-14 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-display text-[15px] text-vellum">{card.nom}</p>
+                        <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
+                          {CATEGORY_LABELS[card.category]} · {card.refCode}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <RaritySeal rarity={card.rarity} size={18} />
+                        <p className="mt-1 font-mono text-[11px] tabular-nums text-brass">
+                          {scoreFormatter.format(card.score)}
+                        </p>
+                      </div>
+                      {usedElsewhere ? (
+                        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-warn">
+                          {TABLEAU.usedElsewhere}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
 
