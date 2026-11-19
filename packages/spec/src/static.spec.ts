@@ -47,6 +47,14 @@ describe('Archi §6.1 — service du front construit par l’API', () => {
     expect(response.headers.get('cache-control')).toContain('no-cache');
   });
 
+  it('Archi §6.1 — le service worker n’est jamais mis en cache', async () => {
+    const response = await request('/sw.js');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toStartWith('text/javascript');
+    expect(response.headers.get('cache-control')).toBe('no-cache');
+  });
+
   it('laisse la route de santé à l’API', async () => {
     const response = await request('/api/v1/health');
     const body = (await response.json()) as { status?: string };

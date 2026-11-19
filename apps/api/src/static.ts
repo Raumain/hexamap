@@ -63,9 +63,12 @@ const extensionOf = (relative: string): string => {
 };
 
 // Les assets versionnés du build sont immuables ; `index.html` ne doit jamais
-// être mis en cache ; le reste est revalidé à chaque requête.
+// être mis en cache ; le reste est revalidé à chaque requête. Un service worker
+// suit la même règle que l'index : mis en cache, un déploiement ne serait pas
+// pris en compte immédiatement.
 const cacheControlFor = (relative: string): string => {
   if (relative === '' || relative === 'index.html') return 'no-cache';
+  if (relative === 'sw.js' || relative === 'service-worker.js') return 'no-cache';
   if (relative.startsWith('assets/')) return 'public, max-age=31536000, immutable';
   return 'public, max-age=0, must-revalidate';
 };
