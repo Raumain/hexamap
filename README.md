@@ -240,15 +240,23 @@ scripts/
 
 ### Design system
 
-- Les jetons (couleurs, ombres, polices) vivent dans un seul bloc `@theme` de
-  `apps/web/src/styles.css` — Tailwind v4 CSS-first, pas de `tailwind.config.ts`.
-- Les polices (Space Grotesk, JetBrains Mono) sont **auto-hébergées** dans
-  `apps/web/public/fonts/` : aucun CDN, aucune requête tierce au runtime.
-- Les couleurs et libellés de rareté viennent de `packages/shared/src/rarity.ts` ;
-  `apps/web/src/lib/rarity-theme.ts` n'ajoute que les classes.
-- Règles pour un nouveau composant : pas de dégradé, pas de mode de fusion, pas de
-  `backdrop-blur`, pas d'ombre floutée, et **≤ 12 nœuds par carte** (racine + descendants
-  non-SVG, les internes d'un `<svg>` ne comptent pas).
+L'interface suit un parti pris unique, **le cabinet de cartographie** : une pièce sombre où
+les cartes sont des planches exposées, sur vélin, avec du laiton et de la cire.
+
+- Les jetons (couleurs, ombres, rayons, durées, polices) vivent dans un seul bloc `@theme`
+  de `apps/web/src/styles.css` — Tailwind v4 CSS-first, jamais de `tailwind.config.ts`.
+- Trois familles **auto-hébergées** dans `apps/web/public/fonts/`, sans CDN : **Fraunces**
+  (éditorial), **Instrument Sans** (interface), **JetBrains Mono** (données).
+- La rareté est un **métal**, pas une pastille : `RARITY_ACCENT_HEX` dans
+  `packages/shared/src/rarity.ts` porte les six valeurs (étain, cuivre, argent, émail, or,
+  électrum) et `RARITY_LABELS` les libellés français ; `apps/web/src/lib/rarity-theme.ts`
+  n'ajoute que l'initiale, l'épaisseur et l'encre du sceau.
+- Quatre planches (`region-card`, `departement-card`, `commune-card`, `rue-card`) partagent le
+  châssis `cards/card-shell.ts` ; la vue communale est générée de façon déterministe depuis
+  le code INSEE. Budget : **≤ 18 nœuds non-SVG par planche** (les internes d'un `<svg>` ne
+  comptent pas).
+- Effets autorisés sur les surfaces (lumière, grain, fibre du vélin), **interdits dans les
+  listes virtualisées et autour du canvas de grattage**.
 
 La référence complète est `DESIGN_SYSTEM.md`.
 

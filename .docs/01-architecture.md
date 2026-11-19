@@ -217,67 +217,55 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db ping`, dossier `packages/db/src/ping.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
 - **Base de test dédiée, imposée par le garde-fou.** `ci:check` exige `TEST_DATABASE_URL` et refuse de démarrer si elle est absente, si elle égale `DATABASE_URL`, ou si `NODE_ENV=production`. La suite de spécifications ne touche donc jamais les référentiels importés en développement. `packages/db` réexporte `sql` de Kysely pour que les specs puissent lancer du SQL brut sans dépendance propre.
 
-### 4.9 Design system : jetons, rareté, budget DOM
+### 4.9 Design system : jetons, métaux, planches, coquille
 
-La référence visuelle complète est `DESIGN_SYSTEM.md`. Cette section fixe les règles qui
-engagent le code, pas seulement l'apparence.
+La référence visuelle complète est `DESIGN_SYSTEM.md` (révision 4, « Le Cabinet de
+cartographie »). Cette section fixe les règles qui engagent le code, pas seulement l'apparence.
 
-- **Un seul propriétaire des jetons : `apps/web/src/styles.css`.** Tailwind v4 est
-  CSS-first : un unique bloc `@theme` déclare les surfaces (`surface`, `paper`, `muted`,
-  `border`), les encres (`ink`, `ink-secondary`, `ink-muted`, `ink-inverse`), les accents de
-  signalétique (`sign-blue`, `sign-green`, `sign-red`, `sign-ochre`, `sign-gold`) et les trois
-  ombres tactiles `--shadow-tactile-sm|tactile|tactile-lg`, toutes à **0 px de flou**. Il n'y
-  a **pas** de `tailwind.config.ts` et il ne doit jamais y en avoir : il ne serait pas chargé.
-  Aucun composant n'écrit une couleur littérale (`bg-[#...]`) ; les valeurs vivent dans
-  `styles.css`. Les mêmes règles `@font-face`, le `@layer base` de `body` et les pseudo-éléments
-  `.rue-plaque::before/::after` vivent dans ce fichier. `biome.json` doit garder
-  `css.parser.tailwindDirectives: true` (Biome 2.6) : sans cette option, `biome check` refuse de
-  parser `@theme` et `ci:check` échoue à l'étape 1.
+- **Un seul propriétaire des jetons : `apps/web/src/styles.css`.** Tailwind v4 est CSS-first :
+  un unique bloc `@theme` déclare la pièce (`cabinet`, `cabinet-raised`, `cabinet-sunk`), le
+  vélin (`vellum`, `vellum-2`, `vellum-edge`), les encres (`ink`, `ink-soft`, `ink-faint`), le
+  laiton et la cire (`brass`, `brass-deep`, `oxide`, `verdigris`, `indigo`), les six métaux de
+  rareté, les rayons, les ombres et les durées. Six `@font-face` y sont déclarées — Fraunces,
+  Instrument Sans et JetBrains Mono, chacune en `latin` + `latin-ext` avec `unicode-range` —
+  et les fichiers sont auto-hébergés dans `apps/web/public/fonts/`. Il n'y a **pas** de
+  `tailwind.config.ts` et il ne doit jamais y en avoir : il ne serait pas chargé. Aucun
+  composant n'écrit une couleur littérale. `biome.json` doit garder
+  `css.parser.tailwindDirectives: true` (Biome 2.6), sans quoi `ci:check` échoue à l'étape 1.
 - **La rareté est un domaine partagé, pas une décision d'UI.** `packages/shared/src/rarity.ts`
   possède les six paliers (`COMMUNE`, `INHABITUELLE`, `RARE`, `EPIQUE`, `LEGENDAIRE`,
   `MYTHIQUE`), leurs libellés français via `RARITY_LABELS` (`INHABITUELLE` = « Peu commune »)
-  et leurs couleurs via `RARITY_ACCENT_HEX`. `apps/web/src/lib/rarity-theme.ts` ne fait
-  qu'ajouter les classes Tailwind (`RARITY_THEME`) et réexporter libellé + accent : il ne
-  redéfinit ni la liste ni le texte. `packages/spec/src/rarity.spec.ts` verrouille la parité
-  six paliers, les libellés exacts, le format hexadécimal et la somme de `RARITY_WEIGHTS` à 100.
-  Un palier manquant est un test rouge, pas un badge gris.
-- **Un seul badge.** `apps/web/src/components/ui/rarity-badge.tsx` est le seul `RarityBadge`.
-  Cinq copies locales ont été supprimées avec `apps/web/src/components/ui/card-styles.ts` ;
-  les couleurs de catégorie et les motifs SVG par catégorie ont migré vers
-  `apps/web/src/lib/category-theme.ts`.
-- **Quatre gabarits procéduraux, un seul point d'entrée.**
-  `apps/web/src/components/ui/Card.tsx` reste le composant public (`CardProps` inchangé,
-  `variant` ne pilote que le pied) et délègue par `type` aux quatre gabarits de
-  `apps/web/src/components/ui/cards/` : `region-card.tsx` (courbes de niveau IGN, `bg-paper`),
-  `departement-card.tsx` (bouclier octogonal en `clip-path`, code en filigrane),
-  `commune-card.tsx` (cartouche EB10 à liseré rouge, puce population), `rue-card.tsx`
-  (plaque émaillée, `bg-sign-blue` jusqu'à `INHABITUELLE`, `bg-sign-green` à partir de `RARE`,
-  rivets en pseudo-éléments). Le châssis commun est `cards/card-shell.ts`. Aucun de ces
-  gabarits ne dessine un blason par un nœud libre.
-- **Budget DOM mesuré, avec une règle de comptage explicite.** Chaque carte rendue dans
-  `@tanstack/react-virtual` reste à **≤ 12 nœuds**, comptés comme **racine + descendants
-  non-SVG** ; les enfants internes d'un `<svg>` (`path`, `line`…) sont exclus du budget. Comptes
-  mesurés : Région **11**, Département **9**, Commune **10** (**11** avec le `<img>` de blason),
-  Rue **6**. `packages/e2e/tests/design-system.spec.ts` applique cette règle et échoue au-delà de
-  12. Toute décoration ajoutée doit passer par `::before`/`::after`, `border` ou `background`.
-- **Blason en calque de fond, jamais en nœud décoratif.** Région et Département posent le
-  blason réel en `background-image` sur un conteneur existant : zéro nœud. La Commune est la
-  seule exception, avec **un** `<img>` dans le cartouche EB10 (d'où 11 nœuds). La Rue n'en a
-  pas. Les blasons restent servis par `GET /blasons/*` (§4.7), avec `blasonCredit` en base.
-- **Le tableau de combo ne calcule rien.** `apps/web/src/components/tableau/` (`combo-board.tsx`,
-  `alignment-connector.tsx`, `multiplier-panel.tsx`) affiche un état **entièrement serveur** :
-  `alignment.breakdown[].valid` pour chaque `✓ Aligné` / `✗ Hors-zone`, `alignment.multiplier`
-  pour le panneau `×N`. `alignment.links` est un **nombre**, pas un tableau. Les connecteurs SVG
-  ne se dessinent qu'à partir de `lg` ; en dessous, la liste `✓`/`✗` par case les remplace.
-  Aucun recalcul d'alignement ni de multiplicateur dans le navigateur.
-- **Interdits visuels, vérifiés par test.** Pas de dégradé (`linear-gradient`, `bg-gradient-*`),
-  pas de mode de fusion, pas de `backdrop-blur`, pas de `filter`/`drop-shadow`, pas d'ombre
-  floutée, pas de `rounded-2xl/3xl` sur une carte, pas de `transition-all` ni d'`animate-pulse`
-  dans une liste virtualisée. La profondeur vient d'une bordure nette et d'une ombre décalée à
-  0 px de flou. `design-system.spec.ts` vérifie l'absence de dégradé et de `backdrop-filter`,
-  les chiffres en `font-mono tabular-nums`, les quatre gabarits distincts, le budget de 12 nœuds
-  et le multiplicateur piloté par le serveur. La couverture est **écrite** ; son exécution reste
-  à valider sur la pile Docker Playwright.
+  et leurs six métaux via `RARITY_ACCENT_HEX` (étain, cuivre, argent, émail, or, électrum).
+  `apps/web/src/lib/rarity-theme.ts` n'ajoute que l'initiale du sceau, l'épaisseur du filet et
+  l'encre lisible : il ne redéfinit ni la liste, ni le texte, ni une couleur.
+  `packages/spec/src/rarity.spec.ts` verrouille la parité six paliers, les libellés exacts, le
+  format hexadécimal et la somme de `RARITY_WEIGHTS` à 100.
+- **Deux marques, deux rôles.** `apps/web/src/components/ui/rarity-seal.tsx` est l'unique sceau
+  de rareté ; `apps/web/src/components/ui/rarity-badge.tsx` reste le libellé inline. Aucun
+  composant ne redessine un sceau ni n'écrit un libellé de rareté à la main.
+- **Quatre planches, un seul point d'entrée.** `apps/web/src/components/ui/Card.tsx` délègue
+  par `type` aux quatre planches de `apps/web/src/components/ui/cards/` — `region-card.tsx`,
+  `departement-card.tsx`, `commune-card.tsx`, `rue-card.tsx` — sur le châssis commun
+  `cards/card-shell.ts`. `apps/web/src/lib/commune-vignette.ts` génère la silhouette de village
+  de façon **déterministe depuis le code INSEE** : aucun aléatoire au rendu, aucun état React.
+  Deux communes différentes ne produisent jamais la même vue.
+- **Budget DOM : ≤ 18 nœuds non-SVG par planche**, racine incluse, les enfants internes d'un
+  `<svg>` exclus. Les gravures ajoutent de la richesse sans coûter de nœuds ; les ornements
+  passent par `::before`/`::after`. `packages/e2e/tests/design-system.spec.ts` applique ce
+  budget, vérifie les quatre gravures distinctes, le déterminisme de la vignette et le
+  multiplicateur piloté par le serveur.
+- **La coquille est unique.** `apps/web/src/components/layout/app-shell.tsx` monte
+  `sidebar.tsx` (rail desktop, à partir de `md:`) et `bottom-tab-bar.tsx` (onglets mobiles),
+  avec `env(safe-area-inset-top|bottom)` et `viewport-fit=cover`. Chaque route rend **un seul**
+  `main` ; les salles sont nommées dans l'interface (Le Relevé, Le Cadastre, La Planche, Le
+  Comptoir, Le Seuil, Les Archives).
+- **Politique d'effets.** Dégradés et ombres douces sont autorisés sur les surfaces (cônes de
+  lumière, vignettage, fibre du vélin) et **interdits dans une liste virtualisée** comme
+  autour du canvas de grattage : ni `filter`, ni `backdrop-filter`, ni `mix-blend-mode` par
+  ligne. Le grain est **un seul** `body::after` fixe, jamais un filtre par composant.
+- **Le tableau de combo ne calcule rien.** `alignment.breakdown[].valid` et
+  `alignment.multiplier` viennent du serveur ; `alignment.links` est un **nombre**. Aucun
+  recalcul d'alignement ni de multiplicateur dans le navigateur.
 
 ---
 
