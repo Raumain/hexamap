@@ -9,7 +9,7 @@ de la PR qui la ferme.
 | BUG-001 | Données de test de `packages/spec` présentes dans la base de développement | Haute | Ouvert — cause corrigée, données à nettoyer |
 | BUG-002 | Une carte de collection peut référencer un référentiel inexistant | Moyenne | Ouvert |
 | BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Ouvert |
-| BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Ouvert |
+| BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
 
 Gravités : `Haute` (donnée utilisateur fausse ou perte de données), `Moyenne`
 (comportement incorrect sans perte), `Basse` (robustesse, hygiène).
@@ -163,7 +163,7 @@ la même migration.
 ## BUG-004 — La modale de trouvaille ne se ferme jamais et recouvre Le Relevé
 
 - **Gravité** : Haute
-- **Statut** : Ouvert
+- **Statut** : Corrigé — PR à ouvrir sur `feat/phase-15-cartel`
 - **Constaté le** : 2026-11-19
 - **Zone** : `apps/web/src/routes/tickets.$ticketId.tsx`,
   `apps/api/src/services/ticket.ts`
@@ -247,6 +247,34 @@ scénario le plus probable ici.
 À ne pas faire : masquer la modale en vidant `ticket_reveals` ou en ajoutant une
 colonne « déjà vue ». Le défaut est côté client (état dérivé + aucune sortie), pas
 dans la persistance du tirage.
+
+### Correction livrée
+
+Corrigé le 2026-11-19, uniquement côté web. Aucun changement d'API, de
+`ticket_reveals` ni de la dérivation `treasureFound` : le serveur reste
+autoritaire et `maskTicket` est intact.
+
+1. **La modale est un événement, plus un état.** `tickets.$ticketId.tsx:47` ajoute
+   `celebration` (`useState<TicketCell | null>`) ; il n'est alimenté que par
+   `onSuccess` de la mutation de grattage, quand `data.effects` contient
+   `TREASURE_FOUND` (`:73-77`). `ticket.treasureFound` n'ouvre plus rien.
+2. **Sorties et accessibilité.** `role="dialog"` + `aria-modal` +
+   `aria-labelledby` vers le nom de la planche (`:322-326`), bouton « Fermer »
+   (`:353-361`), `Escape` (`:50-60`), clic sur le fond via `onPointerDown` gardé
+   par `event.target === event.currentTarget` (`:328-330`). À l'ouverture le focus
+   va au bouton de fermeture ; à la fermeture, le nettoyage de l'effet le rend à
+   la grille (`ref` sur le `fieldset`, `:221`). Le lien « Ranger dans le cadastre »
+   ferme aussi la modale avant de naviguer.
+3. **Trace non bloquante.** La ligne « Pépite trouvée » s'affiche dès qu'une case
+   `TREASURE` est révélée et qu'aucune modale n'est ouverte (`:251-261`) ; elle
+   porte le lien « Voir dans le cadastre » et ne recouvre plus le bouton
+   « Nouveau ticket ».
+4. **Libellés centralisés.** `apps/web/src/content/tickets.ts:63-67` :
+   `treasureFoundLink`, `treasureEyebrow`, `treasureFallbackName`,
+   `treasureModalLink`, `closeModal`.
+
+Vérifié dans Docker : `bun run lint`, `bun run typecheck`,
+`bun test packages/spec` (140 pass, 0 fail), `bun run build`.
 
 ---
 
