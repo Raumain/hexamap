@@ -1,107 +1,358 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEXAMAP — Le Cabinet de cartographie
+   Design System v4 — voir DESIGN_SYSTEM.md
+   Un seul propriétaire des jetons. Aucun tailwind.config.ts, jamais.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  /* ── Typography ───────────────────────────────────────────── */
-  --font-sans: "Space Grotesk", "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  /* ── La pièce ─────────────────────────────────────────────────────────── */
+  --color-cabinet: #0c1210;
+  --color-cabinet-raised: #131b17;
+  --color-cabinet-sunk: #070c0a;
+  --color-veil: #24312b;
+  --color-veil-strong: #3a4a42;
 
-  /* ── Cartographic surfaces (light / paper mode by default) ── */
-  --color-canvas: #f4f1ea;
-  --color-surface: #ffffff;
-  --color-paper: #faf8f5;
-  --color-muted: #e6e2d8;
-  --color-border: #1e293b;
+  /* ── Le vélin ─────────────────────────────────────────────────────────── */
+  --color-vellum: #efe7d7;
+  --color-vellum-2: #e3d7bd;
+  --color-vellum-edge: #cbb995;
 
-  /* ── Inks ─────────────────────────────────────────────────── */
-  --color-ink: #0f172a;
-  --color-ink-secondary: #475569;
-  --color-ink-muted: #94a3b8;
-  --color-ink-inverse: #f8fafc;
+  /* ── L'encre gravée ───────────────────────────────────────────────────── */
+  --color-ink: #1a1712;
+  --color-ink-soft: #4a4237;
+  --color-ink-faint: #6a5e4c;
 
-  /* ── Authentic French signage & IGN accents ───────────────── */
-  --color-sign-blue: #003399;
-  --color-sign-green: #005c36;
-  --color-sign-red: #d92323;
-  --color-sign-ochre: #c25e00;
-  --color-sign-gold: #d97706;
+  /* ── Le laiton et la cire ─────────────────────────────────────────────── */
+  --color-brass: #c6a15b;
+  --color-brass-deep: #8a6a2f;
+  --color-brass-pale: #e6d3a3;
+  --color-oxide: #8e3b2e;
+  --color-verdigris: #4e7c6a;
+  --color-indigo: #2b3a63;
 
-  /* ── Tactile offset shadows (no blur, ever) ───────────────── */
-  --shadow-tactile-sm: 1px 1px 0px 0px #0f172a;
-  --shadow-tactile: 2px 2px 0px 0px #0f172a;
-  --shadow-tactile-lg: 4px 4px 0px 0px #0f172a;
+  /* ── Métaux de rareté ─────────────────────────────────────────────────── */
+  --color-metal-etain: #8f979a;
+  --color-metal-cuivre: #b2703f;
+  --color-metal-argent: #d3d9dd;
+  --color-metal-email: #3e5a8a;
+  --color-metal-or: #c9a227;
+  --color-metal-orichalque: #e8ce8c;
+
+  /* ── États ────────────────────────────────────────────────────────────── */
+  --color-ok: #5f8f74;
+  --color-warn: #c98a3a;
+  --color-danger: #b4463a;
+
+  /* ── Typographie ──────────────────────────────────────────────────────── */
+  --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-sans: "Instrument Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Rayons ───────────────────────────────────────────────────────────── */
+  --radius-sheet: 2px;
+  --radius-panel: 14px;
+  --radius-pill: 999px;
+
+  /* ── Ombres ───────────────────────────────────────────────────────────── */
+  --shadow-sheet: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 18px 40px -22px rgb(0 0 0 / 0.75);
+  --shadow-lifted: 0 28px 60px -28px rgb(0 0 0 / 0.95), 0 2px 0 rgb(0 0 0 / 0.35);
+  --shadow-sunk: inset 0 2px 6px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(0 0 0 / 0.35);
+  --shadow-brass: 0 1px 0 rgb(255 255 255 / 0.18) inset, 0 6px 14px -8px rgb(0 0 0 / 0.8);
+
+  /* ── Mouvement ────────────────────────────────────────────────────────── */
+  --ease-cabinet: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ── Polices auto-hébergées ───────────────────────────────────────────────── */
+
 @font-face {
-  font-family: "Space Grotesk";
-  src: url("/fonts/SpaceGrotesk-latin.woff2") format("woff2-variations");
-  font-weight: 300 700;
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-latin.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
 }
-
 @font-face {
-  font-family: "Space Grotesk";
-  src: url("/fonts/SpaceGrotesk-latin-ext.woff2") format("woff2-variations");
-  font-weight: 300 700;
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-latin-ext.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/InstrumentSans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/InstrumentSans-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 @font-face {
   font-family: "JetBrains Mono";
-  src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2-variations");
+  src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2");
   font-weight: 100 800;
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
 }
-
 @font-face {
   font-family: "JetBrains Mono";
-  src: url("/fonts/JetBrainsMono-latin-ext.woff2") format("woff2-variations");
+  src: url("/fonts/JetBrainsMono-latin-ext.woff2") format("woff2");
   font-weight: 100 800;
   font-style: normal;
   font-display: swap;
   unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 
 @layer base {
   html {
+    color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    background-color: var(--color-canvas);
-    color: var(--color-ink);
+    min-height: 100dvh;
+    color: var(--color-vellum);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-color: var(--color-cabinet);
+    background-image: radial-gradient(120% 80% at 50% -10%, #17231d 0%, #0c1210 52%, #070c0a 100%);
+    background-attachment: fixed;
+  }
+
+  /* Une seule couche de grain, fixe, au-dessus de tout. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.045;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: var(--color-brass);
+    color: var(--color-cabinet);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brass);
+    outline-offset: 2px;
+    border-radius: 1px;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+
+  input::placeholder {
+    color: var(--color-ink-faint);
   }
 }
 
-/* French enameled street plaque rivets (DESIGN_SYSTEM.md §5.4). */
-.rue-plaque::before,
-.rue-plaque::after {
-  content: "";
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+/* ── Composants de matière ────────────────────────────────────────────────── */
+
+@layer components {
+  /* La feuille de vélin : la seule surface claire de l'application. */
+  .vellum {
+    color: var(--color-ink);
+    background-color: var(--color-vellum);
+    background-image:
+      repeating-linear-gradient(92deg, rgb(26 23 18 / 0.022) 0 1px, transparent 1px 4px),
+      radial-gradient(120% 90% at 50% 0%, #f7f0e1 0%, #ece3d0 58%, #e2d6bd 100%);
+    box-shadow: var(--shadow-sheet);
+  }
+
+  /* Filet de laiton : 1 px, jamais plus. */
+  .brass-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-brass-deep) 8%,
+      var(--color-brass) 50%,
+      var(--color-brass-deep) 92%,
+      transparent
+    );
+    opacity: 0.75;
+  }
+
+  /* Sur-titre de salle. */
+  .salon-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-brass);
+  }
+
+  /* Le carton de montage d'une planche. */
+  .exhibit {
+    position: relative;
+    isolation: isolate;
+    container-type: inline-size;
+    background-color: var(--color-cabinet-raised);
+    background-image: radial-gradient(80% 60% at 50% 0%, rgb(198 161 91 / 0.12), transparent 70%);
+    box-shadow: var(--shadow-lifted);
+    transition:
+      transform 320ms var(--ease-cabinet),
+      box-shadow 320ms var(--ease-cabinet);
+  }
+
+  /* Cône de lumière au-dessus d'une planche exposée. */
+  .exhibit::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(120% 70% at 50% -20%, rgb(255 246 214 / 0.16), transparent 62%);
+  }
+
+  .exhibit:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 34px 70px -30px rgb(0 0 0 / 1),
+      0 2px 0 rgb(0 0 0 / 0.4);
+  }
+
+  /* Le carbone de grattage. */
+  .carbon {
+    background-color: #2b312e;
+    background-image:
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 7px),
+      radial-gradient(120% 120% at 30% 20%, #3a423d 0%, #232926 70%);
+    box-shadow: var(--shadow-sunk);
+  }
 }
 
-.rue-plaque::before {
-  top: 6px;
-  left: 6px;
+/* ── Mouvements ───────────────────────────────────────────────────────────── */
+
+@layer utilities {
+  .enter-salon {
+    animation: enter-salon 180ms var(--ease-cabinet) both;
+  }
+
+  .enter-plate {
+    animation: enter-plate 420ms var(--ease-cabinet) both;
+  }
+
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: -40% -60%;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgb(255 236 178 / 0.35) 50%,
+      transparent 60%
+    );
+    animation: sheen 8s ease-in-out infinite;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.rue-plaque::after {
-  bottom: 6px;
-  right: 6px;
+@keyframes enter-salon {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes enter-plate {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sheen {
+  0%,
+  100% {
+    transform: translateX(-60%);
+  }
+  50% {
+    transform: translateX(60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter-salon,
+  .enter-plate,
+  .sheen::after {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+  .exhibit,
+  .exhibit:hover {
+    transition: none;
+    transform: none;
+  }
 }

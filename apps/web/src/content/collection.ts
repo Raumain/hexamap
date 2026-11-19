@@ -17,7 +17,7 @@ export const COLLECTION = {
   scrollAriaLabel: 'Liste des cartes de votre collection',
   locked: 'Verrouillée',
   columns: {
-    nom: 'Nom',
+    nom: 'Carte',
     category: 'Catégorie',
     rarity: 'Rareté',
     score: 'Score',

@@ -5,15 +5,17 @@ const REVEAL_THRESHOLD = 0.4;
 const BRUSH_SIZE = 26;
 const COVERAGE_CHECK_INTERVAL = 6;
 
-// Canvas fills need literal colours; these mirror the --color-muted and
-// --color-ink-muted tokens declared in styles.css.
-const COVER_FILL = '#E6E2D8';
-const COVER_HATCH = 'rgba(148, 163, 184, 0.45)';
-const COVER_STAMP = 'rgba(71, 85, 105, 0.22)';
+// Canvas fills need literal colours: the class tokens of styles.css cannot be read
+// back from a 2d context. These mirror --color-cabinet-sunk, --color-brass-pale and
+// --color-metal-or, declared in styles.css.
+const COVER_FILL = '#2b312e';
+const COVER_HATCH = 'rgba(198, 161, 91, 0.18)';
+const COVER_STAMP = 'rgba(239, 231, 215, 0.16)';
+const BRASS_DUST_GOLD = '#c9a227';
+const BRASS_DUST_PALE = '#e6d3a3';
 
 interface ScratchCellProps {
   index: number;
-  label: string;
   disabled?: boolean;
   pending?: boolean;
   onReveal: (index: number) => void;
@@ -21,7 +23,6 @@ interface ScratchCellProps {
 
 export function ScratchCell({
   index,
-  label,
   disabled = false,
   pending = false,
   onReveal,
@@ -69,6 +70,28 @@ export function ScratchCell({
         ctx.lineTo(x + h, h);
       }
       ctx.stroke();
+
+      // Poussière de laiton : semis déterministe, aplats only (DESIGN_SYSTEM.md §7.3).
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = BRASS_DUST_GOLD;
+      for (let i = 0; i < 14; i += 1) {
+        const px = (((i * 73) % 97) / 97) * w;
+        const py = (((i * 41) % 89) / 89) * h;
+        const radius = 0.6 + (i % 3) * 0.5;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = BRASS_DUST_PALE;
+      for (let i = 0; i < 9; i += 1) {
+        const px = (((i * 59) % 83) / 83) * w;
+        const py = (((i * 31) % 71) / 71) * h;
+        ctx.beginPath();
+        ctx.arc(px, py, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
 
       // Single flat stamp — no speckles, no gradient (DESIGN_SYSTEM.md §6.2).
       ctx.save();
@@ -188,27 +211,39 @@ export function ScratchCell({
     <button
       type="button"
       disabled={isDisabled}
-      aria-label={label}
+      aria-label={`Case ${index + 1}, non révélée`}
       aria-busy={pending || undefined}
       onKeyDown={handleKeyDown}
       className={[
-        'relative block aspect-square w-full touch-none overflow-hidden rounded-md border border-border bg-surface p-0 text-left',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-ochre',
+        'carbon relative block aspect-square w-full touch-none overflow-hidden rounded-[2px] p-0 text-left',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-vellum',
         isDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab',
       ].join(' ')}
     >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1] m-auto h-1/2 w-1/2 text-vellum opacity-[0.07]"
+      >
+        <path d="M12 2.5 20 7v10l-8 4.5L4 17V7Z" />
+      </svg>
       {pending ? (
-        <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-          <span className="font-mono text-2xl font-bold text-ink-muted">?</span>
+        <div aria-hidden="true" className="absolute inset-0 z-[2] flex items-center justify-center">
+          <span className="font-mono text-2xl font-bold text-vellum/60">?</span>
         </div>
       ) : null}
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
+      <canvas ref={canvasRef} className="absolute inset-0 z-0 h-full w-full touch-none" />
       {pending ? (
         <div
           aria-hidden="true"
-          className="absolute inset-0 z-10 flex items-center justify-center bg-ink/70"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-cabinet/70"
         >
-          <span className="text-xs font-medium text-ink-inverse">Révélation…</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass">
+            Révélation…
+          </span>
         </div>
       ) : null}
     </button>

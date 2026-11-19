@@ -1,59 +1,75 @@
 import { RARITY_ACCENT_HEX, RARITY_LABELS, type Rarity } from '@hexamap/shared';
 
 export interface RarityTheme {
+  /** Libellé français, propriété du domaine partagé. */
   label: string;
-  borderClass: string;
-  badgeBgClass: string;
-  badgeTextClass: string;
-  accentHex: string;
+  /** Métal du carton de montage et du sceau. */
+  metal: string;
+  /** Initiale gravée dans le sceau. */
+  initial: string;
+  /** Épaisseur du filet du carton. */
+  borderWidth: number;
+  /** Encre lisible sur le métal. */
+  sealInk: 'ink' | 'vellum';
+  /** Traitement supplémentaire du carton. */
+  treatment: 'etain' | 'cuivre' | 'argent' | 'email' | 'or' | 'electrum';
 }
 
 /**
- * Thème unique de rareté (DESIGN_SYSTEM.md §3.2).
- * Les libellés viennent de `RARITY_LABELS` et les accents de `RARITY_ACCENT_HEX` :
- * aucune valeur hexadécimale n'est réécrite ici.
+ * Ramp métallique du cabinet (DESIGN_SYSTEM.md §7.3).
+ * Aucun libellé ni aucune valeur hexadécimale n'est réécrit ici : tout vient de
+ * `packages/shared/src/rarity.ts`.
  */
 export const RARITY_THEME: Record<Rarity, RarityTheme> = {
   COMMUNE: {
     label: RARITY_LABELS.COMMUNE,
-    borderClass: 'border-slate-400',
-    badgeBgClass: 'bg-slate-200',
-    badgeTextClass: 'text-slate-800',
-    accentHex: RARITY_ACCENT_HEX.COMMUNE,
+    metal: RARITY_ACCENT_HEX.COMMUNE,
+    initial: 'C',
+    borderWidth: 1,
+    sealInk: 'ink',
+    treatment: 'etain',
   },
   INHABITUELLE: {
     label: RARITY_LABELS.INHABITUELLE,
-    borderClass: 'border-emerald-700',
-    badgeBgClass: 'bg-emerald-100',
-    badgeTextClass: 'text-emerald-900',
-    accentHex: RARITY_ACCENT_HEX.INHABITUELLE,
+    metal: RARITY_ACCENT_HEX.INHABITUELLE,
+    initial: 'P',
+    borderWidth: 1,
+    sealInk: 'vellum',
+    treatment: 'cuivre',
   },
   RARE: {
     label: RARITY_LABELS.RARE,
-    borderClass: 'border-blue-700',
-    badgeBgClass: 'bg-blue-100',
-    badgeTextClass: 'text-blue-900',
-    accentHex: RARITY_ACCENT_HEX.RARE,
+    metal: RARITY_ACCENT_HEX.RARE,
+    initial: 'R',
+    borderWidth: 2,
+    sealInk: 'ink',
+    treatment: 'argent',
   },
   EPIQUE: {
     label: RARITY_LABELS.EPIQUE,
-    borderClass: 'border-purple-800',
-    badgeBgClass: 'bg-purple-100',
-    badgeTextClass: 'text-purple-900',
-    accentHex: RARITY_ACCENT_HEX.EPIQUE,
+    metal: RARITY_ACCENT_HEX.EPIQUE,
+    initial: 'É',
+    borderWidth: 2,
+    sealInk: 'vellum',
+    treatment: 'email',
   },
   LEGENDAIRE: {
     label: RARITY_LABELS.LEGENDAIRE,
-    borderClass: 'border-amber-600 border-r-4 border-b-4',
-    badgeBgClass: 'bg-amber-100',
-    badgeTextClass: 'text-amber-950',
-    accentHex: RARITY_ACCENT_HEX.LEGENDAIRE,
+    metal: RARITY_ACCENT_HEX.LEGENDAIRE,
+    initial: 'L',
+    borderWidth: 2,
+    sealInk: 'ink',
+    treatment: 'or',
   },
   MYTHIQUE: {
     label: RARITY_LABELS.MYTHIQUE,
-    borderClass: 'border-sign-gold ring-1 ring-sign-gold',
-    badgeBgClass: 'bg-amber-50',
-    badgeTextClass: 'text-amber-950',
-    accentHex: RARITY_ACCENT_HEX.MYTHIQUE,
+    metal: RARITY_ACCENT_HEX.MYTHIQUE,
+    initial: 'M',
+    borderWidth: 2,
+    sealInk: 'ink',
+    treatment: 'electrum',
   },
 };
+
+/** Accent de rareté, réexporté pour les usages non-Tailwind. */
+export const rarityAccent = (rarity: Rarity): string => RARITY_THEME[rarity].metal;

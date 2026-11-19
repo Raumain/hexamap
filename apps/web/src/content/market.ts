@@ -1,8 +1,8 @@
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
 export const CURRENCY = {
-  label: 'Solde',
-  unit: 'crédits',
+  label: 'Bourse',
+  unit: 'écus',
 } as const;
 
 export function priceLabel(price: number): string {
@@ -72,7 +72,7 @@ export const LISTING_STATUS_LABELS: Record<'OPEN' | 'SOLD' | 'CANCELLED', string
 };
 
 export const LISTING_STATUS_STYLES: Record<'OPEN' | 'SOLD' | 'CANCELLED', string> = {
-  OPEN: 'border-sign-gold bg-amber-100 text-sign-ochre',
-  SOLD: 'border-sign-green bg-emerald-100 text-sign-green',
-  CANCELLED: 'border-border bg-muted text-ink-secondary',
+  OPEN: 'border-verdigris/50 text-verdigris',
+  SOLD: 'border-brass/50 text-brass',
+  CANCELLED: 'border-veil text-vellum/55',
 };

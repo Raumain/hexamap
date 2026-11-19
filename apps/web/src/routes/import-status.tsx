@@ -24,10 +24,10 @@ function formatDuration(milliseconds: number): string {
 type StatusTone = 'running' | 'done' | 'failed' | 'idle';
 
 const TONE_CLASSES: Record<StatusTone, string> = {
-  running: 'border-sign-gold bg-amber-100 text-sign-ochre',
-  done: 'border-sign-green bg-sign-green/10 text-sign-green',
-  failed: 'border-sign-red bg-sign-red/10 text-sign-red',
-  idle: 'border-border bg-muted text-ink-secondary',
+  running: 'border-warn/50 bg-warn/10 text-warn',
+  done: 'border-ok/50 bg-ok/10 text-ok',
+  failed: 'border-danger/50 bg-danger/10 text-danger',
+  idle: 'border-veil bg-cabinet-sunk text-vellum/65',
 };
 
 const TONE_LABELS: Record<StatusTone, string> = {
@@ -48,24 +48,27 @@ function ImportStatusPage() {
   const query = useQuery(importStatusQueryOptions);
 
   return (
-    <section className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-widest text-sign-ochre">
-          Import Open Data
-        </p>
-        <h1 className="text-3xl font-bold tracking-tight">Suivi de l'import</h1>
-        <p className="text-ink-secondary">
+    <section className="space-y-10">
+      <header>
+        <p className="salon-eyebrow">SALLE VII · LES ARCHIVES</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-vellum md:text-5xl">
+          Suivi de l'import
+        </h1>
+        <div className="brass-rule mt-5 w-24" />
+        <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-vellum/75">
           Cette page se rafraîchit automatiquement : le pipeline publie son avancement dans un
           fichier d'état partagé, relu chaque seconde par l'API.
         </p>
       </header>
 
       {query.isPending ? (
-        <p className="text-ink-secondary">Chargement du statut…</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-vellum/65">
+          Chargement du statut…
+        </p>
       ) : query.isError ? (
         <p
           role="alert"
-          className="rounded-md border border-sign-red/40 bg-sign-red/10 p-4 text-sm text-sign-red"
+          className="rounded-sheet border border-danger/50 bg-danger/10 p-4 font-mono text-[11px] leading-relaxed text-danger"
         >
           {query.error instanceof Error ? query.error.message : 'Statut indisponible.'}
         </p>
@@ -73,7 +76,7 @@ function ImportStatusPage() {
         <StatusPanel status={query.data} />
       )}
 
-      <p className="rounded-md border border-border bg-paper p-3 text-xs text-ink-muted">
+      <p className="rounded-sheet border border-veil bg-cabinet-raised p-4 font-mono text-[10px] uppercase leading-relaxed tracking-[0.16em] text-vellum/60">
         Outil de développement — cette page peut être supprimée une fois l'import terminé.
       </p>
     </section>
@@ -99,96 +102,106 @@ function StatusPanel({ status }: { status: ImportStatus }) {
       : null;
 
   return (
-    <div
-      aria-live="polite"
-      className="space-y-6 rounded-md border-2 border-border bg-surface shadow-tactile p-6"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-lg font-semibold">{status.phaseLabel}</p>
-          <p className="text-sm text-ink-secondary">
-            {status.steps > 0 ? `Étape ${status.step} / ${status.steps}` : 'Aucune étape en cours'}
+    <div className="space-y-5">
+      <div
+        aria-live="polite"
+        className="space-y-6 rounded-sheet border border-veil bg-cabinet-raised p-5 md:p-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-display text-xl font-semibold text-vellum">{status.phaseLabel}</p>
+            <p className="mt-1 font-mono text-[11px] tabular-nums text-vellum/65">
+              {status.steps > 0
+                ? `Étape ${status.step} / ${status.steps}`
+                : 'Aucune étape en cours'}
+            </p>
+          </div>
+          <span
+            className={`rounded-[2px] border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] ${TONE_CLASSES[tone]}`}
+          >
+            {TONE_LABELS[tone]}
+          </span>
+        </div>
+
+        <div>
+          <div
+            role="progressbar"
+            aria-label="Progression de l'import"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent ?? undefined}
+            className="h-1.5 w-full overflow-hidden rounded-full border border-veil bg-cabinet-sunk shadow-sunk"
+          >
+            <div
+              className={percent === null ? 'h-full bg-brass/60' : 'h-full bg-brass'}
+              style={{ width: `${percent ?? 100}%` }}
+            />
+          </div>
+          <p className="mt-2 font-mono text-[11px] tabular-nums text-brass">
+            {percent === null ? 'Progression indéterminée' : `${percent} %`}
           </p>
         </div>
-        <span className={`rounded-sm border px-3 py-1 text-sm font-medium ${TONE_CLASSES[tone]}`}>
-          {TONE_LABELS[tone]}
-        </span>
-      </div>
 
-      <div className="space-y-2">
-        <div
-          role="progressbar"
-          aria-label="Progression de l'import"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent ?? undefined}
-          className="h-2 w-full overflow-hidden rounded-sm bg-muted"
-        >
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-sheet border border-veil bg-cabinet p-4">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+              Traité
+            </dt>
+            <dd className="mt-2 font-mono text-lg tabular-nums text-brass">
+              {formatCount(status.done)}
+            </dd>
+          </div>
+          <div className="rounded-sheet border border-veil bg-cabinet p-4">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+              Total
+            </dt>
+            <dd className="mt-2 font-mono text-lg tabular-nums text-brass">
+              {status.total === null ? 'Indéterminé' : formatCount(status.total)}
+            </dd>
+          </div>
+          <div className="rounded-sheet border border-veil bg-cabinet p-4">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+              Durée écoulée
+            </dt>
+            <dd className="mt-2 font-mono text-lg tabular-nums text-brass">
+              {elapsed === null ? '—' : formatDuration(elapsed)}
+            </dd>
+          </div>
+          <div className="rounded-sheet border border-veil bg-cabinet p-4">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+              Restant estimé
+            </dt>
+            <dd className="mt-2 font-mono text-lg tabular-nums text-brass">
+              {remaining === null ? '—' : formatDuration(remaining)}
+            </dd>
+          </div>
+        </dl>
+
+        {status.message !== '' && (
+          <p className="text-[15px] leading-relaxed text-vellum/75">{status.message}</p>
+        )}
+
+        {status.error !== null && (
           <div
-            className={
-              percent === null
-                ? 'h-full rounded-sm bg-sign-ochre/60'
-                : 'h-full rounded-sm bg-sign-ochre'
-            }
-            style={{ width: `${percent ?? 100}%` }}
-          />
-        </div>
-        <p className="text-sm text-ink-secondary">
-          {percent === null ? 'Progression indéterminée' : `${percent} %`}
-        </p>
+            role="alert"
+            className="rounded-sheet border border-danger/50 bg-danger/10 p-4 font-mono text-[11px] leading-relaxed text-danger"
+          >
+            <p className="uppercase tracking-[0.16em]">Échec de l'import</p>
+            <p className="mt-2 whitespace-pre-wrap">{status.error}</p>
+          </div>
+        )}
       </div>
-
-      <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-md border border-border bg-paper p-3 shadow-tactile-sm">
-          <dt className="text-xs uppercase tracking-widest text-ink-muted">Traité</dt>
-          <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
-            {formatCount(status.done)}
-          </dd>
-        </div>
-        <div className="rounded-md border border-border bg-paper p-3 shadow-tactile-sm">
-          <dt className="text-xs uppercase tracking-widest text-ink-muted">Total</dt>
-          <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
-            {status.total === null ? 'Indéterminé' : formatCount(status.total)}
-          </dd>
-        </div>
-        <div className="rounded-md border border-border bg-paper p-3 shadow-tactile-sm">
-          <dt className="text-xs uppercase tracking-widest text-ink-muted">Durée écoulée</dt>
-          <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
-            {elapsed === null ? '—' : formatDuration(elapsed)}
-          </dd>
-        </div>
-        <div className="rounded-md border border-border bg-paper p-3 shadow-tactile-sm">
-          <dt className="text-xs uppercase tracking-widest text-ink-muted">Restant estimé</dt>
-          <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
-            {remaining === null ? '—' : formatDuration(remaining)}
-          </dd>
-        </div>
-      </dl>
-
-      {status.message !== '' && <p className="text-ink-secondary">{status.message}</p>}
-
-      {status.error !== null && (
-        <div
-          role="alert"
-          className="rounded-md border border-sign-red/40 bg-sign-red/10 p-3 text-sm text-sign-red"
-        >
-          <p className="font-medium">Échec de l'import</p>
-          <p className="mt-1 whitespace-pre-wrap">{status.error}</p>
-        </div>
-      )}
 
       {status.log.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-xs font-medium uppercase tracking-widest tabular-nums text-ink-muted">
+        <div className="rounded-sheet border border-veil bg-cabinet-raised p-5">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] tabular-nums text-vellum/60">
             Journal ({status.log.length})
           </h2>
-          <ol className="space-y-1 rounded-md border border-border bg-paper p-3 font-mono text-xs">
+          <ol className="mt-3 space-y-1 border-t border-veil pt-3 font-mono text-[11px] leading-relaxed">
             {status.log.map((line, index) => (
               <li
                 key={line}
-                className={
-                  index === status.log.length - 1 ? 'text-sign-ochre' : 'text-ink-secondary'
-                }
+                className={index === status.log.length - 1 ? 'text-brass' : 'text-vellum/65'}
               >
                 {line}
               </li>

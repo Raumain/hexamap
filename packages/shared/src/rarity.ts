@@ -20,13 +20,15 @@ export const RARITY_LABELS: Record<Rarity, string> = {
   MYTHIQUE: 'Mythique',
 };
 
+// Ramp métallique du cabinet (DESIGN_SYSTEM.md §7.3) : étain, cuivre, argent,
+// émail, or, électrum. Seul propriétaire des valeurs hexadécimales.
 export const RARITY_ACCENT_HEX: Record<Rarity, string> = {
-  COMMUNE: '#64748B',
-  INHABITUELLE: '#047857',
-  RARE: '#1D4ED8',
-  EPIQUE: '#6B21A8',
-  LEGENDAIRE: '#C25E00',
-  MYTHIQUE: '#D97706',
+  COMMUNE: '#8F979A',
+  INHABITUELLE: '#B2703F',
+  RARE: '#D3D9DD',
+  EPIQUE: '#3E5A8A',
+  LEGENDAIRE: '#C9A227',
+  MYTHIQUE: '#E8CE8C',
 };
 
 export const RARITY_WEIGHTS: Record<Rarity, number> = {

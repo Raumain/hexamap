@@ -3,29 +3,45 @@ import { type InputHTMLAttributes, useId } from 'react';
 interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
+  /** `paper` (par défaut) sur une feuille de vélin, `dark` sur la pièce. */
+  tone?: 'paper' | 'dark';
 }
 
-export function TextField({ label, error, required, id, className, ...props }: TextFieldProps) {
+export function TextField({
+  label,
+  error,
+  required,
+  id,
+  className,
+  tone = 'paper',
+  ...props
+}: TextFieldProps) {
   const generatedId = useId();
   const fieldId = id ?? generatedId;
   const errorId = `${fieldId}-error`;
+  const dark = tone === 'dark';
 
   const inputClass = [
-    'w-full rounded-sm border-2 bg-surface px-3 py-2 text-sm text-ink',
-    'placeholder:text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sign-blue',
-    error ? 'border-sign-red' : 'border-border',
+    'mt-1.5 h-11 w-full rounded-[2px] border px-3 text-[15px] outline-none transition-colors duration-150 focus:border-brass focus:ring-2 focus:ring-brass/25',
+    dark ? 'bg-cabinet-sunk text-vellum placeholder:text-vellum/55' : 'bg-vellum-2/50 text-ink',
+    error ? 'border-danger' : dark ? 'border-veil' : 'border-vellum-edge',
     className,
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <div className="space-y-1">
-      <label htmlFor={fieldId} className="block text-sm font-medium text-ink-secondary">
+    <div>
+      <label
+        htmlFor={fieldId}
+        className={`block font-mono text-[10px] uppercase tracking-[0.18em] ${
+          dark ? 'text-vellum/65' : 'text-ink-faint'
+        }`}
+      >
         {label}
         {required ? (
           <>
-            <span aria-hidden="true" className="text-sign-ochre">
+            <span aria-hidden="true" className="text-oxide">
               {' '}
               *
             </span>
@@ -43,7 +59,7 @@ export function TextField({ label, error, required, id, className, ...props }: T
         {...props}
       />
       {error ? (
-        <p id={errorId} className="text-sm text-sign-red">
+        <p id={errorId} className="mt-1.5 font-mono text-[11px] text-danger">
           {error}
         </p>
       ) : null}
