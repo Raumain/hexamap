@@ -2,7 +2,7 @@
 
 > **Source de vérité produit et technique.**
 > À lire avant toute implémentation. En cas de contradiction avec un autre document, ce fichier gagne.
-> Dernière mise à jour : 2026-11-18.
+> Dernière mise à jour : 2026-11-19.
 
 ---
 
@@ -210,7 +210,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 - Normalisation des odonymes : majuscules, suppression des accents, tirets/apostrophes remplacés par des espaces, espaces compactés.
 - Conserver le nom d'affichage original pour la carte.
 - Documenter l'attribution des sources.
-- Les blasons (SVG) sont des assets statiques générés hors ligne par `scripts/import` et stockés dans le volume Docker `blasons` (monté sur `/data/blasons`). L'API les sert sur `GET /blasons/*` avec un cache immuable (`Cache-Control: public, max-age=2592000, immutable`) ; aucun appel réseau n'est fait au rendu. Les licences et attributions sont stockées en base (`blason_credit`), pas dans les fichiers. L'API expose ces assets sur les cartes (`blasonUrl`, `blasonCredit` sur `/cards` et `/market/listings` ; le `contour_url` sert de repli visuel pour les communes sans armoiries).
+- Les blasons (SVG) sont des assets statiques générés hors ligne par `scripts/import` et stockés dans le volume Docker `blasons` (monté sur `/data/blasons`). L'API les sert sur `GET /blasons/*` avec `Cache-Control: public, max-age=3600, must-revalidate` ; aucun appel réseau n'est fait au rendu, et `/blasons` reste hors du repli SPA. Chaque réponse est revalidée par un ETag faible `W/"<taille>-<mtime>"`, et les charges `image/svg+xml` de plus de 1 Kio sont compressées en gzip ou brotli comme les autres assets texte (§6.1). Les licences et attributions sont stockées en base (`blason_credit`), pas dans les fichiers. L'API expose ces assets sur les cartes (`blasonUrl`, `blasonCredit` sur `/cards` et `/market/listings` ; le `contour_url` sert de repli visuel pour les communes sans armoiries).
 
 ### 4.8 Tests
 
@@ -442,7 +442,7 @@ Politique de cache, portée par le plugin :
 | `index.html` | `no-cache` | doit pointer vers les nouveaux hashs à chaque déploiement |
 | le reste | `public, max-age=0, must-revalidate` | revalidation systématique |
 
-Chaque réponse porte un ETag fort `"<taille>-<mtime>"` et honore `If-None-Match`
+Chaque réponse porte un ETag faible `W/"<taille>-<mtime>"` et honore `If-None-Match`
 par un `304 Not Modified`. Le plugin ajoute enfin
 `X-Content-Type-Options: nosniff` et `Referrer-Policy:
 strict-origin-when-cross-origin`, deux en-têtes auparavant fournis par Nginx.
@@ -450,6 +450,55 @@ strict-origin-when-cross-origin`, deux en-têtes auparavant fournis par Nginx.
 Comportement couvert par `packages/spec/src/static.spec.ts` (11 cas, libellés
 `Archi §6.1 — `) avec des fixtures versionnées dans
 `packages/spec/fixtures/web-dist/`.
+
+#### Compression — `apps/api/src/lib/compression*.ts`
+
+La suppression de Nginx a retiré la seule couche gzip/brotli de la pile : l'API compresse
+désormais elle-même, dans le processus, sur deux chemins distincts — le JSON par un hook
+global, les fichiers texte par `static.ts` et `routes/blasons.ts`. Trois modules portent la
+politique : `apps/api/src/lib/compression.ts` (fonctions pures, sans état ni entrée-sortie),
+`compression-cache.ts` (cache borné) et `compression-plugin.ts` (hook JSON). `apps/api` ne
+déclare **aucune** dépendance de compression : `node:zlib` et `Bun.gzipSync` sont des builtins.
+
+- **Négociation.** `Accept-Encoding` est analysé avec ses q-values ; `br` l'emporte à qualité
+  égale, `gzip` sert de repli, `q=0` exclut le codec, le jeton `identity` ne produit aucune
+  compression. Les q-values sont bornées à `[0, 1]` : `q=7` ne doit pas battre `q=1` et faire
+  choisir un autre codec. Brotli vient de `node:zlib.brotliCompressSync` en qualité 5 (Bun
+  n'expose pas de brotli natif), gzip de `Bun.gzipSync`.
+- **Seuil.** `COMPRESSION_MIN_BYTES = 1024`. En dessous, l'en-tête et le dictionnaire coûtent
+  plus que le gain : le `null` de 4 octets rendu par `/api/auth/get-session` part verbatim,
+  et `index.html` (1 527 octets) franchit le seuil pour descendre à 652. Le seuil, pas une
+  liste d'exceptions, décide.
+- **Types compressibles.** `text/*`, `application/javascript`, `application/json`,
+  `application/manifest+json`, `application/xml`, `image/svg+xml`. Jamais `png`, `webp`,
+  `woff2`, `woff` ni `ico`, déjà compressés par leurs formats.
+- **`Vary`.** `Vary: Accept-Encoding` est posé sur **les deux** variantes, compressée et
+  identité, et jamais écrasé : `appendVary` fusionne avec ce que le CORS a déjà inscrit. Sur
+  une réponse statique compressée, la dimension `Origin` est réajoutée explicitement, parce
+  que `cors` écrit `Vary: Origin` dans son propre `onAfterHandle`, qui n'atteint jamais un
+  `Response` construit à l'intérieur du handler de route ; sans elle, un cache partagé
+  pourrait servir l'`Access-Control-Allow-Origin` d'une origine à une autre.
+- **ETag.** `W/"<taille>-<mtime>"`, **faible à dessein** : un validateur faible désigne des
+  représentations sémantiquement équivalentes, ce qui est exactement le rapport gzip /
+  identité ; un validateur fort partagé entre codages violerait la RFC 9110. Un `304` ne porte
+  aucun corps et **jamais** de `Content-Encoding`.
+- **`HEAD`.** Court-circuité avant la négociation : pas de corps, donc pas d'encodage.
+- **JSON.** Un unique hook `onAfterHandle` global, monté dans `createApp` avant les modules de
+  routes ; `as: 'global'` porte jusque dans les plugins (`/api/v1/import-status` le prouve).
+  Le hook tamponne un corps JSON de forme `Response`, et doit donc rendre les octets tamponnés
+  dans une `Response` neuve **même lorsqu'il renonce à compresser** : retourner `undefined`
+  après avoir lu le corps fait réémettre à Elysia un flux déjà consommé
+  (`TypeError: Body object should not be disturbed or locked`). Les en-têtes sont reconstruits
+  par `append`, jamais par `set`, pour qu'un `Set-Cookie` répété survive.
+- **Handlers Better Auth montés.** Le hook tourne aussi sur `app.mount(auth.handler)`, qui
+  n'est donc pas un contournement : mesuré, `/api/auth/get-session` répond `200` avec
+  `Vary: Origin`. Sa charge pesant 4 octets, c'est le seuil qui l'exclut, pas une exception.
+- **Cache.** 64 entrées, clé `${chemin absolu}\0${taille}\0${mtime}\0${encodage}`, éviction
+  FIFO. La lecture du fichier se fait **dans** la fermeture de calcul : un succès de cache ne
+  coûte aucune entrée-sortie disque. Le `mtime` dans la clé invalide à chaque déploiement.
+- **Mesures sur l'image de production.** Bundle principal `255 461` → `80 243` octets en gzip
+  (−68,6 %) et `75 518` en brotli (−70,4 %) ; `index.html` `1 527` → `652`.
+- Vérifié par `packages/spec/src/compression.spec.ts` (14 cas).
 
 #### Accès psql (développement)
 

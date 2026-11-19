@@ -5,7 +5,152 @@
 
 ---
 
-# Phase 17 — L'Installation (application installable)
+# Phase 18 — L'Économie des octets (compression de production)
+
+## Statut
+
+- **Phase** : 18 — L'Économie des octets (compression de production)
+- **État** : Terminé
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-19
+- **Branche** : `feat/compression-production`
+
+---
+
+## Objectif
+
+La production n'a plus de Nginx : plus rien ne comprimait le bundle du SPA ni le JSON de l'API.
+Le risque « Removing nginx loses gzip/brotli » était **réalisé**, pas théorique, et le bundle
+de 255 Kio partait tel quel. L'API porte désormais gzip et brotli elle-même, dans son propre
+processus, à domaine métier et contrat d'API constants : aucune migration, aucun changement de
+schéma, aucune dépendance déclarée (`node:zlib` et `Bun.gzipSync` sont des builtins).
+
+---
+
+## Étapes
+
+### 1. Spec-first
+- [x] `packages/spec/src/compression.spec.ts` : 14 cas `Archi §6.1 — `, écrits **rouges** avant
+      toute implémentation — 7 en échec, 5 verts.
+- [x] Fixtures versionnées dans `packages/spec/fixtures/web-dist/assets/` : `big-fixture.js`
+      (au-dessus du seuil), `small-fixture.js` (en dessous), `image-fixture.png` (type non
+      compressible).
+
+### 2. Politique pure
+- [x] `apps/api/src/lib/compression.ts` : `COMPRESSION_MIN_BYTES = 1024`, `negotiateEncoding`
+      (q-values lues, `br` prioritaire à qualité égale, `q=0` exclut, `identity` neutre, bornes
+      `[0, 1]`), `isCompressibleType`, `compressBytes`, `appendVary`. Aucun état, aucune
+      entrée-sortie.
+
+### 3. Cache borné
+- [x] `apps/api/src/lib/compression-cache.ts` : 64 entrées, éviction FIFO, clé
+      `${chemin absolu}\0${taille}\0${mtime}\0${encodage}` ; la lecture du fichier se fait dans
+      la fermeture de calcul, donc un succès de cache ne touche pas le disque.
+
+### 4. Assets statiques
+- [x] `static.ts` et `routes/blasons.ts` compressent eux-mêmes, avec le cache indexé sur le
+      `mtime`.
+- [x] `routes/blasons.ts` devient une **fabrique** (`blasonRoutes(root)`), pour que le banc
+      puisse injecter une racine de fixtures.
+
+### 5. Hook JSON
+- [x] `apps/api/src/lib/compression-plugin.ts` : `onAfterHandle` `as: 'global'`, monté dans
+      `createApp` avant les modules de routes. `HEAD` court-circuité avant la négociation, pas
+      de double encodage, en-têtes reconstruits par `append` pour qu'un `Set-Cookie` répété
+      survive.
+
+### 6. ETag faible
+- [x] `W/"<taille>-<mtime>"` : un validateur faible désigne des représentations sémantiquement
+      équivalentes, ce qui est exactement le rapport gzip / identité. Aucun `304` ne porte de
+      `Content-Encoding`.
+
+### 7. Corrections de revue
+- [x] F1 à F8 traitées (voir journal).
+
+### 8. Vérification en production
+- [x] Images et en-têtes mesurés sur l'image de production, pas sur le banc de développement.
+
+---
+
+## Critères d'acceptation
+
+1. [x] Bundle principal : `255 461` → `80 243` octets en gzip (−68,6 %) et `75 518` en brotli
+       (−70,4 %) ; `index.html` `1 527` → `652`.
+2. [x] `Accept-Encoding` négocié par q-values, `br` prioritaire, `gzip` en repli, `q=0` et
+       `identity` sans compression.
+3. [x] Aucune compression sous `COMPRESSION_MIN_BYTES = 1024` : le `null` de 4 octets de
+       `/api/auth/get-session` part verbatim.
+4. [x] Jamais `png`, `webp`, `woff2`, `woff` ni `ico` recompressés.
+5. [x] `Vary: Accept-Encoding` sur les deux variantes, `Origin` réajouté sur les statiques
+       compressées, aucun `Vary` écrasé.
+6. [x] `HEAD` sans corps et sans encodage ; `304` sans corps ni `Content-Encoding`.
+7. [x] Le hook tourne aussi sur les handlers Better Auth montés et répond `Vary: Origin`.
+8. [x] `packages/spec/src/compression.spec.ts` : 14 cas verts ; `ci:check` vert à 158 specs.
+9. [x] Aucune migration, aucun changement de schéma ni de contrat d'API, aucune dépendance
+       nouvelle.
+
+---
+
+## Journal
+
+### 2026-11-19 — Phase 18 exécutée : L'Économie des octets livrée
+
+**Spec d'abord.** `compression.spec.ts` a été écrit avant l'implémentation et lancé rouge :
+7 cas en échec, 5 verts. Le `Vary` a été volontairement laissé hors de la phase 0 pour que le
+jeu rouge reste signifiant — sans lui, des cas auraient pu passer pour de mauvaises raisons.
+
+**Ce que le banc ne pouvait pas voir.** La passe sur l'image de production a trouvé un écart
+que les specs ne testaient pas : les assets compressés répondaient `Vary: accept-encoding`
+alors que la variante identité répondait `Vary: Origin, accept-encoding`. `cors` pose
+`Vary: Origin` dans son propre `onAfterHandle`, qui n'atteint jamais la `Response` fabriquée
+dans le handler de route. La dimension `Origin` est donc réajoutée explicitement sur les
+réponses statiques compressées ; sans elle, un cache partagé pouvait servir l'en-tête CORS
+d'une origine à une autre.
+
+**Ce que la revue a trouvé.** Le hook JSON tamponnait le corps d'une `Response` puis retournait
+`undefined` quand la charge restait sous le seuil : Elysia réémettait un flux consommé et
+`/api/auth/get-session` répondait `500 TypeError: Body object should not be disturbed or
+locked` sous n'importe quel `Accept-Encoding` de navigateur. Le défaut n'a été vu que parce
+que la vérification de l'authentification était **imposée** : la suite de specs n'envoie aucun
+`Accept-Encoding` sur cette route. Le hook rend désormais les octets tamponnés dans une
+`Response` neuve même lorsqu'il renonce à compresser.
+
+**ETag.** Rendu faible plutôt que dupliqué par codage : le cas 7 garde son assertion unique et
+le validateur reste correct au sens de la RFC 9110.
+
+**`Bun.gzipSync`.** La fonction exige un tableau adossé à un `ArrayBuffer` :
+`Uint8Array<ArrayBufferLike>` est refusé. Résolu par le typage (`Uint8Array<ArrayBuffer>`) et
+une copie, jamais par un cast.
+
+**Blasons.** Ils n'avaient **aucune** couverture de chemin nominal avant cette phase :
+`blasonRoutes` est devenue une fabrique pour injecter la racine de fixtures.
+
+**Correction documentaire.** `.docs/01-architecture.md` §4.7 annonçait un cache immuable sur
+`/blasons` (`max-age=2592000, immutable`) que le code n'a jamais servi : il répond
+`public, max-age=3600, must-revalidate`. Le document a été corrigé, pas le code.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  1/4 Lint  2/4 Typecheck  3/4 Base de données  4/4 Spécifications — 158 specs
+curl -s -o /dev/null -D - -H 'Accept-Encoding: gzip' :8080/assets/<hash>.js
+  → content-encoding: gzip, content-length: 80243, vary: origin, accept-encoding
+curl -s -o /dev/null -D -                            :8080/assets/<hash>.js
+  → aucun content-encoding, content-length: 255461
+curl -s --compressed :8080/assets/<hash>.js | cmp - <(curl -s :8080/assets/<hash>.js)
+  → identique
+```
+
+La vérification se fait **en `GET`, jamais en `HEAD`** : une réponse `HEAD` n'a pas de corps, donc
+jamais de `Content-Encoding` — `curl -sI` validerait un en-tête qu'il ne peut pas produire.
+
+**Portée** : aucune migration, aucun changement de schéma ni de contrat d'API, aucune
+dépendance nouvelle, aucun commit.
+
+---
+---
+
+# Historique — Phase 17 — L'Installation (application installable)
 
 ## Statut
 
