@@ -1,8 +1,7 @@
+import { SCRATCH_REVEAL_THRESHOLD, scratchBrushRadius } from '@hexamap/shared';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useEffect, useRef } from 'react';
 
-const REVEAL_THRESHOLD = 0.4;
-const BRUSH_SIZE = 26;
 const COVERAGE_CHECK_INTERVAL = 6;
 
 // Canvas fills need literal colours: the class tokens of styles.css cannot be read
@@ -13,6 +12,11 @@ const COVER_HATCH = 'rgba(198, 161, 91, 0.18)';
 const COVER_STAMP = 'rgba(239, 231, 215, 0.16)';
 const BRASS_DUST_GOLD = '#c9a227';
 const BRASS_DUST_PALE = '#e6d3a3';
+
+interface Point {
+  x: number;
+  y: number;
+}
 
 interface ScratchCellProps {
   index: number;
@@ -31,7 +35,10 @@ export function ScratchCell({
   const drawingRef = useRef(false);
   const firedRef = useRef(false);
   const moveCountRef = useRef(0);
-  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPointRef = useRef<Point | null>(null);
+  const pendingPointRef = useRef<Point | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const brushRef = useRef(0);
   const onRevealRef = useRef(onReveal);
   const disabledRef = useRef(disabled || pending);
 
@@ -58,6 +65,7 @@ export function ScratchCell({
 
       const w = rect.width;
       const h = rect.height;
+      brushRef.current = scratchBrushRadius(w, h);
 
       ctx.fillStyle = COVER_FILL;
       ctx.fillRect(0, 0, w, h);
@@ -107,11 +115,6 @@ export function ScratchCell({
 
     paint();
 
-    const observer = new ResizeObserver(() => {
-      if (moveCountRef.current === 0) paint();
-    });
-    observer.observe(canvas);
-
     const checkCoverage = () => {
       if (firedRef.current) return;
       const { width, height } = canvas;
@@ -123,59 +126,116 @@ export function ScratchCell({
         const alpha = data[i] ?? 255;
         if (alpha < 128) erased += 1;
       }
-      if (total > 0 && erased / total >= REVEAL_THRESHOLD) {
+      if (total > 0 && erased / total >= SCRATCH_REVEAL_THRESHOLD) {
         firedRef.current = true;
         onRevealRef.current(index);
       }
     };
 
-    const scratchAt = (clientX: number, clientY: number) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const prev = lastPointRef.current;
-
+    // brushRef.current is a radius; the 2d context takes a stroke width.
+    const drawStroke = (from: Point, to: Point) => {
+      const brush = brushRef.current;
       ctx.globalCompositeOperation = 'destination-out';
       ctx.globalAlpha = 1;
-      ctx.lineWidth = BRUSH_SIZE;
+      ctx.lineWidth = brush * 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      if (prev) {
+      if (from.x === to.x && from.y === to.y) {
         ctx.beginPath();
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
+        ctx.arc(to.x, to.y, brush, 0, Math.PI * 2);
+        ctx.fill();
       } else {
         ctx.beginPath();
-        ctx.arc(x, y, BRUSH_SIZE / 2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
       }
       ctx.globalCompositeOperation = 'source-over';
+    };
 
-      lastPointRef.current = { x, y };
+    // One frame coalesces every pointer sample received since the last paint.
+    const flush = () => {
+      rafRef.current = null;
+      const point = pendingPointRef.current;
+      if (!point) return;
+      pendingPointRef.current = null;
+      drawStroke(lastPointRef.current ?? point, point);
+      lastPointRef.current = point;
       moveCountRef.current += 1;
       if (moveCountRef.current % COVERAGE_CHECK_INTERVAL === 0) {
         checkCoverage();
       }
     };
 
+    const queuePoint = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      pendingPointRef.current = { x: clientX - rect.left, y: clientY - rect.top };
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(flush);
+      }
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (moveCountRef.current === 0) {
+        paint();
+        return;
+      }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingPointRef.current = null;
+
+      // Erased pixels must survive the resize: keep a copy at the old backing size,
+      // repaint the cover at the new one, then lay the copy back over it.
+      const snapshot = document.createElement('canvas');
+      snapshot.width = canvas.width;
+      snapshot.height = canvas.height;
+      const snapshotCtx = snapshot.getContext('2d');
+      if (snapshotCtx) snapshotCtx.drawImage(canvas, 0, 0);
+
+      paint();
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(snapshot, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    });
+    observer.observe(canvas);
+
     const onPointerDown = (event: PointerEvent) => {
       if (disabledRef.current) return;
       event.preventDefault();
       canvas.setPointerCapture(event.pointerId);
       drawingRef.current = true;
-      lastPointRef.current = null;
-      scratchAt(event.clientX, event.clientY);
+      pendingPointRef.current = null;
+      const rect = canvas.getBoundingClientRect();
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      lastPointRef.current = point;
+      drawStroke(point, point);
+      moveCountRef.current += 1;
+      if (moveCountRef.current % COVERAGE_CHECK_INTERVAL === 0) {
+        checkCoverage();
+      }
     };
 
     const onPointerMove = (event: PointerEvent) => {
       if (!drawingRef.current) return;
-      scratchAt(event.clientX, event.clientY);
+      queuePoint(event.clientX, event.clientY);
     };
 
     const stopDrawing = () => {
       if (!drawingRef.current) return;
       drawingRef.current = false;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      // Never lose the last sample: a stroke pending a frame must still land.
+      flush();
+      pendingPointRef.current = null;
       lastPointRef.current = null;
       checkCoverage();
     };
@@ -187,6 +247,11 @@ export function ScratchCell({
     canvas.addEventListener('pointerleave', stopDrawing);
 
     return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingPointRef.current = null;
       observer.disconnect();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
@@ -215,7 +280,7 @@ export function ScratchCell({
       aria-busy={pending || undefined}
       onKeyDown={handleKeyDown}
       className={[
-        'carbon relative block aspect-square w-full touch-none overflow-hidden rounded-[2px] p-0 text-left',
+        'carbon relative block aspect-square w-full touch-none select-none overflow-hidden rounded-[2px] p-0 text-left',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-vellum',
         isDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab',
       ].join(' ')}
@@ -235,7 +300,10 @@ export function ScratchCell({
           <span className="font-mono text-2xl font-bold text-vellum/60">?</span>
         </div>
       ) : null}
-      <canvas ref={canvasRef} className="absolute inset-0 z-0 h-full w-full touch-none" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 z-0 h-full w-full cursor-crosshair touch-none select-none"
+      />
       {pending ? (
         <div
           aria-hidden="true"
