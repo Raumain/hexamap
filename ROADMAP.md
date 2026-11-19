@@ -28,27 +28,15 @@ Original roadmap → repo mapping: its Phase 12 = repo 12; **its Phase 13 = repo
 design system was rewritten once); **its Phase 14 = repo 14/15 partially + 16**; **its Phase 15 =
 repo 17, at ~80 %**.
 
-Verified today: `ci:check` green with **144 specs**; production image serving `/manifest.webmanifest`
-(`application/manifest+json`), `/sw.js` (`text/javascript`, `no-cache`), 46 precache entries;
-Playwright chromium 12 passed / 1 skipped, Pixel 7 and iPhone 13 8 / 1 each.
+Verified today: `ci:check` green with **158 specs**; the production image compresses text payloads
+in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518` in brotli
+(−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`), `/sw.js`
+(`text/javascript`, `no-cache`), 46 precache entries; Playwright chromium 12 passed / 1 skipped,
+Pixel 7 and iPhone 13 8 / 1 each.
 
 ---
 
 ## 2. What remains, in order
-
-### P1 — Production compression (was a High-likelihood risk, now realized)
-
-Dropping nginx removed the only gzip/brotli layer. `apps/api` contains no
-`compression` / `Content-Encoding` / `gzip` / `brotli` match: the API serves the hashed SPA bundle
-and JSON uncompressed.
-
-- Add gzip (and brotli where available) on text payloads in `apps/api/src/static.ts`, and on API
-  JSON responses.
-- Spec first: `Archi §6.1 — un asset texte est compressé quand le client l'accepte` and
-  `Archi §6.1 — aucune compression sans Accept-Encoding`.
-- Do not compress images, fonts or the immutable binary set; keep ETag/`304` intact.
-- Acceptance: `curl -sI -H 'Accept-Encoding: gzip' :8080/assets/<hash>.js` exposes
-  `content-encoding: gzip`, `curl -sI :8080/` without the header does not.
 
 ### P1 — BUG-007: fixed overlays anchored to `<main>`, not the viewport
 
@@ -61,7 +49,7 @@ the treasure modal overlay is mis-sized when the page is scrolled.
 - Acceptance: after scrolling, the drawer's box stays within `innerHeight`; one Playwright mobile
   case asserts it. This restores BUG-004's modal geometry too.
 
-### P1 — PWA end-to-end suite (last item of the original Phase 15)
+### P2 — PWA end-to-end suite (last item of the original Phase 15)
 
 Nothing today verifies the service worker: no `pwa.spec.ts`, no `pwa` Playwright project, no
 `serviceWorkers` setting.
@@ -123,6 +111,7 @@ Install, offline behaviour, and the "tickets and balances are never cached" rule
 | `vite-plugin-pwa/client` via triple-slash reference | Equivalent to `tsconfig.types`, typecheck green |
 | No `@elysiajs/static` | `Bun.file` + ETag is the proven pattern and keeps TypeBox response typing |
 | Scratch e2e uses taps, not a synthetic drag | Playwright's `touchscreen` exposes only `tap`; CDP-coalesced drags measured 8–39 % coverage. Continuous drag stays a manual check |
+| The compression hook runs on mounted Better Auth handlers | `app.mount()` is not a bypass for a global `onAfterHandle`; the route's 4-byte payload stays under the 1 KiB threshold, so it is never compressed. Verified by curl |
 
 ---
 
@@ -131,12 +120,12 @@ Install, offline behaviour, and the "tickets and balances are never cached" rule
 | Risk | Status | Notes |
 | :--- | :--- | :--- |
 | `workbox-build` under Bun | **Disproven** | Build green, 46 precache entries, `dist/sw.js` emitted |
-| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 144 / 0 |
+| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 158 / 0 |
 | `GET /*` shadowing `/api`, `/api/auth`, `/blasons` | **Covered** | 13 cases in `static.spec.ts`, deny-list evaluated in the handler, not by route order |
 | `backend` network `internal: true` blocking the published port | **Covered** | `api` attaches to both `backend` and `public` |
-| Removing nginx loses gzip/brotli | **Realized** | See P1 |
+| Removing nginx loses gzip/brotli | **Covered** | in-process gzip + brotli, 13 specs, measured on the production image |
 | `navigateFallback` without a precached `index.html` | **Hit and fixed** | Otherwise `non-precached-url` at install; `html` is in `globPatterns` |
-| A stale service worker pinning players | **Partially mitigated** | `registerType: 'prompt'` + French banner + `cleanupOutdatedCaches`, but no e2e proof (P1) |
+| A stale service worker pinning players | **Partially mitigated** | `registerType: 'prompt'` + French banner + `cleanupOutdatedCaches`, but no e2e proof (P2) |
 | Any future transform on `<main>` re-breaks every `fixed` overlay | **New** | BUG-007 is systemic; the portal option removes the class of bug |
 
 Invariants, unchanged: `import type { App }` is the only cross-boundary import; `scratch-cell.tsx`
