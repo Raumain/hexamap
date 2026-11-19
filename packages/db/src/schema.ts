@@ -182,6 +182,12 @@ export interface RateLimitTable {
   lastRequest: string;
 }
 
+export interface UserScratchChargeTable {
+  user_id: string;
+  charges: number;
+  last_regen_at: Generated<Date>;
+}
+
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export interface FriendshipTable {
@@ -216,6 +222,7 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  user_scratch_charges: UserScratchChargeTable;
   friendships: FriendshipTable;
   blocks: BlockTable;
 }

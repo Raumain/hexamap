@@ -2,9 +2,11 @@ import type { Category, Rarity } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate, useNavigate } from '@tanstack/react-router';
 import { Button } from '../components/button';
+import { ChargesMeter } from '../components/charges-meter';
 import { FormError } from '../components/form-error';
 import { Card } from '../components/ui/Card';
-import { scrapesLabel, TICKET } from '../content/tickets';
+import { CHARGES, scrapesLabel, TICKET } from '../content/tickets';
+import { chargesQueryKey, chargesQueryOptions } from '../lib/charges';
 import { useSession } from '../lib/session';
 import {
   createTicket,
@@ -13,6 +15,7 @@ import {
   ticketErrorMessage,
   ticketQueryKey,
 } from '../lib/tickets';
+import { useChargeCountdown } from '../lib/use-charge-countdown';
 
 export const Route = createFileRoute('/')({
   component: DashboardPage,
@@ -157,14 +160,26 @@ function CurrentTicketCta() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const ticketQuery = useQuery(currentTicketQueryOptions);
+  const chargesQuery = useQuery(chargesQueryOptions);
+  const charges = chargesQuery.data ?? null;
+  // Un seul tic pour la salle : le carnet et le bouton lisent le même solde dérivé.
+  const countdown = useChargeCountdown(
+    charges?.charges ?? 0,
+    charges?.nextChargeAt ?? null,
+    charges?.cap ?? 0,
+    charges?.regenMs ?? 0,
+  );
 
   const createMutation = useMutation({
     mutationFn: () => createTicket(),
     onSuccess: (ticket) => {
       queryClient.setQueryData(ticketQueryKey, ticket);
+      void queryClient.invalidateQueries({ queryKey: chargesQueryKey });
       void navigate({ to: '/tickets/$ticketId', params: { ticketId: ticket.id } });
     },
     onError: (error) => {
+      // La seule resynchronisation du carnet : la mutation, en succès comme en échec.
+      void queryClient.invalidateQueries({ queryKey: chargesQueryKey });
       if (error instanceof TicketApiError && error.code === 'TICKET_ALREADY_ACTIVE') {
         void queryClient.invalidateQueries({ queryKey: ticketQueryKey });
       }
@@ -212,8 +227,17 @@ function CurrentTicketCta() {
     );
   }
 
+  const noCharge = charges !== null && countdown.charges === 0;
+
   return (
     <div className="flex flex-col gap-4">
+      {charges === null ? null : (
+        <ChargesMeter
+          charges={countdown.charges}
+          cap={charges.cap}
+          nextChargeAt={countdown.nextChargeAt}
+        />
+      )}
       <div>
         <p className="text-[15px] leading-relaxed text-vellum/75">
           Aucun ticket actif pour le moment.
@@ -230,10 +254,15 @@ function CurrentTicketCta() {
       <Button
         className="w-full sm:w-auto sm:self-start"
         isPending={createMutation.isPending}
+        disabled={noCharge}
+        aria-label={noCharge ? `${TICKET.getTicket} — ${CHARGES.empty}` : undefined}
         onClick={() => createMutation.mutate()}
       >
-        Obtenir un ticket
+        {TICKET.getTicket}
       </Button>
+      {noCharge ? (
+        <p className="font-mono text-[11px] text-oxide">{CHARGES.disabledReason}</p>
+      ) : null}
     </div>
   );
 }
