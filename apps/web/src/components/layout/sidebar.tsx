@@ -34,18 +34,20 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-veil bg-cabinet-raised md:flex">
-      <div className="px-5 pb-5 pt-6">
-        <Link to="/" className="flex items-center gap-3 text-brass">
-          <HexSeal size={30} />
-          <span className="flex flex-col">
-            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-vellum">
-              Hexamap
+      <div className="pt-[env(safe-area-inset-top)]">
+        <div className="px-5 pb-5 pt-6">
+          <Link to="/" className="flex items-center gap-3 text-brass">
+            <HexSeal size={30} />
+            <span className="flex flex-col">
+              <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-vellum">
+                Hexamap
+              </span>
+              <span className="font-display text-[11px] italic leading-tight text-vellum/70">
+                Cabinet de cartographie
+              </span>
             </span>
-            <span className="font-display text-[11px] italic leading-tight text-vellum/70">
-              Cabinet de cartographie
-            </span>
-          </span>
-        </Link>
+          </Link>
+        </div>
       </div>
 
       <div className="brass-rule mx-5 opacity-60" />

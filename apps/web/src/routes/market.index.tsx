@@ -30,7 +30,7 @@ const outlineButtonClass =
   'inline-flex min-h-9 items-center justify-center rounded-[2px] border border-brass/50 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale disabled:cursor-not-allowed disabled:opacity-40';
 
 const buyButtonClass =
-  'inline-flex min-h-10 items-center justify-center rounded-[2px] border border-brass bg-brass px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-cabinet transition-colors duration-150 hover:bg-brass-pale disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex min-h-10 touch-manipulation items-center justify-center rounded-[2px] border border-brass bg-brass px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-cabinet transition-colors duration-150 hover:bg-brass-pale disabled:cursor-not-allowed disabled:opacity-60';
 
 export const Route = createFileRoute('/market/')({
   component: MarketPage,
@@ -326,7 +326,7 @@ function ListingCard({ listing, isOwn, buyPending, onBuy }: ListingCardProps) {
             aria-label={`${MARKET.buy} ${listing.card.nom}`}
             className={buyButtonClass}
           >
-            {MARKET.buy}
+            {buyPending ? MARKET.buying : MARKET.buy}
           </button>
         )}
       </div>
