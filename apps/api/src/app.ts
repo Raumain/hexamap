@@ -11,6 +11,8 @@ import { authPlugin } from './middleware/auth';
 import { achievementRoutes } from './routes/achievements';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
+import { chargeRoutes } from './routes/charges';
+import { friendRoutes } from './routes/friends';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
 import { refRoutes } from './routes/ref';
@@ -44,6 +46,8 @@ const protectedRoutes = new Elysia({ prefix: '/api/v1' })
   .use(cardRoutes)
   .use(tableauRoutes)
   .use(marketRoutes)
+  .use(chargeRoutes)
+  .use(friendRoutes)
   .use(achievementRoutes)
   .get('/me', ({ user, status }) => {
     if (!user) {

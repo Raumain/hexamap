@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -35,6 +36,11 @@ const AchievementsRoute = AchievementsRouteImport.update({
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsRoute = FriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportStatusRoute = ImportStatusRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/collection': typeof CollectionRoute
+  '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/collection'
+    | '/friends'
     | '/import-status'
     | '/login'
     | '/register'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AchievementsRoute: typeof AchievementsRoute
   CollectionRoute: typeof CollectionRoute
+  FriendsRoute: typeof FriendsRoute
   ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friends': {
+      id: '/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof FriendsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/import-status': {
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AchievementsRoute: AchievementsRoute,
   CollectionRoute: CollectionRoute,
+  FriendsRoute: FriendsRoute,
   ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,

@@ -92,3 +92,14 @@ export function distanceAriaLabel(distance: number): string {
 export function revealAnnouncement(index: number, name: string): string {
   return `Case ${index + 1} révélée : ${name}.`;
 }
+
+export const CHARGES = {
+  title: 'Carnet de charges',
+  empty: 'Aucune charge disponible',
+  nextCharge: 'Prochaine charge dans',
+  disabledReason: 'Aucune charge disponible : votre prochaine charge arrive bientôt.',
+};
+
+export function chargesLabel(count: number, cap: number): string {
+  return count === 1 ? `1 charge sur ${cap}` : `${count} charges sur ${cap}`;
+}

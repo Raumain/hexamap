@@ -29,9 +29,10 @@
 | `ref_regions`, `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes` | **Migrée** | `packages/db/migrations/0004_reference.ts` |
 | `rateLimit` | **Migrée** | `packages/db/migrations/0005_rate_limit.ts` |
 | Colonnes blasons : `ref_communes.blason_url`, `ref_communes.contour_url`, `ref_communes.blason_credit`, `ref_departements.blason_credit`, `ref_regions.blason_credit` | **Migrée** | `packages/db/migrations/0007_blasons.ts` |
-| `user_scratch_charges` | **Contrat** | Migrations `0009`+ (phase 26) |
-| `user_achievements` | **Migrée** | Migrations `0009`+ (phase 27) |
-| `friendships`, `blocks`, `user_profiles`, index `user_pseudo_lower_idx` | **Contrat** | Migrations `0009`+ (phases 28-29) |
+| `user_scratch_charges` | **Migrée** | `packages/db/migrations/0009_scratch_charges.ts` |
+| `friendships`, `blocks` | **Migrée** | `packages/db/migrations/0010_friendships.ts` |
+| `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
+| `user_profiles`, index `user_pseudo_lower_idx` | **Contrat** | Migrations `0009`+ (phase 29) |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son

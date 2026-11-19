@@ -3,6 +3,7 @@ import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { HttpError } from '../lib/http-error';
 import { authPlugin } from '../middleware/auth';
+import { consumeCharge } from '../services/charges';
 import { rarityUp, resolveCardMeta } from '../services/draw';
 import { pickIndex } from '../services/rng';
 import {
@@ -134,10 +135,12 @@ export const ticketRoutes = new Elysia({ name: 'routes.tickets', prefix: '/ticke
       }
 
       try {
-        const { ticketId } = await db
-          .transaction()
-          .execute(async (trx) => generateTicket(trx, user.id));
-        const ticket = await loadMaskedTicket(db, ticketId, user.id);
+        const result = await db.transaction().execute(async (trx) => {
+          const charges = await consumeCharge(trx, user.id);
+          const { ticketId } = await generateTicket(trx, user.id);
+          return { ticketId, charges };
+        });
+        const ticket = await loadMaskedTicket(db, result.ticketId, user.id);
         set.status = 201;
         return { ticket };
       } catch (error) {

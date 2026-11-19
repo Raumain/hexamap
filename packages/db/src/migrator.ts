@@ -8,6 +8,8 @@ import * as rateLimit from '../migrations/0005_rate_limit';
 import * as marketRelist from '../migrations/0006_market_relist';
 import * as blasons from '../migrations/0007_blasons';
 import * as entityContours from '../migrations/0008_entity_contours';
+import * as scratchCharges from '../migrations/0009_scratch_charges';
+import * as friendships from '../migrations/0010_friendships';
 import * as achievements from '../migrations/0011_achievements';
 import type { Database } from './index';
 
@@ -22,6 +24,8 @@ class StaticMigrationProvider implements MigrationProvider {
       '0006_market_relist': marketRelist,
       '0007_blasons': blasons,
       '0008_entity_contours': entityContours,
+      '0009_scratch_charges': scratchCharges,
+      '0010_friendships': friendships,
       '0011_achievements': achievements,
     };
   }
