@@ -8,7 +8,7 @@ Branche : `feat/phase-27-les-medailles`. Migration réservée : `0011_achievemen
 | Élément | Fichier |
 | :--- | :--- |
 | Catalogue pur (37 médailles, six familles, budget 65 950) | `packages/shared/src/achievements.ts` |
-| Spec du catalogue et d'intégration (54 cas) | `packages/spec/src/achievements.spec.ts` |
+| Spec du catalogue et d'intégration (59 cas) | `packages/spec/src/achievements.spec.ts` |
 | Table `user_achievements` + semis de l'interrupteur | `packages/db/migrations/0011_achievements.ts` |
 | Enregistrement et types Kysely | `packages/db/src/migrator.ts`, `packages/db/src/schema.ts` |
 | Métriques serveur et versement transactionnel | `apps/api/src/services/achievements.ts` |
@@ -27,7 +27,7 @@ docker compose --profile tools run --rm \
 ✓ 1/4 Lint        Checked 173 files, no fixes applied
 ✓ 2/4 Typecheck   six workspaces, dont apps/web (tsr generate && tsc)
 ✓ 3/4 Base de données   PostgreSQL joignable
-✓ 4/4 Spécifications    213 pass, 0 fail, 1228 expect() calls, 12 fichiers
+✓ 4/4 Spécifications    218 pass, 0 fail, 1272 expect() calls, 12 fichiers
 ```
 
 Premier passage : **rouge** au typecheck, `packages/spec/src/achievements.spec.ts(129,27)`
@@ -70,3 +70,14 @@ Premier passage : **rouge** au typecheck, `packages/spec/src/achievements.spec.t
 - Les médailles ne sont pas réévaluées à chaque mutation (grattage, vente, achat). L'évaluation
   se déclenche à la lecture de `GET /api/v1/achievements`, ce qui suffit à l'idempotence et évite
   d'alourdir chaque transaction du jeu.
+
+## Corrections après relecture hostile
+
+Le premier `ci:check` vert comptait 213 spécifications. La relecture a ensuite trouvé deux
+bloquants (`text-[9px]` dans la salle, preuve non consignée) et neuf suggestions. Ont été
+corrigés : plancher typographique à 10 px, resynchronisation de la bourse de la coquille,
+interrupteur désormais fail-closed (`value === true`), `uniqueRue` borné à l'index primaire,
+série d'assiduité bornée à 400 jours, une seule collecte de métriques par évaluation, schéma
+TypeBox en union des six familles, `countAcceptedFriends` ajoutée et testée, et trois preuves
+d'intégration (tickets distincts, Pépite, ventes/achats). Restent assumés : le `GET` qui verse
+(pas de `POST /evaluate` séparé) et la salle non nommée dans `DESIGN_SYSTEM.md`.
