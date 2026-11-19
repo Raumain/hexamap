@@ -18,6 +18,8 @@ interface MaskedCard {
   rarity: Rarity;
   score: number;
   nom: string;
+  blasonUrl: string | null;
+  blasonCredit: string | null;
 }
 
 interface MaskedCell {
@@ -71,6 +73,10 @@ const seeded = {
   deptCodes: [] as string[],
   communeCodes: [] as string[],
   odonymeIds: [] as string[],
+  /** Commune semée avec un blason **et** son attribution. */
+  blasonCommuneCode: '',
+  /** Commune semée avec un contour seul, sans blason ni attribution (repli visuel). */
+  contourCommuneCode: '',
 };
 const createdUserIds: string[] = [];
 
@@ -129,10 +135,53 @@ async function scratch(cookie: string, ticketId: string, cellIndex: number): Pro
   );
 }
 
+interface ServerGridCard {
+  category: Category;
+  ref_code: string;
+}
+
+interface ServerGridCell {
+  kind: string;
+  card?: ServerGridCard;
+}
+
 /** Lit la grille stockée côté serveur (réservé à la mise en place des tests). */
-function parseGrid(value: unknown): { kind: string }[] {
+function parseGrid(value: unknown): ServerGridCell[] {
   if (!Array.isArray(value)) return [];
-  return value as { kind: string }[];
+  return value as ServerGridCell[];
+}
+
+/**
+ * Vrai quand la ligne référentielle de la carte porte un blason **et** son attribution :
+ * seule cette combinaison doit être restituée telle quelle par la révélation. Une ligne qui
+ * n'a qu'un contour n'a pas de blason, et une ligne sans image ne prouve rien du contrat.
+ */
+async function hasReferenceBlason(card: ServerGridCard): Promise<boolean> {
+  if (card.category === 'REGION') {
+    const row = await db
+      .selectFrom('ref_regions')
+      .select(['blason_url', 'blason_credit'])
+      .where('code', '=', card.ref_code)
+      .executeTakeFirst();
+    return row !== undefined && row.blason_url !== null && row.blason_credit !== null;
+  }
+  if (card.category === 'DEPARTEMENT') {
+    const row = await db
+      .selectFrom('ref_departements')
+      .select(['blason_url', 'blason_credit'])
+      .where('code', '=', card.ref_code)
+      .executeTakeFirst();
+    return row !== undefined && row.blason_url !== null && row.blason_credit !== null;
+  }
+  if (card.category === 'COMMUNE') {
+    const row = await db
+      .selectFrom('ref_communes')
+      .select(['blason_url', 'blason_credit'])
+      .where('code_insee', '=', card.ref_code)
+      .executeTakeFirst();
+    return row !== undefined && row.blason_url !== null && row.blason_credit !== null;
+  }
+  return false;
 }
 
 async function countReveals(ticketId: string): Promise<number> {
@@ -161,32 +210,71 @@ async function seedReference(): Promise<void> {
   seeded.regionCodes = [region1, region2];
   seeded.deptCodes = [dept1, dept2];
 
+  const blasonCommuneCode = `${prefix}-C-COMMUNE-0`;
+  const contourCommuneCode = `${prefix}-C-INHABITUELLE-0`;
+  seeded.blasonCommuneCode = blasonCommuneCode;
+  seeded.contourCommuneCode = contourCommuneCode;
+
   await db
     .insertInto('ref_regions')
     .values([
-      { code: region1, nom: `Région ${prefix} A` },
-      { code: region2, nom: `Région ${prefix} B` },
+      {
+        code: region1,
+        nom: `Région ${prefix} A`,
+        blason_url: `/blasons/regions/${region1}.svg`,
+        blason_credit: 'Licence Ouverte · Spec · Wikimedia Commons',
+      },
+      {
+        code: region2,
+        nom: `Région ${prefix} B`,
+        blason_url: `/blasons/regions/${region2}.svg`,
+        blason_credit: 'Licence Ouverte · Spec · Wikimedia Commons',
+      },
     ])
     .execute();
 
   await db
     .insertInto('ref_departements')
     .values([
-      { code: dept1, nom: `Département ${prefix} A`, code_region: region1, population: 1_000_000 },
-      { code: dept2, nom: `Département ${prefix} B`, code_region: region2, population: 500_000 },
+      {
+        code: dept1,
+        nom: `Département ${prefix} A`,
+        code_region: region1,
+        population: 1_000_000,
+        blason_url: `/blasons/departements/${dept1}.svg`,
+        blason_credit: 'Licence Ouverte · Spec · Wikimedia Commons',
+      },
+      {
+        code: dept2,
+        nom: `Département ${prefix} B`,
+        code_region: region2,
+        population: 500_000,
+        blason_url: `/blasons/departements/${dept2}.svg`,
+        blason_credit: 'Licence Ouverte · Spec · Wikimedia Commons',
+      },
     ])
     .execute();
 
   const communes = RARITY.flatMap((rarete, ri) =>
-    [0, 1].map((d) => ({
-      code_insee: `${prefix}-C-${rarete}-${d}`,
-      nom: `${prefix} Commune ${rarete} ${d}`,
-      code_departement: d === 0 ? dept1 : dept2,
-      code_region: d === 0 ? region1 : region2,
-      population: 1_000_000 - ri * 100_000 - d * 50_000,
-      rarete,
-      score_base: 100 + ri * 50,
-    })),
+    [0, 1].map((d) => {
+      const codeInsee = `${prefix}-C-${rarete}-${d}`;
+      return {
+        code_insee: codeInsee,
+        nom: `${prefix} Commune ${rarete} ${d}`,
+        code_departement: d === 0 ? dept1 : dept2,
+        code_region: d === 0 ? region1 : region2,
+        population: 1_000_000 - ri * 100_000 - d * 50_000,
+        rarete,
+        score_base: 100 + ri * 50,
+        // Les trois branches d'assets restent atteignables par le tirage :
+        // blason + attribution, repli contour seul, aucune image.
+        blason_url: codeInsee === blasonCommuneCode ? `/blasons/communes/${codeInsee}.svg` : null,
+        contour_url:
+          codeInsee === contourCommuneCode ? `/blasons/contours/communes/${codeInsee}.svg` : null,
+        blason_credit:
+          codeInsee === blasonCommuneCode ? 'Licence Ouverte · Spec · Wikimedia Commons' : null,
+      };
+    }),
   );
   seeded.communeCodes = communes.map((c) => c.code_insee);
   await db.insertInto('ref_communes').values(communes).execute();
@@ -399,6 +487,113 @@ describe('Phase 5 — tickets, collection, référentiels', () => {
     if (primary === undefined) throw new Error('aucune case révélée');
     if (primary.kind === 'STATION') {
       expect(body.ticket.scrapesRemaining).toBe(before + 1);
+    }
+  });
+
+  it('Archi §4.7 — la révélation porte le blason, l’attribution et le repli contour', async () => {
+    const { cookie } = await signUp();
+    const blasonCategories: Category[] = ['REGION', 'DEPARTEMENT', 'COMMUNE'];
+    const contourPath = `/blasons/contours/communes/${seeded.contourCommuneCode}.svg`;
+
+    let ticket = await createTicket(cookie);
+    let target: { index: number; refCode: string } | null = null;
+    let contour: { index: number; refCode: string } | null = null;
+
+    // La grille ne garantit aucune catégorie : on cherche une case dont la ligne
+    // référentielle porte réellement un blason, borne à six tickets.
+    for (let attempt = 0; attempt < 6 && target === null; attempt++) {
+      if (attempt > 0) ticket = await createTicket(cookie);
+      contour = null;
+
+      const row = await db
+        .selectFrom('tickets')
+        .select(['grid'])
+        .where('id', '=', ticket.id)
+        .executeTakeFirstOrThrow();
+      const grid = parseGrid(row.grid);
+
+      for (let index = 0; index < grid.length; index++) {
+        const cell = grid[index];
+        if (cell === undefined) continue;
+        const cellCard = cell.card;
+        if (cellCard === undefined) continue;
+        if (!blasonCategories.includes(cellCard.category)) continue;
+        if (ticket.cells.some((c) => c.index === index && c.revealed)) continue;
+        if (await hasReferenceBlason(cellCard)) {
+          target = { index, refCode: cellCard.ref_code };
+          break;
+        }
+        if (cellCard.ref_code === seeded.contourCommuneCode) {
+          contour = { index, refCode: cellCard.ref_code };
+        }
+      }
+
+      if (target === null) {
+        // Un seul ticket ACTIVE par joueur : il faut l'épuiser pour en créer un autre.
+        let current = ticket;
+        for (let step = 0; step < 20 && current.status === 'ACTIVE'; step++) {
+          const free = current.cells.find((c) => !c.revealed);
+          if (free === undefined) break;
+          const drained = await scratch(cookie, current.id, free.index);
+          if (drained.status !== 200) break;
+          current = ((await drained.json()) as ScratchBody).ticket;
+        }
+      }
+    }
+
+    if (target === null) {
+      throw new Error(
+        `aucune case REGION, DEPARTEMENT ou COMMUNE blasonnée dans 6 tickets (préfixe ${prefix})`,
+      );
+    }
+    const targetIndex = target.index;
+    const targetRefCode = target.refCode;
+
+    const res = await scratch(cookie, ticket.id, targetIndex);
+    expect(res.status).toBe(200);
+    // Anti-triche : la révélation ne fuit jamais `treasure_index` ni `grid`.
+    const raw = await res.text();
+    expect(raw).not.toContain('treasure_index');
+    expect(raw).not.toContain('"grid"');
+    expect(raw).not.toContain('grid:');
+    const body = JSON.parse(raw) as ScratchBody;
+
+    const revealedCell = body.revealed.find((c) => c.index === targetIndex);
+    if (revealedCell === undefined || revealedCell.card === null) {
+      throw new Error('la case grattée ne figure pas dans la révélation');
+    }
+    const card = revealedCell.card;
+    expect(card.refCode).toBe(targetRefCode);
+    expect(card.blasonUrl).toMatch(/^\/blasons\//);
+    expect(card.blasonCredit).toBeTypeOf('string');
+    expect((card.blasonCredit ?? '').length).toBeGreaterThan(0);
+
+    // Même contrat sur le chemin persistant : la relecture rend les mêmes trois valeurs.
+    const currentRes = await authFetch('/api/v1/tickets/current', {}, cookie);
+    expect(currentRes.status).toBe(200);
+    const rawCurrent = await currentRes.text();
+    expect(rawCurrent).not.toContain('treasure_index');
+    expect(rawCurrent).not.toContain('"grid"');
+    const currentBody = JSON.parse(rawCurrent) as { ticket: MaskedTicket };
+    const persisted = currentBody.ticket.cells.find((c) => c.index === targetIndex);
+    expect(persisted?.revealed).toBe(true);
+    expect(persisted?.card?.refCode).toBe(card.refCode);
+    expect(persisted?.card?.blasonUrl).toBe(card.blasonUrl);
+    expect(persisted?.card?.blasonCredit).toBe(card.blasonCredit);
+
+    // Repli contour : la commune semée sans blason mais avec un contour rend ce contour.
+    // Le tirage ne la garantit pas, le cas l'observe dès qu'elle sort.
+    if (contour !== null) {
+      const contourIndex = contour.index;
+      const contourRefCode = contour.refCode;
+      const contourRes = await scratch(cookie, ticket.id, contourIndex);
+      if (contourRes.status === 200) {
+        const contourBody = (await contourRes.json()) as ScratchBody;
+        const contourCell = contourBody.revealed.find((c) => c.index === contourIndex);
+        expect(contourCell?.card?.refCode).toBe(contourRefCode);
+        expect(contourCell?.card?.blasonUrl).toBe(contourPath);
+        expect(contourCell?.card?.blasonCredit).toBeNull();
+      }
     }
   });
 
