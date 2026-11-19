@@ -9,6 +9,7 @@ de la PR qui la ferme.
 | BUG-001 | Données de test de `packages/spec` présentes dans la base de développement | Haute | Ouvert — cause corrigée, données à nettoyer |
 | BUG-002 | Une carte de collection peut référencer un référentiel inexistant | Moyenne | Ouvert |
 | BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Ouvert |
+| BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
 
 Gravités : `Haute` (donnée utilisateur fausse ou perte de données), `Moyenne`
 (comportement incorrect sans perte), `Basse` (robustesse, hygiène).
@@ -154,6 +155,126 @@ invisible : la donnée de test était structurellement acceptable.
 Contrainte `CHECK` sur le format du code, ou validation dans le pipeline d'import
 (`scripts/import`) avec échec explicite. À faire en même temps que BUG-002, dans
 la même migration.
+
+---
+
+---
+
+## BUG-004 — La modale de trouvaille ne se ferme jamais et recouvre Le Relevé
+
+- **Gravité** : Haute
+- **Statut** : Corrigé — PR à ouvrir sur `feat/phase-15-cartel`
+- **Constaté le** : 2026-11-19
+- **Zone** : `apps/web/src/routes/tickets.$ticketId.tsx`,
+  `apps/api/src/services/ticket.ts`
+
+> Gravité Haute par exception à la définition de ce registre : il n'y a ni donnée
+> fausse ni perte, mais le joueur perd l'accès à la boucle de jeu tant que le
+> ticket troué reste `ACTIVE`. Une modale qui ne se ferme pas n'est pas un simple
+> « comportement incorrect ».
+
+### Symptôme observé
+
+Après avoir révélé une Pépite, l'écran de grattage est entièrement recouvert par
+une modale « Pépite découverte » qui affiche la planche, sans bouton de fermeture.
+Changer de salle puis revenir sur le ticket — ou cliquer « Reprendre mon ticket »
+depuis Le Relevé — ramène la même modale. La grille est inatteignable, donc plus
+aucun coup de grattoir n'est possible ; et comme le ticket est toujours `ACTIVE`,
+Le Relevé ne propose pas non plus « Obtenir un ticket ».
+
+### Cause racine
+
+Deux défauts se cumulent.
+
+1. **La modale est dérivée d'un état serveur persistant, jamais d'un événement.**
+   `apps/web/src/routes/tickets.$ticketId.tsx:156-157` retrouve la case Pépite dans
+   `ticket.cells`, et `:291` affiche la modale dès que `ticket.treasureFound` est
+   vrai. Or `treasureFound` est **recalculé à chaque lecture** par
+   `maskTicket` (`apps/api/src/services/ticket.ts:178-208`) à partir de
+   `ticket_reveals` : dès que la case Pépite figure dans les révélations, l'indicateur
+   reste vrai pour toute la vie du ticket. Aucun chemin d'écriture ne le remet à
+   faux — ce n'est pas une colonne, c'est une dérivation. La modale revient donc
+   obligatoirement à chaque visite, y compris après rechargement complet.
+2. **La modale n'a aucune sortie autre qu'un lien de navigation.**
+   `tickets.$ticketId.tsx:292-318` : `role="dialog"` en `fixed inset-0 z-50`
+   (`:296`), sans bouton de fermeture, sans gestionnaire `Escape`, sans clic
+   extérieur, sans état local « vue ». La seule affordance est le lien
+   « Ranger dans le cadastre » (`:310-315`), qui quitte la salle. Elle recouvre
+   aussi le bouton « Nouveau ticket » d'un ticket épuisé (`:264-285`), qui devient
+   donc inatteignable.
+
+L'hypothèse « j'ai cliqué sur une case déjà découverte » est écartée par le code :
+une case révélée est rendue par `RevealedCell`, un simple `<div>` sans gestionnaire
+(`apps/web/src/components/revealed-cell.tsx:24`), et la route ne monte `ScratchCell`
+que pour les cases non révélées (`tickets.$ticketId.tsx:201-215`). Un envoi
+accidentel serait de toute façon refusé en `409 CELL_ALREADY_REVEALED`
+(`apps/api/src/routes/tickets.ts:248-256`).
+
+La Pépite peut en revanche être révélée **sans que le joueur la vise** : une case
+Belvédère révèle une case orthogonale tirée au hasard
+(`apps/api/src/routes/tickets.ts:361-370`), qui peut être la Pépite. C'est le
+scénario le plus probable ici.
+
+### Preuve
+
+1. Gratter jusqu'à révéler la case `kind === 'TREASURE'`, directement ou par
+   cascade Belvédère.
+2. La modale s'affiche et ne propose que « Ranger dans le cadastre ».
+3. Naviguer vers `/collection`, puis revenir sur `/` : le bouton affiché est
+   « Reprendre mon ticket » (le ticket est toujours `ACTIVE`).
+4. Cliquer dessus réaffiche la modale : `GET /tickets/current` renvoie
+   `treasureFound: true`, recalculé depuis `ticket_reveals`.
+5. `POST /tickets` répondrait `409 TICKET_ALREADY_ACTIVE`
+   (`apps/api/src/routes/tickets.ts:123-132`, index partiel
+   `tickets_one_active_per_user`), donc aucun nouveau bordereau n'est ouvrable.
+
+### Correction proposée
+
+1. **Rendre la modale dismissable** : état local initialisé par identifiant de
+   ticket, bouton « Fermer », gestionnaire `Escape`, clic sur le fond, et focus
+   rendu à la grille à la fermeture (`aria-modal` exige déjà la gestion du focus).
+2. **Ne plus dériver une modale d'un état persistant** : déclencher l'annonce sur
+   la réponse de grattage (`effects.includes('TREASURE_FOUND')`), et rendre le cas
+   persistant avec la ligne non bloquante déjà prévue à `:228-232`. Une découverte
+   est un événement, pas un état.
+3. **Ne pas couvrir les actions de sortie** : le lien « Ranger dans le cadastre »
+   et le bouton « Nouveau ticket » doivent rester atteignables tant que la modale
+   est ouverte.
+4. **Test de non-régression** : parcours Playwright qui révèle la Pépite via une
+   cascade Belvédère, ferme la modale, revient sur la grille, puis ouvre un nouveau
+   bordereau après épuisement.
+
+À ne pas faire : masquer la modale en vidant `ticket_reveals` ou en ajoutant une
+colonne « déjà vue ». Le défaut est côté client (état dérivé + aucune sortie), pas
+dans la persistance du tirage.
+
+### Correction livrée
+
+Corrigé le 2026-11-19, uniquement côté web. Aucun changement d'API, de
+`ticket_reveals` ni de la dérivation `treasureFound` : le serveur reste
+autoritaire et `maskTicket` est intact.
+
+1. **La modale est un événement, plus un état.** `tickets.$ticketId.tsx:47` ajoute
+   `celebration` (`useState<TicketCell | null>`) ; il n'est alimenté que par
+   `onSuccess` de la mutation de grattage, quand `data.effects` contient
+   `TREASURE_FOUND` (`:73-77`). `ticket.treasureFound` n'ouvre plus rien.
+2. **Sorties et accessibilité.** `role="dialog"` + `aria-modal` +
+   `aria-labelledby` vers le nom de la planche (`:322-326`), bouton « Fermer »
+   (`:353-361`), `Escape` (`:50-60`), clic sur le fond via `onPointerDown` gardé
+   par `event.target === event.currentTarget` (`:328-330`). À l'ouverture le focus
+   va au bouton de fermeture ; à la fermeture, le nettoyage de l'effet le rend à
+   la grille (`ref` sur le `fieldset`, `:221`). Le lien « Ranger dans le cadastre »
+   ferme aussi la modale avant de naviguer.
+3. **Trace non bloquante.** La ligne « Pépite trouvée » s'affiche dès qu'une case
+   `TREASURE` est révélée et qu'aucune modale n'est ouverte (`:251-261`) ; elle
+   porte le lien « Voir dans le cadastre » et ne recouvre plus le bouton
+   « Nouveau ticket ».
+4. **Libellés centralisés.** `apps/web/src/content/tickets.ts:63-67` :
+   `treasureFoundLink`, `treasureEyebrow`, `treasureFallbackName`,
+   `treasureModalLink`, `closeModal`.
+
+Vérifié dans Docker : `bun run lint`, `bun run typecheck`,
+`bun test packages/spec` (140 pass, 0 fail), `bun run build`.
 
 ---
 

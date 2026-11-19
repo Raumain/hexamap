@@ -60,6 +60,11 @@ export const TICKET = {
   keyboardHint: 'Astuce : sélectionnez une case et appuyez sur Entrée ou Espace pour la révéler.',
   renovationPending: 'Rénovation en attente : la prochaine carte gagne un palier.',
   treasureFound: 'Pépite trouvée !',
+  treasureFoundLink: 'Voir dans le cadastre',
+  treasureEyebrow: 'Découverte',
+  treasureFallbackName: 'Pépite',
+  treasureModalLink: 'Ranger dans le cadastre',
+  closeModal: 'Fermer',
   retry: 'Réessayer',
 };
 

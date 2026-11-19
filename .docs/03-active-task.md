@@ -113,6 +113,14 @@ docker compose --profile tools run --rm dev bun run build
   main) et Vite sert le module (`200` sur `/src/routes/card.$cardId.tsx`) ainsi que la page
   (`200` sur `/card/<id>`) sans redémarrage.
 
+**Correctif BUG-004 (2026-11-19)**
+- La modale « Pépite découverte » n'est plus dérivée de `ticket.treasureFound` : elle
+  s'ouvre uniquement sur l'effet `TREASURE_FOUND` de la mutation de grattage, se ferme
+  par bouton, `Escape` ou clic sur le fond, rend le focus à la grille, et laisse une
+  ligne non bloquante « Pépite trouvée » quand le ticket est revisité. Fichiers :
+  `apps/web/src/routes/tickets.$ticketId.tsx`, `apps/web/src/content/tickets.ts`,
+  `.docs/04-bugs.md`. Aucune évolution d'API ni de schéma.
+
 **Portée**
 - Aucune migration, aucune évolution du schéma. Le seul contrat d'API concerné est
   `GET /api/v1/cards/:id`, déjà livré et laissé intact.
