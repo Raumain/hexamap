@@ -32,7 +32,7 @@
 | `user_scratch_charges` | **Migrée** | `packages/db/migrations/0009_scratch_charges.ts` |
 | `friendships`, `blocks` | **Migrée** | `packages/db/migrations/0010_friendships.ts` |
 | `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
-| `user_profiles`, index `user_pseudo_lower_idx` | **Contrat** | Migrations `0009`+ (phase 29) |
+| `user_profiles`, index `user_pseudo_lower_idx` | **Migrée** | `packages/db/migrations/0012_profiles.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son

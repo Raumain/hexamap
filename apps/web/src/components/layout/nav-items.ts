@@ -104,6 +104,7 @@ export function salonForPath(pathname: string): string {
   if (SALON_TITLES[pathname]) return SALON_TITLES[pathname];
   if (pathname.startsWith('/tickets/')) return 'Le Relevé';
   if (pathname.startsWith('/card/')) return 'Le Cartel';
+  if (pathname.startsWith('/players/')) return 'La Vitrine';
   if (pathname.startsWith('/market')) return 'Le Comptoir';
   return 'Le Cabinet';
 }

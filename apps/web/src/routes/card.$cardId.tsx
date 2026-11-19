@@ -4,6 +4,7 @@ import { createFileRoute, Link, Navigate, useRouter } from '@tanstack/react-rout
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
+import { outlineButtonClass, primaryButtonClass } from '../components/ui/button-classes';
 import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import { CARD_DETAIL, CARD_SOURCE_LABELS, stateLabel } from '../content/card-detail';
@@ -39,12 +40,6 @@ const coordinateFormatter = new Intl.NumberFormat('fr-FR', {
   minimumFractionDigits: 3,
   maximumFractionDigits: 3,
 });
-
-const primaryButtonClass =
-  'inline-flex min-h-11 items-center justify-center rounded-[2px] border border-brass bg-brass px-5 font-mono text-[10px] uppercase tracking-[0.16em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60';
-
-const outlineButtonClass =
-  'inline-flex min-h-11 items-center justify-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.14em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale';
 
 export const Route = createFileRoute('/card/$cardId')({
   component: CardDetailPage,
@@ -497,6 +492,8 @@ function BuyPanel({
   card: CardDetail;
   listing: NonNullable<CardDetail['listing']>;
 }) {
+  const viewer = useSession();
+  const viewerId = viewer.data?.user?.id ?? null;
   const queryClient = useQueryClient();
 
   const buyMutation = useMutation({
@@ -517,7 +514,19 @@ function BuyPanel({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="font-display text-xl text-vellum">{CARD_DETAIL.listedTitle}</h2>
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
-          {CARD_DETAIL.sellerLabel} · {card.owner.pseudo ?? CARD_DETAIL.anonymous}
+          {CARD_DETAIL.sellerLabel} ·{' '}
+          {viewerId && card.owner.id !== viewerId ? (
+            <Link
+              to="/players/$playerId"
+              params={{ playerId: card.owner.id }}
+              aria-label={`Voir la vitrine de ${card.owner.pseudo ?? CARD_DETAIL.anonymous}`}
+              className="text-brass underline underline-offset-4 transition-colors duration-150 hover:text-brass-pale"
+            >
+              {card.owner.pseudo ?? CARD_DETAIL.anonymous}
+            </Link>
+          ) : (
+            (card.owner.pseudo ?? CARD_DETAIL.anonymous)
+          )}
         </p>
       </div>
 

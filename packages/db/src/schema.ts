@@ -210,6 +210,13 @@ export interface BlockTable {
   created_at: Generated<Date>;
 }
 
+export interface UserProfileTable {
+  user_id: string;
+  bio: string | null;
+  profile_public: Generated<boolean>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -232,4 +239,5 @@ export interface Database {
   user_achievements: UserAchievementTable;
   friendships: FriendshipTable;
   blocks: BlockTable;
+  user_profiles: UserProfileTable;
 }

@@ -55,7 +55,7 @@ describe('Phase 4 — authentification (archi §4.4)', () => {
 
   it('inscription avec pseudo crée le compte avec currency = 0', async () => {
     const email = `spec-${crypto.randomUUID()}@hexamap.test`;
-    const pseudo = 'spec-pseudo';
+    const pseudo = `spec-pseudo-${crypto.randomUUID().slice(0, 6)}`;
 
     const res = await app.handle(
       new Request(`${baseUrl}/api/auth/sign-up/email`, {
@@ -103,7 +103,7 @@ describe('Phase 4 — authentification (archi §4.4)', () => {
           email,
           password: 'motdepasse-123',
           name: 'Spec',
-          pseudo: 'spec-pseudo',
+          pseudo: `spec-pseudo-${crypto.randomUUID().slice(0, 6)}`,
           currency: 9999,
         }),
       }),
@@ -121,7 +121,7 @@ describe('Phase 4 — authentification (archi §4.4)', () => {
 
   it('GET /api/v1/me avec le cookie de session renvoie 200 et les infos du user', async () => {
     const email = `spec-${crypto.randomUUID()}@hexamap.test`;
-    const pseudo = 'spec-pseudo';
+    const pseudo = `spec-pseudo-${crypto.randomUUID().slice(0, 6)}`;
 
     const signUp = await app.handle(
       new Request(`${baseUrl}/api/auth/sign-up/email`, {
@@ -153,7 +153,7 @@ describe('Phase 4 — authentification (archi §4.4)', () => {
   it('connexion par email ouvre une session utilisable', async () => {
     const email = `spec-${crypto.randomUUID()}@hexamap.test`;
     const password = 'motdepasse-123';
-    const pseudo = 'spec-pseudo';
+    const pseudo = `spec-pseudo-${crypto.randomUUID().slice(0, 6)}`;
 
     const signUp = await app.handle(
       new Request(`${baseUrl}/api/auth/sign-up/email`, {
