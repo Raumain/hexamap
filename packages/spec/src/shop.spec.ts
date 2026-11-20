@@ -198,6 +198,38 @@ describe('boutique — checkout et crédit des écus', () => {
     expect(await readBalance(userId)).toBe(0);
   });
 
+  it('une session au paiement en attente ne crédite rien', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await startCheckout(cookie, 'PACK_500');
+
+    const rawBody = JSON.stringify({
+      type: 'checkout.session.completed',
+      sessionId,
+      paymentStatus: 'unpaid',
+    });
+    const res = await postWebhook(rawBody, fake.sign(rawBody));
+
+    expect(res.status).toBe(200);
+    expect(await ledgerRows(userId)).toHaveLength(0);
+    expect(await readBalance(userId)).toBe(0);
+  });
+
+  it('une session payée crédite comme avant', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await startCheckout(cookie, 'PACK_500');
+
+    const rawBody = JSON.stringify({
+      type: 'checkout.session.completed',
+      sessionId,
+      paymentStatus: 'paid',
+    });
+    const res = await postWebhook(rawBody, fake.sign(rawBody));
+
+    expect(res.status).toBe(200);
+    expect(await ledgerRows(userId)).toHaveLength(1);
+    expect(await readBalance(userId)).toBe(500);
+  });
+
   it('le checkout rend une URL et n’écrit aucune ligne de grand-livre', async () => {
     const { cookie, userId } = await signUp();
 

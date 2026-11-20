@@ -71,6 +71,17 @@ function toProviderError(error: unknown): ShopProviderError {
  * n'insère aucune ligne et n'incrémente donc pas le solde.
  */
 async function creditPurchase(event: PurchaseCompletedEvent): Promise<void> {
+  // Seul un paiement encaissé crédite. `checkout.session.completed` peut arriver
+  // avec `payment_status: 'unpaid'` sur un moyen de paiement différé : la
+  // session est terminée, l'argent n'est pas là. La garde vaut pour tout
+  // prestataire, donc elle vit ici et non dans l'adaptateur Stripe.
+  if (event.paymentStatus !== 'paid') {
+    console.warn(
+      `[shop] session non payée ignorée : ${event.sessionId} (statut ${event.paymentStatus ?? 'inconnu'})`,
+    );
+    return;
+  }
+
   await db.transaction().execute(async (trx) => {
     const user = await trx
       .selectFrom('user')

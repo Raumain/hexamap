@@ -20,6 +20,13 @@ export interface PurchaseCompletedEvent {
   readonly packKey: PackKey;
   readonly amountTotal: number | null;
   readonly currency: string | null;
+  /**
+   * `session.payment_status` du prestataire. Seul `'paid'` autorise un crédit :
+   * un `checkout.session.completed` peut arriver avec un paiement encore en
+   * attente (moyen de paiement différé), et créditer d'avance reviendrait à
+   * donner des écus sans encaissement.
+   */
+  readonly paymentStatus: string | null;
 }
 
 export interface PurchaseRefundedEvent {

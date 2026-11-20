@@ -59,6 +59,7 @@ export class FakePaymentProvider implements PaymentProvider {
       originalAmountCents?: number;
       paymentIntentId?: string;
       currency?: string;
+      paymentStatus?: string;
     };
 
     if (payload.type === 'charge.refunded' && payload.sessionId) {
@@ -89,6 +90,10 @@ export class FakePaymentProvider implements PaymentProvider {
       packKey: session.packKey,
       amountTotal: payload.amountTotal ?? null,
       currency: payload.currency ?? null,
+      // Une charge utile sans statut simule le cas nominal des anciens cas :
+      // Stripe renseigne toujours `payment_status`, la valeur par défaut n'existe
+      // que pour le faux prestataire.
+      paymentStatus: payload.paymentStatus ?? 'paid',
     };
   }
 }

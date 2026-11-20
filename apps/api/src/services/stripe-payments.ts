@@ -44,6 +44,7 @@ async function createCheckoutSession(input: CheckoutInput): Promise<CheckoutSess
   if (!pack || !priceId) throw new ShopDisabledError();
 
   const stripe = stripeClient();
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     line_items: [{ price: priceId, quantity: 1 }],
@@ -91,6 +92,7 @@ async function verifyWebhook(
       packKey,
       amountTotal: session.amount_total ?? null,
       currency: session.currency ?? null,
+      paymentStatus: session.payment_status ?? null,
     };
   }
 
