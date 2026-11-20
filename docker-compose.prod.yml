@@ -62,6 +62,13 @@ services:
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+      # Boutique : toutes optionnelles, une valeur vide ferme la boutique (503).
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PACK_500: ${STRIPE_PRICE_PACK_500:-}
+      STRIPE_PRICE_PACK_1200: ${STRIPE_PRICE_PACK_1200:-}
+      STRIPE_PRICE_PACK_2500: ${STRIPE_PRICE_PACK_2500:-}
+      STRIPE_PRICE_PACK_6000: ${STRIPE_PRICE_PACK_6000:-}
     volumes:
       - blasons:/data/blasons:ro
       - importstatus:/data/import-status:ro
