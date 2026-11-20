@@ -33,6 +33,40 @@ services:
     networks:
       - backend
       - dokploy-network
+    # ROUTAGE — propriété du dépôt, pas de l'interface Dokploy.
+    #
+    # Le déploiement Compose de Dokploy n'injecte aucun label Traefik : sans ce
+    # bloc, le conteneur est sain et présent sur `dokploy-network`, mais aucun
+    # routeur n'existe et Traefik répond 404 sur le domaine. Ces labels sont donc
+    # la seule source du routage.
+    #
+    # Conséquence directe : le domaine ne doit PAS être déclaré aussi dans
+    # l'onglet « Domains » de Dokploy. Deux routeurs sur la même règle rendent le
+    # comportement indéfini. Si l'opérateur préfère l'interface, il doit retirer
+    # ce bloc `labels` — jamais le laisser en place à côté.
+    #
+    # `PUBLIC_HOST` est la seule source de vérité du nom d'hôte, exigée par `:?` :
+    # une valeur absente fait échouer l'interpolation au lieu de produire un
+    # routeur `Host()` vide qui ne correspond à aucune requête.
+    labels:
+      traefik.enable: "true"
+      # Le conteneur est sur trois réseaux (`backend`, `public`,
+      # `dokploy-network`) : sans cette épingle, Traefik peut élire l'IP d'un
+      # réseau qu'il ne partage pas et la requête n'aboutit jamais.
+      traefik.docker.network: "dokploy-network"
+      # HTTPS : le routeur qui termine le TLS, avec le résolveur de Dokploy.
+      traefik.http.routers.hexamap-websecure.rule: "Host(`${PUBLIC_HOST:?PUBLIC_HOST est obligatoire (nom d'hôte public, ex. hexamap.example.fr)}`)"
+      traefik.http.routers.hexamap-websecure.entrypoints: "websecure"
+      traefik.http.routers.hexamap-websecure.tls: "true"
+      traefik.http.routers.hexamap-websecure.tls.certresolver: "letsencrypt"
+      traefik.http.routers.hexamap-websecure.service: "hexamap"
+      # HTTP : redirige vers HTTPS, il ne sert jamais de contenu en clair.
+      traefik.http.routers.hexamap-web.rule: "Host(`${PUBLIC_HOST:?PUBLIC_HOST est obligatoire (nom d'hôte public, ex. hexamap.example.fr)}`)"
+      traefik.http.routers.hexamap-web.entrypoints: "web"
+      traefik.http.routers.hexamap-web.middlewares: "hexamap-redirect"
+      traefik.http.middlewares.hexamap-redirect.redirectscheme.scheme: "https"
+      # Port du **conteneur**, pas le port publié sur l'hôte.
+      traefik.http.services.hexamap.loadbalancer.server.port: "3000"
 
 networks:
   # Réseau géré par Dokploy, créé avant le déploiement de la pile. `external: true`
