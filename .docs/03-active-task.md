@@ -5,6 +5,73 @@
 
 ---
 
+# Planification — pré-déploiement, boutique Stripe, L'Assemblage (2026-11-20)
+
+## Statut
+
+- **État** : Planification terminée ; seule la salle de teaser est implémentée
+- **Priorité** : P0 (A — avant le premier joueur), P1 (B, C)
+- **Branche** : aucune — travail non commité sur `main`
+- **Détail** : `ROADMAP.md` §2 (tracks A, B, C)
+
+## Ce qui est fait
+
+1. **Vérification de l'image de production** (`ROADMAP.md` §2.A), dans Docker uniquement :
+   image `target: prod` construite (180 Mo, `USER bun`), démarrée avec
+   `docker-compose.prod.yml` contre un **volume PostgreSQL 16 vierge**. 12/12 migrations
+   appliquées au démarrage, 24 tables, 6 clés de `game_config`, inscription `200`, carnet à
+   **6/6**, tirage `503 REFERENCE_DATA_MISSING` **sans consommer la charge**, CORS refusé à une
+   origine inconnue, bundle `260 233` → `81 494` (gzip) / `76 664` (brotli), assets `immutable`,
+   `index.html` `no-cache`, ETag → `304`, `/api/auth/get-session` non masqué par le repli SPA.
+2. **Neuf constats** A1 → A9 consignés dans `ROADMAP.md` §2.A, aucun corrigé.
+   Le seul qui soit un défaut à spécifier d'abord est **A1** : une ressource versionnée absente
+   renvoie `200 text/html` (`/assets/nope.js`), donc un chunk périmé échoue en
+   `Unexpected token '<'` au lieu d'un `404`.
+3. **La check-list d'hébergement** (`ROADMAP.md` §2.A.2), indépendante du prestataire :
+   calcul et image (x86_64 ou `--platform linux/amd64`), persistance, origine unique et TLS,
+   secrets, exploitation (sauvegarde, rotation des journaux, sonde), produit et légal.
+4. **Le plan Stripe** (`ROADMAP.md` §2.B) : quatre packs d'écus, Checkout hébergé, webhook signé,
+   idempotence portée par la base, remboursements, plafond quotidien, tests sans réseau.
+5. **Le contrat de données corrigé** : `.docs/02-database.md` §4.6 — l'unicité de
+   `PURCHASE:<ref>` ne peut pas être une vérification avant insertion ; l'index partiel
+   `currency_ledger_purchase_uniq` est documenté, et `PURCHASE_REFUND:<ref>` entre dans la liste
+   fermée des motifs.
+6. **La salle `L'Assemblage`** (`/assemblage`), teaser de la V2 : contenu, module de tracé pur,
+   entrée dans `SECONDARY_NAV`, titre dans `SALON_TITLES`, un cas Playwright. `ci:check` vert,
+   **267 spécifications / 15 fichiers**.
+
+## Ce qui reste à faire
+
+| Point | Premier pas | État |
+| :--- | :--- | :--- |
+| A — pré-déploiement | **A1** : une spec rouge dans `static.spec.ts`, puis la garde d'extension dans `static.ts` | À faire |
+| A — hébergement | Choisir le prestataire, puis parcourir `ROADMAP.md` §2.A.2 | À faire |
+| B — boutique | **30.1** : migration de l'index unique, avant toute route de paiement | À faire, bloqué par le juridique |
+| C — carte de France | **31.1** : chemins précalculés à l'import (`path_d`) | À faire |
+
+## Journal
+
+### 2026-11-20 — Trois chantiers cadrés, un seul entamé
+
+**Ce qui a été mesuré, pas supposé.** La vérification de production a été jouée sur un
+référentiel vide, avec un `postgres:16-alpine` neuf et un volume anonyme : c'est la seule
+configuration qui prouve quelque chose, la base de développement portant déjà les données. Deux
+comportements ont été observés qui n'étaient documentés nulle part : un tirage impossible
+**rend** la charge (la transaction annule la dépense), et le repli SPA attrape les chemins portant
+une extension, ce qui est A1.
+
+**Ce qui a été tu volontairement.** Aucun pack n'est implémenté, aucune migration d'index n'est
+écrite, aucun chemin de carte n'est précalculé : la demande était de cadrer, et chaque point
+s'ouvrira dans une session neuve. Le teaser est la seule exception, parce qu'il devait être
+visible.
+
+**Portée** : `ROADMAP.md`, `.docs/02-database.md` §4.6 et §4.1 (liste des motifs),
+`.docs/03-active-task.md`, `apps/web` (quatre fichiers) et `packages/e2e/tests/mobile.spec.ts`.
+Aucune migration, aucune dépendance nouvelle, `packages/spec`, `packages/db`, `packages/shared`
+et `apps/api` intacts. Aucun commit.
+
+---
+
 # Maintenance — migrations rejouables (2026-11-20)
 
 ## Statut

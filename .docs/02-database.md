@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-19.
+> Dernière mise à jour : 2026-11-20.
 
 ---
 
@@ -278,10 +278,23 @@ create index currency_ledger_user_idx on currency_ledger (user_id, created_at de
 | `MARKET_BUY` | acheteur débité contre une carte | négatif |
 | `MARKET_SELL` | vendeur crédité par une vente | positif |
 | `ACHIEVEMENT:<key>` | prime d'une médaille, une seule fois par clé | positif |
-| `PURCHASE:<provider_ref>` | achat d'écus par un moyen de paiement (hors V1) | positif |
+| `PURCHASE:<provider_ref>` | achat d'écus par un moyen de paiement (phase 30) | positif |
+| `PURCHASE_REFUND:<provider_ref>` | remboursement d'un achat, contrepartie négative (phase 30) | négatif |
 
 `PURCHASE:<provider_ref>` porte la référence du prestataire pour qu'un webhook rejoué ne
-crédite pas deux fois : l'unicité se vérifie sur `(user_id, reason)` avant l'insertion.
+crédite pas deux fois. **L'unicité ne peut pas être une vérification avant insertion** : deux
+livraisons simultanées du même événement lisent toutes deux « absent » puis insèrent toutes deux.
+Elle doit être portée par la base. Index à créer par la migration de la phase 30, **avant** toute
+route de paiement :
+
+```sql
+create unique index currency_ledger_purchase_uniq
+  on currency_ledger (user_id, reason)
+  where reason like 'PURCHASE:%';
+```
+
+L'écriture devient alors un `insert … on conflict do nothing`, et un rejeu ne paie pas. Tant que
+cet index n'existe pas, la boutique ne peut pas être implémentée.
 
 ### 4.7 Carnet de charges
 
