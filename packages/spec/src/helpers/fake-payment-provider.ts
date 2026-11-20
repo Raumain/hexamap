@@ -6,7 +6,7 @@ import type {
   PaymentEvent,
   PaymentProvider,
 } from '@hexamap/shared';
-import { ShopDisabledError, WebhookSignatureError } from '@hexamap/shared';
+import { packByKey, ShopDisabledError, WebhookSignatureError } from '@hexamap/shared';
 
 export const FAKE_WEBHOOK_SECRET = 'whsec_spec_boutique';
 
@@ -47,8 +47,31 @@ export class FakePaymentProvider implements PaymentProvider {
       type?: string;
       sessionId?: string;
       amountTotal?: number;
+      amountCents?: number;
+      amountRefundedCents?: number;
+      originalAmountCents?: number;
+      paymentIntentId?: string;
       currency?: string;
     };
+
+    if (payload.type === 'charge.refunded' && payload.sessionId) {
+      const session = this.sessions.get(payload.sessionId);
+      const amountRefundedCents = payload.amountRefundedCents ?? 0;
+      const originalAmountCents =
+        payload.originalAmountCents ??
+        (session ? (packByKey(session.packKey)?.priceCents ?? 0) : 0);
+      return {
+        kind: 'PURCHASE_REFUNDED',
+        sessionId: payload.sessionId,
+        paymentIntentId: payload.paymentIntentId ?? `pi_test_${payload.sessionId}`,
+        packKey: session?.packKey ?? null,
+        amountCents: payload.amountCents ?? amountRefundedCents,
+        amountRefundedCents,
+        originalAmountCents,
+        currency: payload.currency ?? null,
+      };
+    }
+
     if (payload.type !== 'checkout.session.completed' || !payload.sessionId) return null;
     const session = this.sessions.get(payload.sessionId);
     if (!session) return null;
