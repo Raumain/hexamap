@@ -107,5 +107,20 @@ export const auth = betterAuth({
   },
   advanced: {
     useSecureCookies,
+    // Résolution de l'IP cliente (A3). Sans elle, `session.ipAddress` reste vide
+    // et Better Auth replie tout le trafic sur un unique seau de rate limiting :
+    // un joueur peut alors épuiser la limite de tous les autres derrière le
+    // mandataire d'hébergement.
+    //
+    // `ipAddressHeaders` nomme les en-têtes lus ; `trustedProxies` dit à qui
+    // faire confiance pour les écrire. La liste reste vide tant que la bordure
+    // n'est pas connue : aucun en-tête n'est cru, donc aucune IP ne peut être
+    // falsifiée par un client. Renseigner `TRUSTED_PROXIES` au déploiement.
+    ipAddress: {
+      ipAddressHeaders: ['x-forwarded-for'],
+      trustedProxies: env.TRUSTED_PROXIES.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    },
   },
 });
