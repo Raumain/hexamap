@@ -50,6 +50,7 @@ export const BOUTIQUE_SUCCESS = {
   refresh: 'Rafraîchir',
   missingSession: 'Aucune référence de paiement : revenez à la boutique pour choisir un pack.',
   backToShop: 'Retour à la boutique',
+  redirectIn: (seconds: number) => `Retour à la boutique dans ${seconds} s.`,
   loading: 'Lecture de la commande…',
 } as const;
 
