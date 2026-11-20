@@ -23,6 +23,13 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    # Journaux bornés (A6) : sans plafond, `restart: unless-stopped` plus un
+    # conteneur bavard remplissent le disque de l'hôte, et l'API s'arrête.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     # Aucun port publié : la base n'est accessible que depuis `api`.
     networks:
       - backend
@@ -61,6 +68,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Journaux bornés (A6) : 10 Mio × 5 fichiers par service, soit 50 Mio au plus.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     # Deux réseaux obligatoires : `backend` pour joindre `db`, `public` pour que
     # le port publié soit réellement exposé. Un conteneur rattaché uniquement à
     # un réseau `internal: true` ne peut pas publier de port.
@@ -81,10 +94,15 @@ volumes:
   # Base de production, isolée de celle de développement (`hexamap_pgdata`).
   pgdata:
     name: ${PROD_PGDATA_VOLUME:-hexamap_prod_pgdata}
-  # Volumes partagés avec la pile de développement : le pipeline d'import
-  # (`docker compose --profile tools run --rm dev …`) remplit `hexamap_blasons`
-  # une seule fois, l'API de production les monte en lecture seule.
+  # Assets produits hors ligne (blasons SVG) et état de l'import Open Data. Ils
+  # ne sont pas dans PostgreSQL : une sauvegarde de la base les manque (A5).
+  #
+  # Les valeurs par défaut portent le préfixe `prod` : sans cela, le nom explicite
+  # `hexamap_blasons` désignait le même volume que la pile de développement, et un
+  # hôte pouvait rattacher silencieusement les données d'un environnement à l'autre
+  # (A7). Pour partager volontairement un volume entre développement et production,
+  # poser `BLASONS_VOLUME=hexamap_blasons` explicitement.
   blasons:
-    name: ${BLASONS_VOLUME:-hexamap_blasons}
+    name: ${BLASONS_VOLUME:-hexamap_prod_blasons}
   importstatus:
-    name: ${IMPORT_STATUS_VOLUME:-hexamap_importstatus}
+    name: ${IMPORT_STATUS_VOLUME:-hexamap_prod_importstatus}
