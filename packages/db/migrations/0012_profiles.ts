@@ -24,6 +24,7 @@ import { type Kysely, sql } from 'kysely';
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable('user_profiles')
+    .ifNotExists()
     .addColumn('user_id', 'text', (col) =>
       col.primaryKey().references('user.id').onDelete('cascade'),
     )

@@ -8,7 +8,7 @@ import { type Kysely, sql } from 'kysely';
  */
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`
-    create table user_scratch_charges (
+    create table if not exists user_scratch_charges (
       user_id text primary key references "user" ("id") on delete cascade,
       charges smallint not null check (charges >= 0),
       last_regen_at timestamptz not null default now()
@@ -28,7 +28,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await sql`drop table user_scratch_charges`.execute(db);
+  await sql`drop table if exists user_scratch_charges`.execute(db);
 
   await sql`
     delete from game_config
