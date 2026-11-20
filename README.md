@@ -105,9 +105,11 @@ L'image finale tourne en `USER bun`, avec
 `node_modules` n'est copié dans l'étape `prod`.
 
 ```sh
-# 1. Secrets et origine publique (32 caractères minimum pour le secret)
+# 1. Secrets et origine publique
 cp .env.example .env
-#   BETTER_AUTH_SECRET=<secret de production>
+#   BETTER_AUTH_SECRET=$(openssl rand -base64 48)   # jamais « change-me »
+#   POSTGRES_PASSWORD=<mot de passe unique>         # obligatoire : la pile refuse de démarrer sans
+#   DATABASE_URL=postgres://hexamap:<mot de passe>@db:5432/hexamap
 #   PROD_FRONTEND_URL=https://hexamap.example.com
 #   PROD_APP_URL=https://hexamap.example.com
 #   PROD_BETTER_AUTH_URL=https://hexamap.example.com

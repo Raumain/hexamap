@@ -43,12 +43,36 @@ const envSchema = z
     STRIPE_PRICE_PACK_6000: z.string().optional(),
   })
   .superRefine((value, ctx) => {
+    // La valeur d'exemple de `.env.example` ne doit jamais servir de secret :
+    // `min(32)` la refuserait si elle était courte, mais un opérateur pourrait
+    // l'allonger. Le motif couvre toutes les répétitions de `change-me`, quelle
+    // que soit leur longueur.
+    if (/^change-me(-change-me)*$/.test(value.BETTER_AUTH_SECRET)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['BETTER_AUTH_SECRET'],
+        message:
+          'BETTER_AUTH_SECRET ne peut pas être la valeur d’exemple « change-me » : générez un secret aléatoire d’au moins 32 octets, par exemple avec `openssl rand -base64 48`.',
+      });
+    }
+
     if (value.NODE_ENV === 'production' && !value.FRONTEND_URL) {
       ctx.addIssue({
         code: 'custom',
         path: ['FRONTEND_URL'],
         message:
           'FRONTEND_URL est obligatoire en production : elle définit la seule origine autorisée par CORS.',
+      });
+    }
+
+    // En production réelle, un cookie de session non `Secure` circule en clair.
+    // La dérogation n'existe que pour un banc servi en HTTP simple.
+    if (value.NODE_ENV === 'production' && value.AUTH_COOKIE_SECURE === false) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AUTH_COOKIE_SECURE'],
+        message:
+          'AUTH_COOKIE_SECURE=false est interdit en production : les cookies de session doivent porter l’attribut Secure. Cette dérogation est réservée aux bancs de test en HTTP.',
       });
     }
   });
