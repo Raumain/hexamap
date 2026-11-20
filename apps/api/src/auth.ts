@@ -42,6 +42,18 @@ export const trustedOrigins = [
 // HTTP simple à l'intérieur du réseau Docker, peut les désactiver explicitement.
 const useSecureCookies = env.AUTH_COOKIE_SECURE ?? env.NODE_ENV === 'production';
 
+// Sans mandataire de confiance, aucune IP cliente n'est résolue et Better Auth
+// replie tout le trafic sur un seau de rate limiting unique par chemin : un
+// attaquant peut alors épuiser la limite de connexion de tous les joueurs.
+// L'avertissement reste un avertissement — une bordure légitime peut terminer
+// TLS sans produire d'`X-Forwarded-For`, et un échec au démarrage couperait
+// l'application pour un réglage perfectible.
+if (env.NODE_ENV === 'production' && env.TRUSTED_PROXIES.trim() === '') {
+  console.warn(
+    '[hexamap] TRUSTED_PROXIES est vide : aucune adresse IP cliente n’est résolue derrière un mandataire, donc le rate limiting d’authentification est réduit à un unique seau partagé par chemin. Un attaquant peut épuiser la limite de connexion de tous les joueurs. Renseignez l’adresse ou le CIDR du reverse proxy dans TRUSTED_PROXIES (séparés par des virgules) et transmettez X-Forwarded-For depuis la bordure.',
+  );
+}
+
 // Le pseudo est l'identité publique (`.docs/01-architecture.md` §2.9) : il sert
 // d'URL dans `/players/:id`, donc il est validé en forme et unique sans tenir
 // compte de la casse. La validation vit ici, pas dans un écran d'inscription,
