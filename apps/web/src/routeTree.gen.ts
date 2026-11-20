@@ -16,6 +16,7 @@ import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
+import { Route as HomeRouteImport } from './routes/home'
 import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
@@ -63,6 +64,11 @@ const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
 const FriendsRoute = FriendsRouteImport.update({
   id: '/friends',
   path: '/friends',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportStatusRoute = ImportStatusRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/collection': typeof CollectionRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/home': typeof HomeRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/collection': typeof CollectionRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/home': typeof HomeRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/collection': typeof CollectionRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/home': typeof HomeRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/collection'
     | '/confidentialite'
     | '/friends'
+    | '/home'
     | '/import-status'
     | '/login'
     | '/mentions-legales'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/collection'
     | '/confidentialite'
     | '/friends'
+    | '/home'
     | '/import-status'
     | '/login'
     | '/mentions-legales'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/collection'
     | '/confidentialite'
     | '/friends'
+    | '/home'
     | '/import-status'
     | '/login'
     | '/mentions-legales'
@@ -275,6 +287,7 @@ export interface RootRouteChildren {
   CollectionRoute: typeof CollectionRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
+  HomeRoute: typeof HomeRoute
   ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/friends'
       fullPath: '/friends'
       preLoaderRoute: typeof FriendsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/import-status': {
@@ -443,6 +463,7 @@ const rootRouteChildren: RootRouteChildren = {
   CollectionRoute: CollectionRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
+  HomeRoute: HomeRoute,
   ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
