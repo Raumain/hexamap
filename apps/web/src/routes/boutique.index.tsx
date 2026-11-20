@@ -1,6 +1,6 @@
 import { PACKS } from '@hexamap/shared';
 import { useMutation } from '@tanstack/react-query';
-import { createFileRoute, Navigate } from '@tanstack/react-router';
+import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { PackCard } from '../components/shop/pack-card';
 import { BOUTIQUE } from '../content/boutique';
 import { priceLabel } from '../content/market';
@@ -73,6 +73,24 @@ function BoutiquePage() {
           </li>
         ))}
       </ul>
+
+      <p className="mt-6 text-[13px] leading-relaxed text-vellum/60">
+        En achetant un pack, vous acceptez les{' '}
+        <Link
+          to="/cgv"
+          className="text-brass underline decoration-brass/40 underline-offset-2 hover:decoration-brass"
+        >
+          conditions générales de vente
+        </Link>
+        . La{' '}
+        <Link
+          to="/confidentialite"
+          className="text-brass underline decoration-brass/40 underline-offset-2 hover:decoration-brass"
+        >
+          politique de confidentialité
+        </Link>{' '}
+        décrit les données traitées, dont celles confiées au prestataire de paiement.
+      </p>
 
       <div aria-live="polite" className="mt-6 min-h-6">
         {checkout.error ? (

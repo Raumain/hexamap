@@ -12,10 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AssemblageRouteImport } from './routes/assemblage'
+import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
@@ -42,9 +45,19 @@ const AssemblageRoute = AssemblageRouteImport.update({
   path: '/assemblage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CgvRoute = CgvRouteImport.update({
+  id: '/cgv',
+  path: '/cgv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
+  id: '/confidentialite',
+  path: '/confidentialite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FriendsRoute = FriendsRouteImport.update({
@@ -60,6 +73,11 @@ const ImportStatusRoute = ImportStatusRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MentionsLegalesRoute = MentionsLegalesRouteImport.update({
+  id: '/mentions-legales',
+  path: '/mentions-legales',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -117,10 +135,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
+  '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -136,10 +157,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
+  '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -156,10 +180,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
+  '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -177,10 +204,13 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/cgv'
     | '/collection'
+    | '/confidentialite'
     | '/friends'
     | '/import-status'
     | '/login'
+    | '/mentions-legales'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -196,10 +226,13 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/cgv'
     | '/collection'
+    | '/confidentialite'
     | '/friends'
     | '/import-status'
     | '/login'
+    | '/mentions-legales'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -215,10 +248,13 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/cgv'
     | '/collection'
+    | '/confidentialite'
     | '/friends'
     | '/import-status'
     | '/login'
+    | '/mentions-legales'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -235,10 +271,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AchievementsRoute: typeof AchievementsRoute
   AssemblageRoute: typeof AssemblageRoute
+  CgvRoute: typeof CgvRoute
   CollectionRoute: typeof CollectionRoute
+  ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
   ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
+  MentionsLegalesRoute: typeof MentionsLegalesRoute
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
@@ -274,11 +313,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssemblageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cgv': {
+      id: '/cgv'
+      path: '/cgv'
+      fullPath: '/cgv'
+      preLoaderRoute: typeof CgvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/collection': {
       id: '/collection'
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confidentialite': {
+      id: '/confidentialite'
+      path: '/confidentialite'
+      fullPath: '/confidentialite'
+      preLoaderRoute: typeof ConfidentialiteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/friends': {
@@ -300,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mentions-legales': {
+      id: '/mentions-legales'
+      path: '/mentions-legales'
+      fullPath: '/mentions-legales'
+      preLoaderRoute: typeof MentionsLegalesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -379,10 +439,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AchievementsRoute: AchievementsRoute,
   AssemblageRoute: AssemblageRoute,
+  CgvRoute: CgvRoute,
   CollectionRoute: CollectionRoute,
+  ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
   ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
+  MentionsLegalesRoute: MentionsLegalesRoute,
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,
