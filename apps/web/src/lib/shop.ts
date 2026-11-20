@@ -79,8 +79,10 @@ export function checkoutErrorMessage(error: unknown): string {
       case 'ORDER_NOT_FOUND':
         return BOUTIQUE.errors.ORDER_NOT_FOUND;
       default:
-        break;
+        // Le message du serveur est déjà en français : le rendre tel quel vaut
+        // mieux que le message technique d'Eden (« Failed to fetch »).
+        return error.message || BOUTIQUE.errors.fallback;
     }
   }
-  return error instanceof Error ? error.message : BOUTIQUE.errors.fallback;
+  return BOUTIQUE.errors.fallback;
 }

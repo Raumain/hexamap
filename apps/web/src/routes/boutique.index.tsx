@@ -67,7 +67,7 @@ function BoutiquePage() {
             <PackCard
               pack={pack}
               pending={pendingKey === pack.key}
-              disabled={checkout.isPending && pendingKey !== pack.key}
+              disabled={checkout.isPending}
               onBuy={(packKey) => checkout.mutate(packKey)}
             />
           </li>

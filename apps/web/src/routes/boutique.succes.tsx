@@ -23,8 +23,12 @@ function BoutiqueSuccessPage() {
   const order = useQuery({
     ...shopOrderQueryOptions(sessionId ?? ''),
     enabled: Boolean(sessionId),
-    refetchInterval: (query) =>
-      query.state.data?.status === 'PENDING' && query.state.dataUpdateCount < 6 ? 2_000 : false,
+    refetchInterval: (query) => {
+      // Un échec de relecture n'incrémente pas `dataUpdateCount` : compter les
+      // deux empêche une charge utile `PENDING` périmée d'interroger sans fin.
+      const attempts = query.state.dataUpdateCount + query.state.errorUpdateCount;
+      return query.state.data?.status === 'PENDING' && attempts < 6 ? 2_000 : false;
+    },
   });
 
   // Le solde se relit quand le crédit est confirmé : l'observateur s'active à
@@ -35,7 +39,7 @@ function BoutiqueSuccessPage() {
     staleTime: 0,
   });
 
-  const balance = session.data?.user?.currency ?? 0;
+  const account = session.data?.user;
 
   return (
     <section>
@@ -69,9 +73,15 @@ function BoutiqueSuccessPage() {
             <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/55">
               {BOUTIQUE_SUCCESS.newBalance}
             </p>
-            <p className="mt-1 font-display text-xl tabular-nums text-vellum/80">
-              {priceLabel(balance)}
-            </p>
+            {account ? (
+              <p className="mt-1 font-display text-xl tabular-nums text-vellum/80">
+                {priceLabel(account.currency ?? 0)}
+              </p>
+            ) : (
+              <p className="mt-1 text-[13px] leading-relaxed text-vellum/60">
+                {BOUTIQUE_SUCCESS.balanceLoading}
+              </p>
+            )}
           </>
         ) : (
           <>

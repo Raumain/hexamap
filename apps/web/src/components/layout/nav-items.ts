@@ -132,6 +132,7 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
     return (
       pathname === '/market' || (pathname.startsWith('/market/') && pathname !== '/market/mine')
     );
+  if (item.to === '/boutique') return pathname === '/boutique' || pathname.startsWith('/boutique/');
   return pathname === item.to;
 }
 

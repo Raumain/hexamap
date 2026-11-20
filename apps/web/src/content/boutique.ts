@@ -46,6 +46,7 @@ export const BOUTIQUE_SUCCESS = {
     'Le prestataire de paiement nous prévient par un message signé. Cette page se rafraîchit seule quelques secondes.',
   credited: 'Écus crédités',
   newBalance: 'Nouveau solde',
+  balanceLoading: 'Lecture du solde…',
   refresh: 'Rafraîchir',
   missingSession: 'Aucune référence de paiement : revenez à la boutique pour choisir un pack.',
   backToShop: 'Retour à la boutique',
