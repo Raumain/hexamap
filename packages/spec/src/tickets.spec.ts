@@ -982,6 +982,88 @@ describe('Plan §5.6 — robustesse du tirage', () => {
     expect(new Set(twinRefs).size).toBe(2);
   });
 
+  it('Archi §2.6 — un jumelé ne dépasse jamais la rareté RARE, même quand la Pépite est une rue', async () => {
+    const { userId } = await signUp();
+    const grids: unknown[] = [];
+    try {
+      await db.transaction().execute(async (trx) => {
+        // Référentiel réduit à une seule rue : la Pépite est donc cette rue.
+        await sql`truncate table commune_odonymes, ref_odonymes`.execute(trx);
+
+        const region = `${prefix}-T-R`;
+        const departement = `${prefix}-T-D`;
+        const commune = `${prefix}-T-C`;
+        await trx
+          .insertInto('ref_regions')
+          .values({ code: region, nom: `Région ${prefix} jumelés` })
+          .execute();
+        await trx
+          .insertInto('ref_departements')
+          .values({
+            code: departement,
+            nom: `Département ${prefix} jumelés`,
+            code_region: region,
+            population: 1_000,
+          })
+          .execute();
+        // Commune hors du vivier jumelable (MYTHIQUE) reliée à la rue : c'est
+        // exactement le chemin qui laissait fuir une rareté supérieure.
+        await trx
+          .insertInto('ref_communes')
+          .values({
+            code_insee: commune,
+            nom: `Commune ${prefix} jumelés`,
+            code_departement: departement,
+            code_region: region,
+            population: 250_000,
+            rarete: 'MYTHIQUE',
+            score_base: 3_500,
+          })
+          .execute();
+        const rue = await trx
+          .insertInto('ref_odonymes')
+          .values({
+            nom_normalise: `${prefix}-rue-jumeles`,
+            nom_affichage: `${prefix} Rue jumelés`,
+            nb_communes: 1,
+            rarete: 'MYTHIQUE',
+            score_base: 3_000,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        await trx
+          .insertInto('commune_odonymes')
+          .values({ code_insee: commune, odonyme_id: rue.id })
+          .execute();
+
+        const { ticketId } = await generateTicket(trx, userId, () => 0.999999);
+        const row = await trx
+          .selectFrom('tickets')
+          .select('grid')
+          .where('id', '=', ticketId)
+          .executeTakeFirstOrThrow();
+        grids.push(row.grid);
+        throw new Error('__rollback__');
+      });
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== '__rollback__') throw e;
+    }
+
+    const grid = parseFullGrid(grids[0]);
+    expect(grid.length).toBe(16);
+
+    const treasure = grid.find((cell) => cell.kind === 'TREASURE');
+    expect(treasure?.card?.category).toBe('RUE');
+
+    const twins = grid.filter((cell) => cell.kind === 'TWIN');
+    expect(twins.length).toBe(2);
+    for (const twin of twins) {
+      if (!twin.card) throw new Error('un jumelé doit porter une carte');
+      expect(['INHABITUELLE', 'RARE']).toContain(twin.card.rarity);
+    }
+    expect(grid.filter((cell) => cell.kind === 'CARD').length).toBe(10);
+  });
+
   it('un référentiel totalement vide reste une erreur explicite', async () => {
     const errors: { code: string }[] = [];
     try {

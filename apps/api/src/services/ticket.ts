@@ -371,16 +371,6 @@ async function odonymesOfRegion(exec: Executor, codeRegion: string): Promise<Odo
     .execute();
 }
 
-/** Communes liées à l'odonyme, sans filtre de rareté (repli élargi). */
-async function communesWithOdonymeAny(exec: Executor, odonymeId: string): Promise<CommuneRef[]> {
-  return exec
-    .selectFrom('commune_odonymes')
-    .innerJoin('ref_communes', 'ref_communes.code_insee', 'commune_odonymes.code_insee')
-    .select(['ref_communes.code_insee', 'ref_communes.rarete'])
-    .where('commune_odonymes.odonyme_id', '=', odonymeId)
-    .execute();
-}
-
 async function nationalOdonymes(exec: Executor): Promise<OdonymeRef[]> {
   return exec
     .selectFrom('ref_odonymes')
@@ -441,7 +431,6 @@ async function drawTwins(exec: Executor, treasure: DrawnCard, rng: Rng): Promise
     case 'RUE': {
       const ref = treasure.card.ref_code;
       addCommune(await communesWithOdonyme(exec, ref));
-      addCommune(await communesWithOdonymeAny(exec, ref));
       const first = await exec
         .selectFrom('commune_odonymes')
         .innerJoin('ref_communes', 'ref_communes.code_insee', 'commune_odonymes.code_insee')
