@@ -364,6 +364,17 @@ docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
       réseaux (`backend`, `public`, `dokploy-network`) et, sans cette épingle, Traefik peut élire
       l'IP d'un réseau qu'il ne partage pas — la requête n'aboutit alors jamais, sans erreur.
 
+      Les deux routeurs portent en revanche une **priorité explicite de `100`**
+      (`traefik.http.routers.hexamap-web*.priority`). La priorité par défaut d'un routeur
+      Traefik est la **longueur de sa règle** : deux `Host()` identiques ont donc la même
+      priorité, et l'arbitrage entre eux est indéterminé. C'est un incident réel, pas une
+      hypothèse — quatre routeurs sur la même règle (`hexamap-web` / `hexamap-websecure` plus une
+      paire `hexamap-app-*-*` générée par l'onglet « Domains ») ont produit un
+      `ROUTE_NOT_FOUND` sur `/api/v1/health`, le routeur de Dokploy réécrivant le chemin selon
+      l'ordre de lecture. `100` dépasse la longueur de tout `Host()` plausible : même si une
+      entrée de domaine réapparaît dans l'interface, le routeur du dépôt reste **autoritaire**.
+      C'est un verrou, pas la correction de fond — supprimer l'entrée reste le geste correct.
+
       Les noms `web`, `websecure` et `letsencrypt` sont ceux qu'expose un Dokploy standard. Ils
       ne sont pas constatables depuis le dépôt : si l'instance utilise d'autres entrées ou un
       autre résolveur, ce sont ces trois valeurs du bloc `labels` qu'il faut aligner.
@@ -388,6 +399,25 @@ docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
 
       Un seul domaine, une seule origine : ne jamais créer un `api.example.fr` à côté de
       `example.fr` (§4, et `.docs/01-architecture.md` §4.5).
+
+      **Diagnostic — quels routeurs existent réellement ?** Le conteneur ne doit porter que les
+      deux routeurs du dépôt. Toute paire `hexamap-app-*-*` prouve qu'une entrée de domaine
+      subsiste dans l'interface :
+
+      ```sh
+      docker inspect <conteneur-api> --format '{{json .Config.Labels}}' | tr ',' '\n' \
+        | grep -i 'traefik.http.routers.*rule'
+      # attendu : seulement hexamap-web et hexamap-websecure
+      # une paire hexamap-app-n2bjiy-2-web / -websecure => supprimer le domaine
+      #   dans l'onglet « Domains », puis redéployer
+      docker inspect <conteneur-api> --format '{{json .Config.Labels}}' | tr ',' '\n' \
+        | grep -i 'traefik.http.routers.*priority'
+      # attendu : "100" pour hexamap-web et hexamap-websecure
+      ```
+
+      Tant qu'une paire `hexamap-app-*-*` existe, la priorité `100` garde le dépôt devant, mais
+      l'entrée est un défaut à corriger : elle demande un certificat de plus et survivra au
+      prochain redéploiement de l'interface.
 
 - [ ] **[vérif VPS]** Diagnostic d'un `404` de Traefik alors que `api` est sain : **conteneur sain
       sur `dokploy-network` + `404` Traefik = aucun routeur**. Confirmer que les labels sont bien

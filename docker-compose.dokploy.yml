@@ -54,6 +54,21 @@ services:
       # `dokploy-network`) : sans cette épingle, Traefik peut élire l'IP d'un
       # réseau qu'il ne partage pas et la requête n'aboutit jamais.
       traefik.docker.network: "dokploy-network"
+      # PRIORITÉ EXPLICITE — à ne jamais retirer.
+      #
+      # La priorité par défaut d'un routeur Traefik EST la longueur de sa règle.
+      # Deux `Host()` identiques ont donc la même longueur, donc la même priorité :
+      # l'arbitrage entre les deux est indéterminé. C'est exactement ce que produit
+      # un domaine encore déclaré dans l'onglet « Domains » de Dokploy, qui génère
+      # une paire `hexamap-app-*-*` sur la même règle : selon l'ordre de lecture,
+      # elle gagne et réécrit le chemin, d'où un `ROUTE_NOT_FOUND` sur
+      # `/api/v1/health` alors que le conteneur est sain.
+      #
+      # 100 est supérieur à la longueur de règle de tout `Host()` plausible : les
+      # routeurs du dépôt reprennent la main sur tout routeur généré par Dokploy.
+      # La suppression du domaine dans l'interface reste la correction de fond ; ce
+      # verrou garantit qu'un domaine recréé par erreur ne puisse plus l'emporter.
+      traefik.http.routers.hexamap-websecure.priority: "100"
       # HTTPS : le routeur qui termine le TLS, avec le résolveur de Dokploy.
       traefik.http.routers.hexamap-websecure.rule: "Host(`${PUBLIC_HOST:?PUBLIC_HOST est obligatoire (nom d'hôte public, ex. hexamap.example.fr)}`)"
       traefik.http.routers.hexamap-websecure.entrypoints: "websecure"
@@ -61,6 +76,9 @@ services:
       traefik.http.routers.hexamap-websecure.tls.certresolver: "letsencrypt"
       traefik.http.routers.hexamap-websecure.service: "hexamap"
       # HTTP : redirige vers HTTPS, il ne sert jamais de contenu en clair.
+      # Même priorité que `hexamap-websecure` (voir le commentaire ci-dessus) : les
+      # deux routeurs du dépôt doivent l'emporter ensemble, jamais un seul.
+      traefik.http.routers.hexamap-web.priority: "100"
       traefik.http.routers.hexamap-web.rule: "Host(`${PUBLIC_HOST:?PUBLIC_HOST est obligatoire (nom d'hôte public, ex. hexamap.example.fr)}`)"
       traefik.http.routers.hexamap-web.entrypoints: "web"
       traefik.http.routers.hexamap-web.middlewares: "hexamap-redirect"
