@@ -8,7 +8,8 @@ export type SalonPath =
   | '/market/mine'
   | '/achievements'
   | '/import-status'
-  | '/assemblage';
+  | '/assemblage'
+  | '/boutique';
 
 export interface NavItem {
   to: SalonPath;
@@ -88,6 +89,12 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     short: 'Assemblage',
     glyph: 'M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2zM9 4v14M15 6v14',
   },
+  {
+    to: '/boutique',
+    label: 'La Boutique',
+    short: 'Boutique',
+    glyph: 'M4 8h16l-1 12H5zM9 8V6a3 3 0 0 1 6 0v2M12 12v4M10 14h4',
+  },
 ];
 
 /** La copie de la feuille mobile des salles secondaires. */
@@ -104,6 +111,8 @@ const SALON_TITLES: Record<string, string> = {
   '/achievements': 'Les Médailles',
   '/import-status': 'Les Archives',
   '/assemblage': "L'Assemblage",
+  '/boutique': 'La Boutique',
+  '/boutique/succes': 'La Boutique',
   '/login': 'Le Seuil',
   '/register': 'Le Seuil',
 };

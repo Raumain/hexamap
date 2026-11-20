@@ -19,6 +19,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
+import { Route as BoutiqueIndexRouteImport } from './routes/boutique.index'
+import { Route as BoutiqueSuccesRouteImport } from './routes/boutique.succes'
 import { Route as CardCardIdRouteImport } from './routes/card.$cardId'
 import { Route as MarketIndexRouteImport } from './routes/market.index'
 import { Route as MarketMineRouteImport } from './routes/market.mine'
@@ -75,6 +77,16 @@ const TableauxRoute = TableauxRouteImport.update({
   path: '/tableaux',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BoutiqueIndexRoute = BoutiqueIndexRouteImport.update({
+  id: '/boutique/',
+  path: '/boutique/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BoutiqueSuccesRoute = BoutiqueSuccesRouteImport.update({
+  id: '/boutique/succes',
+  path: '/boutique/succes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CardCardIdRoute = CardCardIdRouteImport.update({
   id: '/card/$cardId',
   path: '/card/$cardId',
@@ -112,10 +124,12 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/boutique/succes': typeof BoutiqueSuccesRoute
   '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/boutique/': typeof BoutiqueIndexRoute
   '/market/': typeof MarketIndexRoute
 }
 export interface FileRoutesByTo {
@@ -129,10 +143,12 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/boutique/succes': typeof BoutiqueSuccesRoute
   '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/boutique': typeof BoutiqueIndexRoute
   '/market': typeof MarketIndexRoute
 }
 export interface FileRoutesById {
@@ -147,10 +163,12 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
+  '/boutique/succes': typeof BoutiqueSuccesRoute
   '/card/$cardId': typeof CardCardIdRoute
   '/market/mine': typeof MarketMineRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/boutique/': typeof BoutiqueIndexRoute
   '/market/': typeof MarketIndexRoute
 }
 export interface FileRouteTypes {
@@ -166,10 +184,12 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/boutique/succes'
     | '/card/$cardId'
     | '/market/mine'
     | '/players/$playerId'
     | '/tickets/$ticketId'
+    | '/boutique/'
     | '/market/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -183,10 +203,12 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/boutique/succes'
     | '/card/$cardId'
     | '/market/mine'
     | '/players/$playerId'
     | '/tickets/$ticketId'
+    | '/boutique'
     | '/market'
   id:
     | '__root__'
@@ -200,10 +222,12 @@ export interface FileRouteTypes {
     | '/register'
     | '/tableau'
     | '/tableaux'
+    | '/boutique/succes'
     | '/card/$cardId'
     | '/market/mine'
     | '/players/$playerId'
     | '/tickets/$ticketId'
+    | '/boutique/'
     | '/market/'
   fileRoutesById: FileRoutesById
 }
@@ -218,10 +242,12 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
+  BoutiqueSuccesRoute: typeof BoutiqueSuccesRoute
   CardCardIdRoute: typeof CardCardIdRoute
   MarketMineRoute: typeof MarketMineRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
+  BoutiqueIndexRoute: typeof BoutiqueIndexRoute
   MarketIndexRoute: typeof MarketIndexRoute
 }
 
@@ -297,6 +323,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TableauxRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/boutique/': {
+      id: '/boutique/'
+      path: '/boutique'
+      fullPath: '/boutique/'
+      preLoaderRoute: typeof BoutiqueIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/boutique/succes': {
+      id: '/boutique/succes'
+      path: '/boutique/succes'
+      fullPath: '/boutique/succes'
+      preLoaderRoute: typeof BoutiqueSuccesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/card/$cardId': {
       id: '/card/$cardId'
       path: '/card/$cardId'
@@ -346,10 +386,12 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,
+  BoutiqueSuccesRoute: BoutiqueSuccesRoute,
   CardCardIdRoute: CardCardIdRoute,
   MarketMineRoute: MarketMineRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
+  BoutiqueIndexRoute: BoutiqueIndexRoute,
   MarketIndexRoute: MarketIndexRoute,
 }
 export const routeTree = rootRouteImport
