@@ -21,43 +21,43 @@ function emptyMetrics(): AchievementMetrics {
 }
 
 const CATALOGUE = [
-  ['SCRATCH_FIRST_TICKET', 1, 100],
-  ['SCRATCH_TICKETS_10', 10, 250],
-  ['SCRATCH_TICKETS_50', 50, 500],
-  ['SCRATCH_TICKETS_100', 100, 1000],
-  ['SCRATCH_TICKETS_500', 500, 2500],
-  ['SCRATCH_TICKETS_1000', 1000, 5000],
-  ['SCRATCH_FIRST_PEPITE', 1, 150],
-  ['SCRATCH_PEPITES_10', 10, 750],
-  ['SCRATCH_MYTHIQUE', 1, 2000],
-  ['COLLECTION_CARDS_10', 10, 200],
-  ['COLLECTION_CARDS_50', 50, 500],
-  ['COLLECTION_CARDS_100', 100, 1200],
-  ['COLLECTION_CARDS_500', 500, 4000],
-  ['COLLECTION_REGIONS_18', 18, 3000],
-  ['COLLECTION_DEPARTEMENTS_101', 101, 15000],
-  ['COLLECTION_SIX_RARITIES', 6, 1500],
-  ['COLLECTION_UNIQUE_RUE', 1, 2500],
-  ['TABLEAU_FIRST', 1, 100],
-  ['TABLEAU_MULTIPLIER_15', 15, 200],
-  ['TABLEAU_MULTIPLIER_25', 25, 500],
-  ['TABLEAU_MULTIPLIER_50', 50, 1500],
-  ['TABLEAU_SCORE_5000', 5000, 500],
-  ['TABLEAU_SCORE_10000', 10000, 1500],
-  ['TABLEAU_SCORE_15000', 15000, 4000],
-  ['MARKET_FIRST_SALE', 1, 150],
-  ['MARKET_FIRST_PURCHASE', 1, 150],
-  ['MARKET_SALES_10', 10, 500],
-  ['MARKET_SALES_100', 100, 3000],
-  ['MARKET_ECUS_EARNED_10000', 10000, 2000],
-  ['MARKET_PURCHASE_1000', 1000, 300],
-  ['SOCIAL_FIRST_FRIEND', 1, 100],
-  ['SOCIAL_FRIENDS_10', 10, 500],
-  ['SOCIAL_FRIENDS_50', 50, 2000],
-  ['SOCIAL_FRIENDS_100', 100, 5000],
-  ['SOCIAL_PROFILE_COMPLETE', 1, 100],
-  ['ATTENDANCE_7_DAYS', 7, 700],
-  ['ATTENDANCE_30_DAYS', 30, 3000],
+  ['SCRATCH_FIRST_TICKET', 1, 25],
+  ['SCRATCH_TICKETS_10', 10, 25],
+  ['SCRATCH_TICKETS_50', 50, 45],
+  ['SCRATCH_TICKETS_100', 100, 90],
+  ['SCRATCH_TICKETS_500', 500, 225],
+  ['SCRATCH_TICKETS_1000', 1000, 455],
+  ['SCRATCH_FIRST_PEPITE', 1, 25],
+  ['SCRATCH_PEPITES_10', 10, 70],
+  ['SCRATCH_MYTHIQUE', 1, 180],
+  ['COLLECTION_CARDS_10', 10, 25],
+  ['COLLECTION_CARDS_50', 50, 45],
+  ['COLLECTION_CARDS_100', 100, 110],
+  ['COLLECTION_CARDS_500', 500, 365],
+  ['COLLECTION_REGIONS_18', 18, 275],
+  ['COLLECTION_DEPARTEMENTS_101', 101, 1260],
+  ['COLLECTION_SIX_RARITIES', 6, 135],
+  ['COLLECTION_UNIQUE_RUE', 1, 225],
+  ['TABLEAU_FIRST', 1, 25],
+  ['TABLEAU_MULTIPLIER_15', 15, 25],
+  ['TABLEAU_MULTIPLIER_25', 25, 45],
+  ['TABLEAU_MULTIPLIER_50', 50, 135],
+  ['TABLEAU_SCORE_5000', 5000, 45],
+  ['TABLEAU_SCORE_10000', 10000, 135],
+  ['TABLEAU_SCORE_15000', 15000, 365],
+  ['MARKET_FIRST_SALE', 1, 25],
+  ['MARKET_FIRST_PURCHASE', 1, 25],
+  ['MARKET_SALES_10', 10, 45],
+  ['MARKET_SALES_100', 100, 275],
+  ['MARKET_ECUS_EARNED_10000', 10000, 180],
+  ['MARKET_PURCHASE_1000', 1000, 25],
+  ['SOCIAL_FIRST_FRIEND', 1, 25],
+  ['SOCIAL_FRIENDS_10', 10, 45],
+  ['SOCIAL_FRIENDS_50', 50, 180],
+  ['SOCIAL_FRIENDS_100', 100, 455],
+  ['SOCIAL_PROFILE_COMPLETE', 1, 25],
+  ['ATTENDANCE_7_DAYS', 7, 65],
+  ['ATTENDANCE_30_DAYS', 30, 275],
 ] as const;
 
 describe('ROADMAP §2 (phase 27) — le catalogue compte trente-sept médailles', () => {
@@ -65,8 +65,8 @@ describe('ROADMAP §2 (phase 27) — le catalogue compte trente-sept médailles'
     expect(ACHIEVEMENTS).toHaveLength(37);
   });
 
-  it('verse un total de 65 950 écus', () => {
-    expect(ACHIEVEMENT_PAYOUT_TOTAL).toBe(65950);
+  it('verse un total de 6 000 écus', () => {
+    expect(ACHIEVEMENT_PAYOUT_TOTAL).toBe(6000);
   });
 });
 
@@ -185,7 +185,8 @@ const createdUserIds: string[] = [];
 const PAYOUTS_KEY = 'ACHIEVEMENT_PAYOUTS_ENABLED';
 const FIRST_TICKET_KEY = 'SCRATCH_FIRST_TICKET';
 const FIRST_TICKET_REASON = `ACHIEVEMENT:${FIRST_TICKET_KEY}`;
-const FIRST_TICKET_PAYOUT = 100;
+const FIRST_TICKET_PAYOUT = 25;
+const FIRST_PEPITE_PAYOUT = 25;
 
 interface AchievementsBody {
   payoutsEnabled: boolean;
@@ -428,7 +429,7 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
     const seller = await signUp();
     const sellerCardId = await insertCard(seller.userId, 100);
 
-    const listingRes = await postListing(seller.cookie, sellerCardId, 100);
+    const listingRes = await postListing(seller.cookie, sellerCardId, 25);
     expect(listingRes.status).toBe(201);
     const listing = (await listingRes.json()) as { listing: { id: string } };
 
@@ -511,7 +512,7 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
     expect(entry(FIRST_TICKET_KEY)?.earnedAt).not.toBeNull();
     expect(entry('SCRATCH_FIRST_PEPITE')?.earnedAt).not.toBeNull();
     expect(entry('SCRATCH_FIRST_PEPITE')?.progress).toBe(1);
-    expect(view.total).toBe(FIRST_TICKET_PAYOUT + 150);
+    expect(view.total).toBe(FIRST_TICKET_PAYOUT + FIRST_PEPITE_PAYOUT);
 
     const ledger = await db
       .selectFrom('currency_ledger')
@@ -523,23 +524,26 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
       'ACHIEVEMENT:SCRATCH_FIRST_PEPITE',
       'ACHIEVEMENT:SCRATCH_FIRST_TICKET',
     ]);
-    expect(ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(250);
+    expect(ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(
+      FIRST_TICKET_PAYOUT + FIRST_PEPITE_PAYOUT,
+    );
 
-    expect(await readBalance(account.userId)).toBe(250);
+    expect(await readBalance(account.userId)).toBe(FIRST_TICKET_PAYOUT + FIRST_PEPITE_PAYOUT);
   });
 
   it('distingue les ventes des achats', async () => {
     const seller = await signUp();
     const sellerCardId = await insertCard(seller.userId, 100);
 
-    const listingRes = await postListing(seller.cookie, sellerCardId, 100);
+    const listingRes = await postListing(seller.cookie, sellerCardId, 25);
     expect(listingRes.status).toBe(201);
     const listing = (await listingRes.json()) as { listing: { id: string } };
 
     const buyer = await signUp();
     await seedScratchedTicket(buyer.userId);
 
-    // Le GET verse la médaille du premier ticket : l'acheteur dispose de 100 écus.
+    // Le GET verse la médaille du premier ticket : l'acheteur dispose de 25 écus,
+    // soit exactement le prix de l'annonce.
     const wallet = await getAchievements(buyer.cookie);
     expect(wallet.total).toBe(FIRST_TICKET_PAYOUT);
     expect(await readBalance(buyer.userId)).toBe(FIRST_TICKET_PAYOUT);
@@ -551,8 +555,8 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
     );
     expect(buyRes.status).toBe(200);
 
-    // Le GET verse : 100 écus de vente + 150 de première vente chez le vendeur,
-    // 150 de premier achat chez l'acheteur après avoir payé 100.
+    // Le GET verse : 25 écus de vente + 25 de première vente chez le vendeur,
+    // 25 de premier achat chez l'acheteur après avoir payé 25.
     const sellerView = await getAchievements(seller.cookie);
     const buyerView = await getAchievements(buyer.cookie);
 
@@ -563,15 +567,15 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
     expect(entry(sellerView, 'MARKET_FIRST_SALE')?.earnedAt).not.toBeNull();
     expect(entry(sellerView, 'MARKET_FIRST_PURCHASE')?.progress).toBe(0);
     expect(entry(sellerView, 'MARKET_FIRST_PURCHASE')?.earnedAt).toBeNull();
-    expect(sellerView.total).toBe(150);
-    expect(await readBalance(seller.userId)).toBe(250);
+    expect(sellerView.total).toBe(25);
+    expect(await readBalance(seller.userId)).toBe(50);
 
     expect(entry(buyerView, 'MARKET_FIRST_PURCHASE')?.progress).toBe(1);
     expect(entry(buyerView, 'MARKET_FIRST_PURCHASE')?.earnedAt).not.toBeNull();
     expect(entry(buyerView, 'MARKET_FIRST_SALE')?.progress).toBe(0);
     expect(entry(buyerView, 'MARKET_FIRST_SALE')?.earnedAt).toBeNull();
-    expect(buyerView.total).toBe(FIRST_TICKET_PAYOUT + 150);
-    expect(await readBalance(buyer.userId)).toBe(150);
+    expect(buyerView.total).toBe(FIRST_TICKET_PAYOUT + 25);
+    expect(await readBalance(buyer.userId)).toBe(25);
 
     expect(await countAchievements(seller.userId, 'MARKET_FIRST_PURCHASE')).toBe(0);
     expect(await countAchievements(buyer.userId, 'MARKET_FIRST_SALE')).toBe(0);
