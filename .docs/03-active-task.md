@@ -94,6 +94,53 @@ d'API modifié, aucune dépendance nouvelle.
 
 ---
 
+# Phase B — La Boutique : planification prête (2026-11-20)
+
+## Statut
+
+- **Phase** : B — La Boutique (Stripe, packs d'écus)
+- **État** : planifié ; code métier non commencé
+- **Priorité** : P1, **bloqué par le juridique** pour la mise en production
+- **Branche** : `chore/phase-b-orchestration` — PR #35, brouillon
+- **Exécution** : `./scripts/agents/run-phase-b.sh` (4 vagues, 6 sessions)
+
+## Décisions
+
+- **Prix** : le catalogue des 37 médailles passe de **65 950 à 6 000 écus**. Un catalogue
+  complet vaut un `PACK_6000` (44,99 €), pas onze. Aucun historique de `currency_ledger` n'est
+  réécrit ; les comptes existants gardent leur solde.
+- **Packs** : 500 / 4,99 €, 1 200 / 9,99 €, 2 500 / 19,99 €, 6 000 / 44,99 €, rapport écus/€
+  strictement croissant.
+- **Graphe** : 300 (économie + catalogue) et 301 (migration `0013_shop`) en parallèle depuis
+  `main` ; 302 (checkout + webhook) depuis `agents/boutique-wave-1` ; 303 (remboursements +
+  plafond) et 304 (front) en parallèle depuis `agents/boutique-wave-2` ; 305 (QA + e2e + docs)
+  depuis `agents/boutique-wave-3`. La branche `agents/boutique-wave-4` remonte vers `main`
+  manuellement.
+- **Porte** : sans les six variables `STRIPE_*`, le checkout répond `503 SHOP_DISABLED`. Aucune
+  clé, aucun paiement réel tant que CGV, rétractation, TVA, consentement parental et DPA ne sont
+  pas réglés.
+
+## Journal
+
+### 2026-11-20 — Le runner et les briefs sont prêts
+
+**Ce qui a été fait, sans écrire de code métier.** `scripts/agents/run.sh` accepte `PLAN` et
+`WAVE_PREFIX` (défauts inchangés). `scripts/agents/phases-b.tsv` porte les six phases,
+`run-phase-b.sh` isole la chaîne en `agents/boutique-wave-*`, et les briefs `300.md` → `305.md`
+sont self-contained. Le dry-run valide le graphe et les bases de PR. Le guide
+`.docs/sessions/la-boutique/stripe-setup.md` couvre produits, prix, clés, webhook, tests et
+passage en live.
+
+**Ce que la revue de prix a mesuré.** À 6 000 écus = 44,99 €, les 65 950 écus de médailles valent
+≈ 494 €, et les 6 450 écus d'un compte de test ≈ 48 €. La division par ~11 ramène le catalogue
+complet à un pack baleine. Le tableau normatif est dans `prompts/300.md` ; `achievements.ts` sera
+modifié par la phase 300, pas par cette PR de planification.
+
+**Vérification** : `bun run ci:check` vert, **268 spécifications / 15 fichiers**. La suite
+assert encore 65 950 : c'est l'état d'avant la phase 300, qui passera la spec à 6 000.
+
+---
+
 # Phase A — Pré-déploiement : A1 (asset absent)
 
 ## Statut

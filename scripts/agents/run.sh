@@ -19,7 +19,7 @@ set -Eeuo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd)
 PROMPTS="$SCRIPT_DIR/prompts"
-PLAN="$SCRIPT_DIR/phases.tsv"
+PLAN=${PLAN:-"$SCRIPT_DIR/phases.tsv"}
 
 BASE=${BASE:-main}
 WT_ROOT=${WT_ROOT:-$ROOT/../hexamap-agents}
@@ -55,7 +55,7 @@ Usage : scripts/agents/run.sh [options]
   --no-push       Ne pousse pas les branches d'accumulation
   -h, --help      Ce texte
 
-Variables : BASE, WT_ROOT, LOGDIR, MAX_PARALLEL, SESSION_TIMEOUT.
+Variables : BASE, PLAN, WAVE_PREFIX, WT_ROOT, LOGDIR, MAX_PARALLEL, SESSION_TIMEOUT.
 TXT
 }
 
@@ -75,7 +75,7 @@ while [ $# -gt 0 ]; do
 done
 
 dc() { docker compose "$@" </dev/null; }
-wave_branch()   { printf 'agents/wave-%s' "$1"; }
+wave_branch()   { printf '%s-%s' "${WAVE_PREFIX:-agents/wave}" "$1"; }
 # La vague 1 part de BASE ; les suivantes partent de l'accumulation précédente.
 parent_branch() { if [ "$1" -eq 1 ]; then printf '%s' "$BASE"; else wave_branch "$(( $1 - 1 ))"; fi; }
 
@@ -345,7 +345,7 @@ report() {
   log "Branches de phase :"
   git -C "$ROOT" branch --list 'feat/phase-*' --format='  %(refname:short)'
   log "Branches d'accumulation :"
-  git -C "$ROOT" branch --list 'agents/wave-*' --format='  %(refname:short)'
+  git -C "$ROOT" branch --list "${WAVE_PREFIX:-agents/wave}-*" --format='  %(refname:short)'
   printf '\n'
   log "Journaux : $LOGDIR"
   log "Worktrees : $WT_ROOT (supprimés sauf --keep)"
@@ -353,7 +353,7 @@ report() {
   log "Étape suivante, à la main :"
   printf "  1. relire les PR de phase, chacune ciblant la branche de sa vague parente\n"
   printf "  2. consolider .docs/sessions/*/journal.md dans .docs/03-active-task.md\n"
-  printf "  3. fusionner la DERNIÈRE branche agents/wave-* dans main\n"
+  printf "  3. fusionner la DERNIÈRE branche ${WAVE_PREFIX:-agents/wave}-* dans main\n"
 }
 
 cleanup() {
