@@ -144,7 +144,16 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - **Deux robinets seulement.** Les médailles (V1) et l'achat contre de l'argent réel (V1 ultérieure, non planifiée). Il n'existe **aucun bonus quotidien** : un robinet à taux fixe se règle mal et ne se révoque pas.
 - **Le robinet des médailles est fini.** Chaque prime est unique et versée une seule fois, ce qui borne l'inflation. C'est la différence structurelle avec une prime récurrente.
 - **Idempotence.** Une prime s'écrit `currency_ledger.reason = 'ACHIEVEMENT:<key>'` dans la transaction qui insère `user_achievements (user_id, achievement_key)` ; la clé primaire composite fait qu'un rejeu ne paie pas. `MARKET_BUY` et `MARKET_SELL` restent les deux autres motifs existants.
-- **Le catalogue vit dans `packages/shared`**, pas en base : clé, famille, seuil, montant. Il est verrouillé par `packages/spec`, aucune prime ne se modifie depuis un écran d'administration. Budget d'ouverture : ≈ 66 000 écus, dont ≈ 28 000 pour la seule famille « collection ».
+- **Le catalogue vit dans `packages/shared`**, pas en base : clé, famille, seuil, montant. Il est verrouillé par `packages/spec`, aucune prime ne se modifie depuis un écran d'administration. Budget d'ouverture : **6 000 écus** au total, dont **2 440** pour la seule famille « collection ».
+- **Le catalogue complet vaut exactement un `PACK_6000`** : la somme des 37 primes est de **6 000 écus**, soit **44,99 € TTC**. La progression gratuite reste une récompense de long terme, et la boutique un raccourci, jamais le chemin.
+- **Quatre packs, un ratio croissant.** Le catalogue fermé des packs vit dans `packages/shared/src/packs.ts` : module pur, sans dépendance, sans `process.env` lu, sans accès réseau, verrouillé par `packages/spec/src/packs.spec.ts` (ratio écus/€ strictement croissant d'un pack au suivant). Il ne contient que le **nom** de la variable Stripe, jamais un identifiant `price_…` réel.
+
+| Clé | Écus | Prix TTC | Bonus | Variable d'environnement |
+| :--- | ---: | ---: | ---: | :--- |
+| `PACK_500` | 500 | 4,99 € | 0 % | `STRIPE_PRICE_PACK_500` |
+| `PACK_1200` | 1 200 | 9,99 € | 20 % | `STRIPE_PRICE_PACK_1200` |
+| `PACK_2500` | 2 500 | 19,99 € | 25 % | `STRIPE_PRICE_PACK_2500` |
+| `PACK_6000` | 6 000 | 44,99 € | 33 % | `STRIPE_PRICE_PACK_6000` |
 - **Aucune médaille ne récompense une dépense d'argent réel**, jamais : cela mêlerait le pay-to-win à la progression, et la boutique doit rester un raccourci, pas le chemin.
 - **Interrupteur.** `ACHIEVEMENT_PAYOUTS_ENABLED` coupe les primes sans migration, sans retirer les médailles déjà obtenues.
 - **Le ticket ne se vend jamais.** Vendre de la monnaie à valeur fixe est une microtransaction ; vendre des tickets aléatoires est un coffre à butin, et la réglementation française des jeux d'argent (ANJ) s'appliquerait. Le ticket gratuit reste la seule source de cartes — c'est aussi ce qui empêche la limite de charges de devenir un péage.
