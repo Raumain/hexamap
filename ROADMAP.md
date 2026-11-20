@@ -67,7 +67,7 @@ the finite faucet, the symmetric friendship, the 404 private showcase — lives 
 
 | Track | Done | To do | Start a fresh session at |
 | :--- | :--- | :--- | :--- |
-| **A. Pre-deploy** | The production image was built and run against a **virgin PostgreSQL 16**: 12/12 migrations, signup, charges 6/6, CORS, compression, cache, SPA, JSON 404 — all observed (§A) | Nine findings, **none implemented**; the host checklist; one real loop on the host | **A1** — `apps/api/src/static.ts` + one red case in `static.spec.ts`. A2/A5/A7/A9 are operator steps, A3/A4/A6 are config |
+| **A. Pre-deploy** | The production image was built and run against a **virgin PostgreSQL 16**: 12/12 migrations, signup, charges 6/6, CORS, compression, cache, SPA, JSON 404 — all observed (§A) | Nine findings, **A1 implemented**, A2 → A9 open; the host checklist; one real loop on the host | **A1** — `apps/api/src/static.ts` + one red case in `static.spec.ts`. A2/A5/A7/A9 are operator steps, A3/A4/A6 are config |
 | **B. La Boutique** | Nothing implemented. The plan below is complete enough to start | 30.1 → 30.8, plus the legal gate | **30.1** — the unique index on `currency_ledger`; it blocks every other step |
 | **C. L'Assemblage** | The **teaser is shipped**: `/assemblage`, nav entry, content, pure outline module, e2e case | 31.1 → 31.5 — the whole map | **31.1** — precomputed paths in `scripts/import` |
 
@@ -93,7 +93,7 @@ the repair is on branch `fix/migrations-rejouables`.
 
 ### A. Pre-deploy hardening — verdict on the production image (P0)
 
-**Status:** verified on 2026-11-20, **nothing fixed**. Findings A1 → A9 are the backlog of this
+**Status:** verified on 2026-11-20, **A1 now fixed**. Findings A2 → A9 are the backlog of this
 track; the host checklist is a decision aid, not code.
 
 What was actually executed on 2026-11-20, in Docker, against a **virgin PostgreSQL 16 volume** —
@@ -114,12 +114,12 @@ not against the development database.
 | CORS | allowed origin echoed; `https://evil.example` receives **no** `Access-Control-Allow-Origin` |
 | Better Auth mounted handlers | `/api/auth/get-session` `200`, delegation intact |
 
-**Findings to close before the first player.** A1 is a defect with a spec; A2 → A9 are operator
+**Findings to close before the first player.** A1 is closed; A2 → A9 are operator
 decisions, except A3 and A6 which touch code/config.
 
 | # | Finding | Consequence | Fix |
 | :--- | :--- | :--- | :--- |
-| A1 | A missing hashed asset answers **`200 text/html`**: `GET /assets/nope.js` falls into the SPA fallback | `import()` and `<script>` send `Accept: */*`, so a stale or missing chunk yields `Unexpected token '<'` with a `200` — undiagnosable | `static.ts`: the extension allow-list guards the file branch only; apply the same guard **before** the fallback, answer `404 ROUTE_NOT_FOUND`. One red case in `static.spec.ts` first |
+| A1 | **Closed** — a missing hashed asset used to answer **`200 text/html`**: `GET /assets/nope.js` fell into the SPA fallback | `import()` and `<script>` send `Accept: */*`, so a stale or missing chunk yielded `Unexpected token '<'` behind a `200` — undiagnosable | `static.ts`: an allow-listed extension with no file on disk answers `404 ROUTE_NOT_FOUND` before the fallback. One red case in `static.spec.ts` first, 14 cases green |
 | A2 | Reference data is not shipped in the image — a fresh volume has none | The game cannot draw a single card (`503`), and no blason loads | Run `scripts/import` once on the host (or seed the two read-only volumes) **before** opening |
 | A3 | Better Auth cannot resolve the client IP: `session.ipAddress` is `""` and it logs a shared-bucket warning | Every player shares one rate-limit bucket behind a proxy | Set `advanced.ipAddress.ipAddressHeaders: ['x-forwarded-for']` and `trustedProxies`; make the ingress forward the header |
 | A4 | `BETTER_AUTH_SECRET` was low-entropy; Better Auth warned at boot | Session forgery if leaked | 32+ random bytes per environment, injected by the platform, rotated once |
@@ -186,7 +186,7 @@ Provider-agnostic on purpose: these are the properties the app needs, not a vend
 - [ ] Rate limiting at the edge in front of `/api/auth/*`, in addition to Better Auth's.
 - [ ] SMTP if password reset ships (A9).
 
-**Gate.** Launch is green when A1 → A9 are closed, the checklist is ticked, `ci:check` is green on
+**Gate.** Launch is green when A2 → A9 are closed (A1 done), the checklist is ticked, `ci:check` is green on
 the deployed commit, and one real loop — signup → ticket → scratch → tableau — has been played on
 the host, not on a laptop.
 
@@ -365,7 +365,7 @@ reward and no `game_config` grant — and `ACHIEVEMENT_PAYOUTS_ENABLED` cuts it 
 | Any future transform on `<main>` re-breaks every `fixed` overlay | **Covered** | `.enter-salon` runs `animation-fill-mode: backwards`, so `main` carries no transform after the 180 ms entry; `OverlayPortal` renders both route overlays in `document.body`, immune to any transformed ancestor. Asserted in `design-system.spec.ts` |
 | A branch executes a later migration before `main` introduces an earlier one | **Covered** | Every `up` is idempotent; `kysely_migration` can be dropped and replayed twice with row counts unchanged. Rule and proof procedure in `.docs/02-database.md` §1 rule 8 / §8 step 8 |
 | The production image does not boot against a clean database | **Disproven** | 2026-11-20: virgin `postgres:16-alpine`, `target: prod`, boot applied 12/12 migrations, signup `200`, charges seeded 6/6, draw rolled back cleanly on `503` |
-| A missing hashed asset answers `200` + `index.html` | **Open — A1** | `GET /assets/nope.js` returns HTML; a stale chunk would fail as `Unexpected token '<'`. Fix in `static.ts` with a red spec first |
+| A missing hashed asset answers `200` + `index.html` | **Hit and fixed** | `static.ts` answers `404 ROUTE_NOT_FOUND` for any allow-listed extension with no file on disk, before the SPA fallback. Locked red-then-green in `static.spec.ts` (14 cases) |
 | A host starts with no reference data | **Open — A2** | Draw returns `503 REFERENCE_DATA_MISSING` until `scripts/import` runs. Operator step, now in the host checklist |
 | Rate limiting sees one bucket for the whole world | **Open — A3** | Better Auth cannot resolve the client IP behind a proxy; `advanced.ipAddress` not configured |
 | A full disk stops the API | **Open — A6** | Logs are unbounded (`restart:` set, `logging:` absent) |

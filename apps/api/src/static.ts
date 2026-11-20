@@ -13,7 +13,8 @@ import { cachedCompression, compressionCacheKey } from './lib/compression-cache'
 const HTML_TYPE = 'text/html; charset=utf-8';
 
 // Types MIME des fichiers produits par le build Vite. Une extension absente de
-// cette table n'est jamais servie : le chemin retombe sur la coquille SPA.
+// cette table est refusée par la garde de forme : seuls les chemins sans
+// extension relèvent du routage SPA.
 const CONTENT_TYPES: Record<string, string> = {
   html: HTML_TYPE,
   js: 'text/javascript; charset=utf-8',
@@ -202,6 +203,15 @@ export const webRoutes = (root: string, authHandler?: FetchHandler) =>
         }
         return file;
       }
+    }
+
+    // Une extension de la liste blanche désigne un fichier réel : si le fichier
+    // n'existe pas, la ressource est absente. Le repli SPA ne doit jamais la
+    // couvrir — un chunk périmé répondrait 200 en `text/html`, et le navigateur
+    // échouerait sur `Unexpected token '<'`.
+    if (!isRoot && contentType !== undefined) {
+      set.status = 404;
+      return notFound;
     }
 
     // REPLI SPA : toute route cliente inconnue reçoit `index.html`. Si le build

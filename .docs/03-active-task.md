@@ -5,6 +5,72 @@
 
 ---
 
+# Phase A — Pré-déploiement : A1 (asset absent)
+
+## Statut
+
+- **Phase** : A — pré-déploiement, constat A1 de `ROADMAP.md` §2.A
+- **État** : Terminé
+- **Priorité** : P0 (avant le premier joueur)
+- **Mis à jour** : 2026-11-20
+- **Branche** : `fix/a1-asset-404`
+
+## Objectif
+
+`GET /assets/nope.js` répondait `200 text/html` : un asset absent de la liste blanche tombait
+dans le repli SPA. Un chunk périmé échouait alors en `Unexpected token '<'` derrière un `200`
+indiagnosticable. Une extension de la liste blanche désigne un fichier réel : sans fichier, la
+réponse est `404 ROUTE_NOT_FOUND`, jamais la coquille.
+
+## Règle retenue
+
+- La garde de forme reste la première : `..`, backslash, chemin absolu, segment vide ou `.`,
+  racine système, et extension **hors** liste blanche répondent `404`.
+- Une extension **dans** `CONTENT_TYPES` mais sans fichier sous `WEB_DIST_DIR` répond `404`
+  JSON, **avant** le repli SPA.
+- Un chemin sans extension (`/`, `/cadastre`, `/assemblage`) reste une route cliente : `200`
+  `text/html` depuis `index.html`. `/api`, `/api/*`, `/blasons/*` et `/api/auth/*` inchangés.
+
+## Critères d'acceptation
+
+1. [x] `GET /assets/nope.js` répond `404`, `content-type` JSON, corps `{ code: 'ROUTE_NOT_FOUND' }`.
+2. [x] Le cas est rouge avant correction — `Expected: 404`, `Received: 200` — et vert après.
+3. [x] `/`, `/collection`, `/index.html`, `/sw.js`, `/manifest.webmanifest` et
+       `/assets/app-fixture.js` servent toujours leur fichier.
+4. [x] `/api/v1/health`, `/api/docs`, `/api/auth/get-session` et `/blasons/x.svg` inchangés.
+5. [x] `ci:check` vert.
+
+## Journal
+
+### 2026-11-20 — A1 fermé : l'asset absent cesse de mentir
+
+**Le constat, mesuré.** Le cas rouge a été écrit avant tout changement de `static.ts` et joué
+seul : `Expected: 404`, `Received: 200`, sur `/assets/nope.js`. Le défaut n'était pas une
+supposition de revue, il était reproductible en une requête.
+
+**La cause.** La liste blanche `CONTENT_TYPES` ne gouvernait que la **branche fichier**
+(`if (await file.exists())`) : une extension autorisée dont le fichier manquait sautait le bloc
+en silence et atteignait le repli, qui rend `index.html`. La garde de forme, elle, ne refusait
+que les extensions **absentes** de la table.
+
+**Le correctif, au plus étroit.** Trois lignes avant le repli : `!isRoot && contentType !==
+undefined` ⇒ `404 notFound`. Aucun remaniement du handler, aucune nouvelle branche de service,
+la politique de cache et l'ETag intacts. Le commentaire de `CONTENT_TYPES` a été corrigé au
+passage : il annonçait qu'une extension absente de la table « retombe sur la coquille SPA »,
+alors que la garde de forme la refuse depuis toujours.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun test packages/spec/src/static.spec.ts
+  avant : 13 pass, 1 fail — Expected: 404  Received: 200
+  après : 14 pass, 0 fail, 36 expect() calls, 1 fichier
+```
+
+**Portée** : `apps/api/src/static.ts`, `packages/spec/src/static.spec.ts`, `ROADMAP.md` §2.A,
+ce fichier. Aucune migration, aucun schéma, aucun contrat d'API, aucune dépendance nouvelle.
+
+---
+
 # Planification — pré-déploiement, boutique Stripe, L'Assemblage (2026-11-20)
 
 ## Statut

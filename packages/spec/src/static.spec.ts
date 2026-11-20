@@ -41,6 +41,24 @@ describe('Archi §6.1 — service du front construit par l’API', () => {
     expect(response.headers.get('etag')).toBeTruthy();
   });
 
+  // ROADMAP A1 : une extension de la liste blanche désigne un fichier réel. Un
+  // chunk périmé tombait sinon sur la coquille, et le navigateur échouait en
+  // `Unexpected token '<'` derrière un 200 indiagnosticable.
+  it('Archi §6.1 — un asset absent répond 404, jamais la coquille', async () => {
+    const response = await request('/assets/nope.js');
+    const contentType = response.headers.get('content-type') ?? '';
+    const body = await response.text();
+
+    expect(response.status, 'Un asset absent doit répondre 404, pas 200').toBe(404);
+    expect(contentType, 'La réponse doit être du JSON, jamais du HTML').toContain(
+      'application/json',
+    );
+    expect(
+      (JSON.parse(body) as { code?: string }).code,
+      'Le corps doit porter le code stable ROUTE_NOT_FOUND',
+    ).toBe('ROUTE_NOT_FOUND');
+  });
+
   it('sert index.html sans cache', async () => {
     const response = await request('/');
 
