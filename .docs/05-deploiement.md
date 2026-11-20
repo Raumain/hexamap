@@ -346,10 +346,60 @@ docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
       `Secure` (`auth.ts:43`), une connexion en HTTP clair semble réussir sans jamais persister.
       C'est la seule raison du `127.0.0.1`, pas un confort.
 
-- [ ] **[vérif VPS]** Dans Dokploy, associer le domaine public au service `api` en indiquant le
-      **port 3000** comme port du conteneur. Un seul domaine, une seule origine : ne jamais
-      créer un `api.example.com` à côté de `example.com` (§4, et `.docs/01-architecture.md`
-      §4.5).
+- [x] **[code]** Le routage appartient au **dépôt**, pas à l'interface Dokploy. Le
+      déploiement Compose de Dokploy n'injecte **aucun** label Traefik : sans labels, le
+      conteneur est sain et présent sur `dokploy-network`, mais aucun routeur n'est créé et
+      Traefik répond `404` sur le domaine. `docker-compose.dokploy.yml` porte donc un bloc
+      `labels` qui déclare trois objets, tous préfixés `hexamap` pour qu'aucun nom généré par
+      Dokploy ne puisse entrer en collision :
+
+      | Objet | Nom | Rôle |
+      | :--- | :--- | :--- |
+      | routeur | `hexamap-websecure` | `Host(${PUBLIC_HOST})` sur `websecure`, `tls=true`, `tls.certresolver=letsencrypt` |
+      | routeur | `hexamap-web` | `Host(${PUBLIC_HOST})` sur `web`, middleware `hexamap-redirect` |
+      | middleware | `hexamap-redirect` | `redirectscheme.scheme=https` |
+      | service | `hexamap` | `loadbalancer.server.port=3000` (port du **conteneur**) |
+
+      `traefik.docker.network=dokploy-network` est **obligatoire** : le conteneur est sur trois
+      réseaux (`backend`, `public`, `dokploy-network`) et, sans cette épingle, Traefik peut élire
+      l'IP d'un réseau qu'il ne partage pas — la requête n'aboutit alors jamais, sans erreur.
+
+      Les noms `web`, `websecure` et `letsencrypt` sont ceux qu'expose un Dokploy standard. Ils
+      ne sont pas constatables depuis le dépôt : si l'instance utilise d'autres entrées ou un
+      autre résolveur, ce sont ces trois valeurs du bloc `labels` qu'il faut aligner.
+
+- [x] **[code]** `PUBLIC_HOST` est la seule source de vérité du nom d'hôte, exigée par `:?` :
+      une valeur absente arrête `docker compose` au lieu de produire un `Host()` vide qui ne
+      correspond à aucune requête. Contrôle, sans démarrer la pile :
+
+      ```sh
+      docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml config \
+        | grep -E 'Host\(|traefik.docker.network|server.port'
+      # attendu : Host(`hexamap.example.fr`), dokploy-network, "3000"
+      docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml config >/dev/null
+      # sans PUBLIC_HOST : code 1 et « required variable PUBLIC_HOST is missing a value »
+      ```
+
+- [ ] **[vérif VPS]** **Ne pas** déclarer le domaine dans l'onglet « Domains » de Dokploy.
+      Deux routeurs sur la même règle `Host(...)` rendent le comportement indéfini (le certificat
+      peut être demandé deux fois, et l'un des deux routeurs peut ne jamais recevoir de trafic).
+      Si l'opérateur préfère l'interface, il doit **retirer** le bloc `labels` de
+      `docker-compose.dokploy.yml` — jamais le laisser en place à côté.
+
+      Un seul domaine, une seule origine : ne jamais créer un `api.example.fr` à côté de
+      `example.fr` (§4, et `.docs/01-architecture.md` §4.5).
+
+- [ ] **[vérif VPS]** Diagnostic d'un `404` de Traefik alors que `api` est sain : **conteneur sain
+      sur `dokploy-network` + `404` Traefik = aucun routeur**. Confirmer que les labels sont bien
+      arrivés jusqu'au conteneur :
+
+      ```sh
+      docker inspect <conteneur-api> --format '{{json .Config.Labels}}' | grep traefik
+      # vide ou absent : le compose déployé ne portait pas le bloc labels
+      docker network inspect dokploy-network -f '{{range .Containers}}{{.Name}} {{end}}'
+      # le conteneur api doit y figurer
+      ```
+
 
 - [ ] **[vérif VPS]** Constater que le port publié n'est pas un chemin d'accès, depuis
       l'extérieur du VPS :
@@ -393,6 +443,7 @@ jamais dans git) :
 | `AUTH_COOKIE_SECURE` | **ne pas poser** | `auth.ts:43` : `NODE_ENV=production` suffit à forcer `Secure` |
 | `RUN_MIGRATIONS` | `1` (défaut) — voir §8.4 | compose `:91` |
 | `WEB_BIND_ADDRESS` | `127.0.0.1` (défaut de l'override Dokploy) | compose `:62`, `docker-compose.dokploy.yml:28` |
+| `PUBLIC_HOST` | `hexamap.example.fr` — **hôte nu**, sans schéma, sans barre oblique finale | `docker-compose.dokploy.yml` (`:?` — règle `Host()`) |
 | `BLASONS_VOLUME` | `hexamap_prod_blasons` (défaut) | compose `:145` |
 | `IMPORT_STATUS_VOLUME` | `hexamap_prod_importstatus` (défaut) | compose `:147` |
 | `PROD_PGDATA_VOLUME` | `hexamap_prod_pgdata` (défaut) | compose `:135` |
