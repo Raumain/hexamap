@@ -40,3 +40,18 @@ export async function readScratchConfig(exec: Executor): Promise<ScratchConfig> 
     startCharges: requireNumber(values.get('SCRATCH_START_CHARGES')),
   };
 }
+
+export interface ShopConfig {
+  dailyPurchaseCap: number;
+}
+
+/** Lit le plafond quotidien d'écus. Aucune valeur par défaut, aucun cache. */
+export async function readShopConfig(exec: Executor): Promise<ShopConfig> {
+  const row = await exec
+    .selectFrom('game_config')
+    .select(['key', 'value'])
+    .where('key', '=', 'SHOP_DAILY_PURCHASE_CAP')
+    .executeTakeFirst();
+
+  return { dailyPurchaseCap: requireNumber(row?.value) };
+}

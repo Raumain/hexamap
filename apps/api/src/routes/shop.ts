@@ -3,6 +3,7 @@ import {
   type PaymentEvent,
   type PaymentProvider,
   type PurchaseCompletedEvent,
+  type PurchaseRefundedEvent,
   packByKey,
   ShopDisabledError,
   WebhookSignatureError,
@@ -13,6 +14,8 @@ import { db } from '../db';
 import { env } from '../env';
 import { HttpError } from '../lib/http-error';
 import { authPlugin } from '../middleware/auth';
+import { readShopConfig } from '../services/config';
+import { dailyCapReached, refundEcus } from '../services/shop';
 
 const errorSchema = t.Object(
   { code: t.String(), message: t.String() },
@@ -86,10 +89,86 @@ async function creditPurchase(event: PurchaseCompletedEvent): Promise<void> {
   });
 }
 
+/**
+ * Écrit la contrepartie négative d'un remboursement Stripe.
+ *
+ * Le propriétaire vient de la ligne `PURCHASE:<session>` du grand-livre, jamais
+ * d'un identifiant fourni par le prestataire : c'est la seule source qui prouve
+ * que l'achat a réellement été crédité. Le rejeu est absorbé par
+ * `alreadyRefunded` (somme des lignes `PURCHASE_REFUND:<session>` déjà écrites),
+ * puisque l'index partiel ne couvre pas ce motif.
+ */
+async function refundPurchase(event: PurchaseRefundedEvent): Promise<void> {
+  await db.transaction().execute(async (trx) => {
+    const purchase = await trx
+      .selectFrom('currency_ledger')
+      .select(['user_id', 'delta'])
+      .where('reason', '=', `PURCHASE:${event.sessionId}`)
+      .executeTakeFirst();
+
+    if (!purchase) {
+      console.warn(`[shop] remboursement d’une session inconnue: ${event.sessionId}`);
+      return;
+    }
+
+    const user = await trx
+      .selectFrom('user')
+      .select(['id', 'currency'])
+      .where('id', '=', purchase.user_id)
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!user) {
+      console.warn(`[shop] utilisateur inconnu pour la session ${event.sessionId}`);
+      return;
+    }
+
+    const refunded = await trx
+      .selectFrom('currency_ledger')
+      .select(sql<string>`coalesce(sum(delta), 0)::text`.as('total'))
+      .where('user_id', '=', user.id)
+      .where('reason', '=', `PURCHASE_REFUND:${event.sessionId}`)
+      .executeTakeFirst();
+
+    const alreadyRefunded = -Number(refunded?.total ?? '0');
+
+    const toReverse = refundEcus({
+      originalEcus: purchase.delta,
+      alreadyRefunded,
+      amountRefundedCents: event.amountRefundedCents,
+      originalAmountCents: event.originalAmountCents,
+    });
+
+    if (toReverse === 0) return;
+
+    await trx
+      .insertInto('currency_ledger')
+      .values({
+        user_id: user.id,
+        delta: -toReverse,
+        reason: `PURCHASE_REFUND:${event.sessionId}`,
+      })
+      .execute();
+
+    const balance = user.currency ?? 0;
+    let currency = balance - toReverse;
+    if (currency < 0) {
+      console.warn(
+        `[shop] SHOP_REFUND_NEGATIVE — solde insuffisant pour ${event.sessionId} : solde ${balance}, remboursement ${toReverse}`,
+      );
+      currency = 0;
+    }
+
+    await trx.updateTable('user').set({ currency }).where('id', '=', user.id).execute();
+  });
+}
+
 async function applyPaymentEvent(event: PaymentEvent): Promise<void> {
-  // Les remboursements relèvent d'une phase ultérieure : rien n'est écrit ici.
-  if (event.kind !== 'PURCHASE_COMPLETED') return;
-  await creditPurchase(event);
+  if (event.kind === 'PURCHASE_COMPLETED') {
+    await creditPurchase(event);
+    return;
+  }
+  await refundPurchase(event);
 }
 
 export function shopCheckoutRoutes(provider: PaymentProvider) {
@@ -110,6 +189,38 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
 
           const origin = new URL(env.FRONTEND_URL ?? env.APP_URL).origin;
           const packKey: PackKey = body.packKey;
+          const pack = packByKey(packKey);
+
+          // Garde d'entrée : elle précède l'aller-retour Stripe, hors transaction.
+          // Un paiement déjà effectué reste crédité par le webhook.
+          if (pack) {
+            const purchased = await db
+              .selectFrom('currency_ledger')
+              .select(sql<string>`coalesce(sum(delta), 0)::text`.as('total'))
+              .where('user_id', '=', user.id)
+              .where('reason', 'like', 'PURCHASE:%')
+              .where(
+                sql<boolean>`created_at >= date_trunc('day', now() at time zone 'utc') at time zone 'utc'`,
+              )
+              .executeTakeFirst();
+
+            const { dailyPurchaseCap } = await readShopConfig(db);
+
+            if (
+              dailyCapReached({
+                purchasedToday: Number(purchased?.total ?? '0'),
+                packEcus: pack.ecus,
+                cap: dailyPurchaseCap,
+              })
+            ) {
+              set.status = 429;
+              return {
+                code: 'SHOP_DAILY_CAP_REACHED',
+                message: 'Plafond quotidien d’écus atteint : réessayez demain.',
+              };
+            }
+          }
+
           const session = await provider.createCheckoutSession({
             userId: user.id,
             packKey,
@@ -136,6 +247,7 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
           200: checkoutSchema,
           400: errorSchema,
           401: errorSchema,
+          429: errorSchema,
           503: errorSchema,
         },
       },
