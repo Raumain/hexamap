@@ -91,7 +91,9 @@ function normalizeStatus(value: unknown): StatusPayload {
   };
 }
 
-// Page de suivi temporaire : outil de développement, lecture seule, sans auth.
+// Page de suivi temporaire : outil de développement, lecture seule, montée dans
+// le groupe protégé par `authPlugin`. Le journal et `error` peuvent contenir des
+// chemins, des DSN et des URL amont : aucune session ouverte, aucune lecture.
 export const importStatusRoutes = new Elysia({ name: 'routes.import-status' }).get(
   '/import-status',
   async ({ set }) => {

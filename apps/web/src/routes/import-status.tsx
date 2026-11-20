@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { type ImportStatus, importStatusQueryOptions } from '../lib/import-status';
+import {
+  type ImportStatus,
+  ImportStatusAccessError,
+  importStatusQueryOptions,
+} from '../lib/import-status';
 
 export const Route = createFileRoute('/import-status')({
   component: ImportStatusPage,
@@ -66,12 +70,16 @@ function ImportStatusPage() {
           Chargement du statut…
         </p>
       ) : query.isError ? (
-        <p
-          role="alert"
-          className="rounded-sheet border border-danger/50 bg-danger/10 p-4 font-mono text-[11px] leading-relaxed text-danger"
-        >
-          {query.error instanceof Error ? query.error.message : 'Statut indisponible.'}
-        </p>
+        query.error instanceof ImportStatusAccessError ? (
+          <AccessReserved />
+        ) : (
+          <p
+            role="alert"
+            className="rounded-sheet border border-danger/50 bg-danger/10 p-4 font-mono text-[11px] leading-relaxed text-danger"
+          >
+            {query.error instanceof Error ? query.error.message : 'Statut indisponible.'}
+          </p>
+        )
       ) : (
         <StatusPanel status={query.data} />
       )}
@@ -80,6 +88,17 @@ function ImportStatusPage() {
         Outil de développement — cette page peut être supprimée une fois l'import terminé.
       </p>
     </section>
+  );
+}
+
+function AccessReserved() {
+  return (
+    <div className="rounded-sheet border border-veil bg-cabinet-raised p-5">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-brass">Accès réservé</p>
+      <p className="mt-3 text-[15px] leading-relaxed text-vellum/75">
+        Le suivi de l’import n’est visible qu’une fois connecté. Ouvrez une session pour y accéder.
+      </p>
+    </div>
   );
 }
 

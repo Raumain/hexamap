@@ -144,18 +144,31 @@ describe('Archi §6.1 — compression des réponses servies par l’API', () => 
     expect(response.headers.get('content-encoding')).toBeNull();
   });
 
+  // La vitrine publique est un module monté (`playerRoutes`) : son 404 sort du
+  // handler, donc le hook global doit encore le compresser.
   it('un module monté hérite de la compression', async () => {
-    const response = await jsonRequest('/api/v1/import-status', { 'accept-encoding': 'gzip' });
+    const response = await jsonRequest('/api/v1/players/00000000-0000-0000-0000-000000000000', {
+      'accept-encoding': 'gzip',
+    });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
     expect(response.headers.get('content-encoding')).toBe('gzip');
 
     const decoded = JSON.parse(
       new TextDecoder().decode(gunzipSync(new Uint8Array(await response.arrayBuffer()))),
-    ) as { running?: boolean; phase?: string };
+    ) as { code?: string; message?: string };
 
-    expect(typeof decoded.running).toBe('boolean');
-    expect(typeof decoded.phase).toBe('string');
+    expect(decoded.code).toBe('PLAYER_NOT_FOUND');
+    expect(typeof decoded.message).toBe('string');
+  });
+
+  // `import-status` exige désormais une session : sa charge utile expose des
+  // erreurs et un journal bruts. Le refus est un 401 JSON du groupe protégé.
+  it('le suivi d’import refuse une requête sans session', async () => {
+    const response = await request('/api/v1/import-status');
+
+    expect(response.status).toBe(401);
+    expect(((await response.json()) as { code?: string }).code).toBe('UNAUTHORIZED');
   });
 
   // Une réponse HEAD n'a pas de corps : lui poser un `Content-Encoding`

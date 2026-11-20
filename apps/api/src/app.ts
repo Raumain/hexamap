@@ -43,39 +43,41 @@ const productionOrigins = new Set<string>([
 ]);
 
 function buildPublicRoutes(provider: PaymentProvider) {
-  return new Elysia({ prefix: '/api/v1' })
-    .use(playerRoutes)
-    .use(importStatusRoutes)
-    .use(shopWebhookRoutes(provider));
+  return new Elysia({ prefix: '/api/v1' }).use(playerRoutes).use(shopWebhookRoutes(provider));
 }
 
 function buildProtectedRoutes(provider: PaymentProvider) {
-  return new Elysia({ prefix: '/api/v1' })
-    .use(authPlugin)
-    .use(refRoutes)
-    .use(ticketRoutes)
-    .use(cardRoutes)
-    .use(tableauRoutes)
-    .use(marketRoutes)
-    .use(chargeRoutes)
-    .use(friendRoutes)
-    .use(achievementRoutes)
-    .use(profileRoutes)
-    .use(shopCheckoutRoutes(provider))
-    .get('/me', ({ user, status }) => {
-      if (!user) {
-        return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
-      }
-      return {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          pseudo: user.pseudo,
-          currency: user.currency,
-        },
-      };
-    });
+  return (
+    new Elysia({ prefix: '/api/v1' })
+      .use(authPlugin)
+      .use(refRoutes)
+      .use(ticketRoutes)
+      .use(cardRoutes)
+      .use(tableauRoutes)
+      .use(marketRoutes)
+      .use(chargeRoutes)
+      .use(friendRoutes)
+      .use(achievementRoutes)
+      .use(profileRoutes)
+      // Suivi d'import : la charge utile expose des erreurs brutes et un journal
+      // qui peut contenir chemins, DSN et URL amont. Réservé aux sessions ouvertes.
+      .use(importStatusRoutes)
+      .use(shopCheckoutRoutes(provider))
+      .get('/me', ({ user, status }) => {
+        if (!user) {
+          return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
+        }
+        return {
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            pseudo: user.pseudo,
+            currency: user.currency,
+          },
+        };
+      })
+  );
 }
 
 export interface CreateAppOptions {
