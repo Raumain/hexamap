@@ -5,6 +5,95 @@
 
 ---
 
+# Phase A — Pré-déploiement : A3, A6, A7 et le runbook
+
+## Statut
+
+- **Phase** : A — pré-déploiement, constats A3, A5, A6 et A7 de `ROADMAP.md` §2.A
+- **État** : Terminé côté code ; vérifications hôte en attente
+- **Priorité** : P0 (avant le premier joueur)
+- **Mis à jour** : 2026-11-20
+- **Branche** : `chore/pre-deploy-hardening`, empilée sur `fix/a1-asset-404`
+
+## Objectif
+
+Fermer ce qui, dans les neuf constats de la vérification de production du 2026-11-20, se corrige
+dans le dépôt, et transformer la check-list d'hébergement en procédure exécutable. Ce qui ne peut
+être fait que sur l'hôte n'est **pas** coché : c'est écrit, pas prouvé.
+
+## Ce qui est fermé
+
+| Constat | Ce qui a changé |
+| :--- | :--- |
+| **A7** | Les valeurs par défaut des volumes de production passent à `hexamap_prod_blasons` et `hexamap_prod_importstatus`. Elles désignaient auparavant **exactement** les volumes du projet de développement, sans aucun avertissement. Les variables restent surchargeables. |
+| **A6** | `logging: json-file`, `max-size: 10m`, `max-file: 5` sur `db` **et** `api` : 50 Mio au plus par service. |
+| **A3** | `advanced.ipAddress` porte `ipAddressHeaders: ['x-forwarded-for']` et `trustedProxies`, alimenté par `TRUSTED_PROXIES` (nouvelle variable, vide par défaut). L'option existe bien dans Better Auth 1.7.25 (`@better-auth/core` `init-options.d.mts:252`), vérifié dans le conteneur avant d'être écrite. |
+| **A5** | `scripts/backup.sh` : `pg_dump -Fc` **plus** l'archivage des deux volumes que la base ne contient pas, avec rétention et échec bruyant si la pile de production ne tourne pas. |
+
+## Ce qui reste à faire, sur l'hôte
+
+- **A3** : `TRUSTED_PROXIES` renseigné avec le CIDR de la bordure, `X-Forwarded-For` transmis,
+  et `session.ipAddress` non vide — la commande est dans `.docs/05-deploiement.md` §5. **Aucune
+  preuve n'existe dans le dépôt** : le banc e2e n'a pas de mandataire, donc il ne peut pas la
+  produire.
+- **A5** : planifier `scripts/backup.sh` et jouer **un** exercice de restauration.
+- **A2, A4, A8, A9** : référentiel importé, secret à forte entropie, TLS, décision SMTP.
+
+## Journal
+
+### 2026-11-20 — Trois constats fermés et un script de sauvegarde
+
+**Ce qui a été vérifié avant d'écrire.** L'option `advanced.ipAddress` n'a pas été supposée : la
+version installée est `better-auth@1.7.25`, et le grep dans le conteneur a trouvé
+`ipAddressHeaders?: string[]` dans `@better-auth/core/dist/types/init-options.d.mts:252` ainsi que
+la lecture `options.advanced?.ipAddress?.trustedProxies` dans `dist/context/create-context.mjs:91`.
+C'est aussi la source du message d'avertissement d'A3 : `dist/api/rate-limiter/index.mjs:245`
+replie explicitement sur « a single shared per-path bucket » quand aucune IP n'est résolue.
+
+**La liste vide est le choix, pas un oubli.** `trustedProxies` reste `[]` tant que
+`TRUSTED_PROXIES` n'est pas posé. Croire `X-Forwarded-For` sans savoir qui l'écrit laisserait
+n'importe quel client choisir son IP, donc contourner le rate limiting — pire que le seau
+partagé.
+
+**A7 n'était pas cosmétique.** `compose.yml` ne nomme pas ses volumes : Docker les préfixe par le
+nom du projet, soit `hexamap_blasons` et `hexamap_importstatus`. `docker-compose.prod.yml`
+déclarait ces deux mêmes noms **en dur**, avec un commentaire présentant le partage comme
+volontaire. Un hôte de production montait donc les données du poste de développement. Le correctif
+ne touche que les valeurs par défaut, et le commentaire dit désormais comment partager un volume
+si on le veut vraiment.
+
+**Le script de sauvegarde traite le trou d'A5.** Un `pg_dump` seul aurait laissé dehors les
+blasons — 251 Mo sur la base de développement — et l'état de l'import. Les volumes sont donc
+archivés par un conteneur `alpine` jetable qui les monte en lecture seule. Le garde-fou vérifie
+d'abord que le service `db` de la pile visée tourne : sans lui, `docker compose exec` échouerait
+sur un message Docker obscur.
+
+**Ce qui a été exécuté, et contre quoi.**
+
+```
+sh -n scripts/backup.sh                                    → OK
+garde-fou, pile e2e arrêtée (COMPOSE_FILE=docker-compose.e2e.yml)
+  → « ERREUR : le service « db » de la pile de production n'est pas démarré. », EXIT=1
+chemin complet, pile de développement (COMPOSE_FILE=compose.yml)
+  → hexamap-<h>.dump            26 118 665 o
+  → hexamap-<h>-blasons.tar.gz 251 606 690 o
+  → hexamap-<h>-importstatus.tar.gz      424 o
+```
+
+Les artefacts ont été supprimés après vérification, et `backups/` est entré dans `.gitignore` :
+le script écrit par défaut dans le dépôt, une sauvegarde n'a rien à y faire.
+
+**Ce qui n'a pas été exécuté.** Aucun exercice de restauration : il exige de créer une base de
+travail, et la procédure est écrite (`05-deploiement.md` §3) sans avoir été jouée. Aucune
+vérification d'A3 sur un hôte réel : il n'y a pas de mandataire sur cette machine.
+
+**Portée** : `docker-compose.prod.yml`, `apps/api/src/auth.ts`, `apps/api/src/env.ts`,
+`scripts/backup.sh` (nouveau), `.docs/05-deploiement.md` (nouveau), `.env.example`, `.gitignore`,
+`ROADMAP.md` §2.A et §4, ce fichier. Aucune migration, aucun changement de schéma, aucun contrat
+d'API modifié, aucune dépendance nouvelle.
+
+---
+
 # Phase A — Pré-déploiement : A1 (asset absent)
 
 ## Statut
