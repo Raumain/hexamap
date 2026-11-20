@@ -29,6 +29,13 @@ const envSchema = z
     // Interrupteur explicite : autorise l'API à servir le front hors production.
     // En production, le service est toujours actif.
     SERVE_WEB: z.enum(['true', 'false']).optional(),
+    // Boutique : toutes optionnelles, une valeur vide ferme la boutique (503).
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_PRICE_PACK_500: z.string().optional(),
+    STRIPE_PRICE_PACK_1200: z.string().optional(),
+    STRIPE_PRICE_PACK_2500: z.string().optional(),
+    STRIPE_PRICE_PACK_6000: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === 'production' && !value.FRONTEND_URL) {
