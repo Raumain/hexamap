@@ -47,7 +47,23 @@ docker compose --profile tools run --rm \
   -e TEST_DATABASE_URL='postgres://hexamap:hexamap@db:5432/hexamap_test_304' \
   dev bun run ci:check
   ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
-  292 pass, 0 fail, 1742 expect() calls, Ran 292 tests across 18 files
+  292 pass, 0 fail, 1737 expect() calls, Ran 292 tests across 18 files
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  61 passed, 3 skipped, 1 flaky (2.2m)
+  le flaky est « les salles secondaires sont atteintes en deux appuis » sur iPhone 13,
+  préexistant (session non résolue au moment du premier appui sur « Plus »), vert au retry
 ```
 
-Le banc Playwright et son résultat sont consignés dans `review.md`.
+Le détail de la revue — deux *deal-breakers* corrigés, quatre corrections mineures, écarts
+assumés — est dans `review.md`. Les preuves visuelles sont `boutique-390.png` et
+`boutique-503-390.png`.
+
+## Incident d'environnement
+
+Le répertoire de travail a été effacé **deux fois** par un processus externe (répertoires
+recréés en `root`, hors dépôt), ce qui a invalidé un premier passage du banc (3 échecs
+`ENOENT`/`worker process exited`, 30 tests non joués). Le travail a été restauré depuis les
+instantanés d'OpenCode, sécurisé par trois commits poussés, et la session déplacée dans
+`hexamap-agents/phase-304-front`. Aucun fichier perdu, aucune conséquence sur la livraison.
+
