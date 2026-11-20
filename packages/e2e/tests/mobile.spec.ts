@@ -850,3 +850,59 @@ test.describe('mobile — sans session', () => {
     await expect(page.getByRole('button', { name: MORE_CONTROL, exact: true })).toHaveCount(0);
   });
 });
+
+/* ── 10. La Boutique ─────────────────────────────────────────────────────── */
+
+test.describe('mobile — la boutique', () => {
+  // 390 px : la largeur de référence des cas de la phase 22.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const BOUTIQUE_ROOM = 'La Boutique';
+  // Les prix TTC sont rendus par `Intl.NumberFormat('fr-FR', …)` : l'espace
+  // avant l'euro est insécable et sa largeur varie selon ICU — le motif la
+  // tolère, et l'ancre interdit que « 4,99 € » reconnaisse le suffixe de
+  // « 44,99 € ».
+  const PACK_PRICES: readonly RegExp[] = [/^4,99\s?€$/, /^9,99\s?€$/, /^19,99\s?€$/, /^44,99\s?€$/];
+  // Chaîne exacte de `BOUTIQUE.errors.SHOP_DISABLED` dans `content/boutique.ts`.
+  const SHOP_DISABLED = "La boutique n'est pas encore ouverte.";
+
+  test('mobile — la boutique affiche les quatre packs et refuse un achat sans clé', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+    await openMoreSheet(page);
+    const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+    await sheet.getByRole('link', { name: BOUTIQUE_ROOM }).click();
+
+    await expect(page).toHaveURL(/\/boutique$/);
+    await expect(page.getByRole('heading', { level: 1, name: BOUTIQUE_ROOM })).toBeVisible();
+
+    // Quatre planches, un seul bouton par planche. Le prix TTC est le premier
+    // `dd` de chaque planche : l'assertion reste attachée à la planche et
+    // ancrée, sinon « 44,99 € » satisferait aussi le motif de « 4,99 € ».
+    const cards = page.getByRole('article');
+    await expect(cards).toHaveCount(4);
+    for (const [index, price] of PACK_PRICES.entries()) {
+      await expect(cards.nth(index).locator('dd').first()).toHaveText(price);
+    }
+
+    const buyButtons = page.getByRole('button', { name: 'Acheter' });
+    await expect(buyButtons).toHaveCount(4);
+
+    // Sans clé Stripe, l'API répond `503 SHOP_DISABLED` : la salle l'annonce et
+    // laisse les boutons réarmés.
+    await buyButtons.first().click();
+    await expect(page.getByText(SHOP_DISABLED)).toBeVisible();
+    await expect(buyButtons.first()).toBeEnabled();
+
+    await assertNoHorizontalOverflow(page, '/boutique');
+
+    // Preuve jointe au rapport : la planche se lit, pas seulement des nombres.
+    await test.info().attach('boutique-390.png', {
+      contentType: 'image/png',
+      body: await page.screenshot({ fullPage: true }),
+    });
+  });
+});
