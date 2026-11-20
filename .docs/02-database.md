@@ -34,6 +34,7 @@
 | `friendships`, `blocks` | **Migrée** | `packages/db/migrations/0010_friendships.ts` |
 | `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
 | `user_profiles`, index `user_pseudo_lower_idx` | **Migrée** | `packages/db/migrations/0012_profiles.ts` |
+| Index `currency_ledger_purchase_uniq` | **Migrée** | `packages/db/migrations/0013_shop.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -146,6 +147,7 @@ un défaut silencieux dans le code) :
 | `FRIEND_REQUEST_DAILY_CAP` | number | `20` | Demandes d'ami envoyées par jour et par compte |
 | `FRIEND_REQUEST_REOPEN_MS` | number | `604800000` | Délai avant de rouvrir une demande déclinée (7 j) |
 | `ACHIEVEMENT_PAYOUTS_ENABLED` | boolean | `true` | Interrupteur du robinet d'écus, sans migration |
+| `SHOP_DAILY_PURCHASE_CAP` | number | `12000` | Plafond d'écus achetés par jour et par compte |
 
 `ACHIEVEMENT_PAYOUTS_ENABLED` existe pour un seul scénario : une faille de farming découverte
 en production. Le passer à `false` doit arrêter les primes **sans** retirer les médailles déjà
@@ -284,17 +286,16 @@ create index currency_ledger_user_idx on currency_ledger (user_id, created_at de
 `PURCHASE:<provider_ref>` porte la référence du prestataire pour qu'un webhook rejoué ne
 crédite pas deux fois. **L'unicité ne peut pas être une vérification avant insertion** : deux
 livraisons simultanées du même événement lisent toutes deux « absent » puis insèrent toutes deux.
-Elle doit être portée par la base. Index à créer par la migration de la phase 30, **avant** toute
-route de paiement :
+Elle doit être portée par la base. L'index partiel est **migré** par `0013_shop` :
 
 ```sql
-create unique index currency_ledger_purchase_uniq
+create unique index if not exists currency_ledger_purchase_uniq
   on currency_ledger (user_id, reason)
   where reason like 'PURCHASE:%';
 ```
 
-L'écriture devient alors un `insert … on conflict do nothing`, et un rejeu ne paie pas. Tant que
-cet index n'existe pas, la boutique ne peut pas être implémentée.
+L'écriture est un `insert … on conflict do nothing` : un rejeu ne paie pas. L'index ne couvre pas
+`PURCHASE_REFUND:%`, qu'un remboursement doit pouvoir écrire sans être bloqué.
 
 ### 4.7 Carnet de charges
 
@@ -758,6 +759,8 @@ export interface Database {
 - Seules les relations `ACCEPTED` comptent pour les médailles sociales.
 - Un blocage interdit toute relation `PENDING` ou `ACCEPTED` entre les deux comptes.
 - `currency_ledger.reason` suit la liste fermée du §4.6 ; aucun autre préfixe n'est écrit.
+- Un rejeu `PURCHASE:<id>` n'écrit qu'une ligne : l'index partiel `currency_ledger_purchase_uniq`
+  porte l'idempotence, et une insertion en conflit ne paie pas.
 - `"user".pseudo` est unique sans tenir compte de la casse dès que l'index `user_pseudo_lower_idx`
   est migré.
 
