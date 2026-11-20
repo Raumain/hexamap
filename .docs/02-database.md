@@ -10,12 +10,13 @@
 ## 1. Règles
 
 1. **PostgreSQL 16** est la seule base supportée.
-2. Toute évolution du schéma = mise à jour de ce fichier + nouvelle migration. Les migrations appliquées ne sont jamais modifiées.
+2. Toute évolution du schéma = mise à jour de ce fichier + nouvelle migration. Une migration **livrée** ne change plus de nom : Kysely les rejoue dans l'ordre alphabétique du nom, et un nom qui s'intercale avant une migration déjà exécutée corrompt la séquence. Son contenu peut en revanche gagner des **gardes d'idempotence**, jamais changer l'effet du schéma.
 3. Les tables de jeu et de référence sont en `snake_case`.
 4. Les tables Better Auth (`user`, `session`, `account`, `verification`) sont **générées par Better Auth**. Ne pas les écrire à la main ; leurs colonnes sont en `camelCase`.
 5. Les clés étrangères vers un utilisateur sont de type `text` et référencent `"user"("id")`.
 6. Les identifiants applicatifs sont des `uuid` générés par `gen_random_uuid()`.
 7. Les requêtes métier passent par Kysely. Le SQL brut est réservé aux migrations, health checks et imports massifs (`COPY`).
+8. **Toute migration est rejouable.** La table `kysely_migration` peut être supprimée et l'ensemble rejoué sans erreur ni perte de données : chaque `up` emploie `create table if not exists`, `create index if not exists`, `add column if not exists`, `drop … if exists` et `insert … on conflict (key) do nothing`. `alterTable().addColumn()` n'exposant pas `ifNotExists()` (Kysely 0.29), ces colonnes s'ajoutent en SQL brut.
 
 ---
 
@@ -796,3 +797,4 @@ select exists (
 5. Exécuter la migration dans le conteneur.
 6. Lancer `bun run typecheck`, `bun run lint`, `bun test packages/spec`.
 7. Passer le statut de la table à **Migrée** dans ce document.
+8. Vérifier que chaque `up` est **rejouable** : `create table if not exists`, `create index if not exists`, `add column if not exists`, `insert … on conflict do nothing`. Test de preuve : `drop table kysely_migration; drop table kysely_migration_lock;`, puis `bun run db:migrate` deux fois de suite — les données existantes restent intactes.
