@@ -45,6 +45,19 @@ function MobileHeader() {
 /** La coquille du cabinet : rail, en-tête mobile, contenu, barre basse. */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  // La vitrine publique porte sa propre coquille (en-tête, `<main>`, pied) :
+  // le rail et la barre d'onglets ne s'y montent pas. L'invitation de mise à
+  // jour reste, elle ne dépend d'aucune salle.
+  if (pathname === '/home') {
+    return (
+      <>
+        {children}
+        <PwaUpdatePrompt />
+      </>
+    );
+  }
+
   const year = new Date().getFullYear();
 
   return (
