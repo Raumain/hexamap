@@ -265,6 +265,34 @@ async function seedScratchedTicket(userId: string): Promise<void> {
     .execute();
 }
 
+/**
+ * Sème `count` comptes minimaux, utilisables comme partenaires d'amitié. Le
+ * chemin HTTP d'inscription n'est pas nécessaire : seules les clés étrangères
+ * `friendships.requester_id` / `addressee_id` importent ici.
+ */
+async function seedPartners(count: number): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => crypto.randomUUID());
+  await db
+    .insertInto('user')
+    .values(
+      ids.map((id) => {
+        const suffix = id.slice(0, 8);
+        return {
+          id,
+          name: 'Ami',
+          email: `ami-${prefix}-${suffix}@hexamap.test`,
+          emailVerified: true,
+          pseudo: `${prefix}-ami-${suffix}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }),
+    )
+    .execute();
+  createdUserIds.push(...ids);
+  return ids;
+}
+
 async function insertCard(userId: string, score: number): Promise<string> {
   const row = await db
     .insertInto('user_cards')
@@ -380,6 +408,75 @@ describe('ROADMAP §2 (phase 27) — le versement des médailles', () => {
     expect(await countAchievements(account.userId, FIRST_TICKET_KEY)).toBe(1);
     expect(await countLedger(account.userId, FIRST_TICKET_REASON)).toBe(1);
     expect(await readBalance(account.userId)).toBe(FIRST_TICKET_PAYOUT);
+  });
+
+  it('Archi §2.9 — dix amitiés acceptées débloquent les médailles sociales une seule fois', async () => {
+    const account = await signUp();
+    const partners = await seedPartners(10);
+    await db
+      .insertInto('friendships')
+      .values(
+        partners.map((partnerId) => ({
+          requester_id: account.userId,
+          addressee_id: partnerId,
+          status: 'ACCEPTED' as const,
+          responded_at: new Date(),
+        })),
+      )
+      .execute();
+
+    const earned = (view: AchievementsBody, key: string) =>
+      view.achievements.find((entry) => entry.key === key);
+
+    const first = await getAchievements(account.cookie);
+    expect(earned(first, 'SOCIAL_FIRST_FRIEND')?.progress).toBe(10);
+    expect(earned(first, 'SOCIAL_FIRST_FRIEND')?.earnedAt).not.toBeNull();
+    expect(earned(first, 'SOCIAL_FRIENDS_10')?.earnedAt).not.toBeNull();
+    expect(earned(first, 'SOCIAL_FRIENDS_50')?.earnedAt).toBeNull();
+    expect(first.total).toBe(25 + 45);
+
+    expect(await countLedger(account.userId, 'ACHIEVEMENT:SOCIAL_FIRST_FRIEND')).toBe(1);
+    expect(await countLedger(account.userId, 'ACHIEVEMENT:SOCIAL_FRIENDS_10')).toBe(1);
+    expect(await readBalance(account.userId)).toBe(25 + 45);
+
+    // Un second passage ne repaie pas.
+    await getAchievements(account.cookie);
+    expect(await countLedger(account.userId, 'ACHIEVEMENT:SOCIAL_FIRST_FRIEND')).toBe(1);
+    expect(await countLedger(account.userId, 'ACHIEVEMENT:SOCIAL_FRIENDS_10')).toBe(1);
+    expect(await readBalance(account.userId)).toBe(25 + 45);
+  });
+
+  it('Archi §2.9 — PENDING et DECLINED ne débloquent aucune médaille sociale', async () => {
+    const account = await signUp();
+    const [pending, declined] = await seedPartners(2);
+    if (!pending || !declined) throw new Error('partenaires non semés');
+
+    await db
+      .insertInto('friendships')
+      .values([
+        {
+          requester_id: account.userId,
+          addressee_id: pending,
+          status: 'PENDING' as const,
+        },
+        {
+          requester_id: declined,
+          addressee_id: account.userId,
+          status: 'DECLINED' as const,
+          responded_at: new Date(),
+        },
+      ])
+      .execute();
+
+    const view = await getAchievements(account.cookie);
+    const social = view.achievements.find((entry) => entry.key === 'SOCIAL_FIRST_FRIEND');
+    expect(social?.progress).toBe(0);
+    expect(social?.earnedAt).toBeNull();
+    expect(view.total).toBe(0);
+
+    expect(await countAchievements(account.userId, 'SOCIAL_FIRST_FRIEND')).toBe(0);
+    expect(await countLedger(account.userId, 'ACHIEVEMENT:SOCIAL_FIRST_FRIEND')).toBe(0);
+    expect(await countLedgerForUser(account.userId)).toBe(0);
   });
 
   it('deux évaluations concurrentes ne paient qu’une fois', async () => {

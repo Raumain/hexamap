@@ -201,6 +201,15 @@ async function collectMetrics(exec: Executor, userId: string): Promise<Achieveme
     .where('status', '=', 'SOLD')
     .executeTakeFirst();
 
+  // Seules les amitiés ACCEPTED comptent (Archi §2.9), quel que soit le sens
+  // de la demande. Aucune colonne de progression : le compte est recalculé.
+  const friendsRow = await exec
+    .selectFrom('friendships')
+    .select((eb) => eb.fn.countAll().as('total'))
+    .where('status', '=', 'ACCEPTED')
+    .where((eb) => eb.or([eb('requester_id', '=', userId), eb('addressee_id', '=', userId)]))
+    .executeTakeFirst();
+
   const [tableauScores, consecutiveDays] = await Promise.all([
     loadTableauScores(exec, userId),
     longestStreak(exec, userId),
@@ -229,7 +238,7 @@ async function collectMetrics(exec: Executor, userId: string): Promise<Achieveme
     purchasesCount: toNumber(purchasesRow?.total),
     ecusEarned: toNumber(salesRow?.ecus),
     bestPurchase: toNumber(purchasesRow?.best),
-    friendsAccepted: null,
+    friendsAccepted: toNumber(friendsRow?.total),
     profileComplete: null,
     consecutiveDays,
   };
