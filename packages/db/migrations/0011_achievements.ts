@@ -14,6 +14,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createIndex('user_achievements_key_idx')
+    .ifNotExists()
     .on('user_achievements')
     .column('achievement_key')
     .execute();

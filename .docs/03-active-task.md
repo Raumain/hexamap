@@ -5,6 +5,70 @@
 
 ---
 
+# Maintenance — migrations rejouables (2026-11-20)
+
+## Statut
+
+- **État** : Terminé
+- **Priorité** : P0
+- **Mis à jour** : 2026-11-20
+- **Branche** : `fix/migrations-rejouables`
+
+## Objectif
+
+La base de développement portait `0011_achievements` exécutée **avant** `0009_scratch_charges` et
+`0010_friendships`, qui n'existaient pas encore sur `main`. Kysely refuse alors la séquence :
+« expected previously executed migration 0011_achievements to be at index 8 but
+0009_scratch_charges was found in its place ». Tous les `up` deviennent **rejouables** : la table
+`kysely_migration` peut être supprimée et l'ensemble rejoué sans erreur ni perte de données.
+
+## Étapes
+
+- [x] `0007`, `0008` : colonnes ajoutées en SQL `add column if not exists` — Kysely 0.29
+      n'expose pas `ifNotExists()` sur `alterTable().addColumn()`.
+- [x] `0009` : `create table if not exists`, `drop table if exists`.
+- [x] `0010`, `0011` : `ifNotExists()` ajouté aux index qui en manquaient.
+- [x] `0012` : `ifNotExists()` sur `user_profiles`.
+- [x] `.docs/02-database.md` §1 règle 8 et §8 étape 8 : la rejouabilité devient une règle.
+
+## Journal
+
+### 2026-11-20 — La séquence de migrations redevient valide
+
+**La cause.** Deux branches de phase ont été exécutées directement sur la base de développement
+avant leur fusion. `0011_achievements` y a été appliquée seule, puis `main` a introduit `0009` et
+`0010`, qui s'intercalent alphabétiquement avant elle. Kysely vérifie que l'historique exécuté est
+un préfixe de la liste des fichiers : il refuse, non parce que le SQL échouerait, mais parce que
+l'ordre enregistré ne peut plus être reproduit.
+
+**Le remède.** Les migrations ne sont plus seulement idempotentes par endroits : chaque `up` est
+rejouable. La table de suivi est supprimée, les douze migrations sont rejouées, puis rejouées une
+seconde fois pour prouver la stabilité.
+
+**Ce que la reprise a réellement fait.** Aucune ligne existante n'a disparu : `user` 236,
+`user_cards` 337, `tickets` 86, `commune_odonymes` 2 178 763, `user_achievements` 11, toutes
+identiques avant et après. `game_config` passe de 1 à 6 clés : `0009` sème les cinq clés exigées
+au démarrage, `on conflict do nothing` préserve la valeur déjà présente. Les tables nouvelles
+(`user_scratch_charges`, `friendships`, `blocks`, `user_profiles`) sont créées vides. `0012`
+dédoublonne les pseudos avant l'index unique — 237 comptes de test renommés `…-<rang>`, aucun
+compte supprimé — puis `user_pseudo_lower_idx` est créé.
+
+**Vérification (Docker uniquement)**
+```
+docker compose exec db pg_dump -Fc → /tmp/opencode/hexamap-dev-20261120-142232.dump (25 Mo)
+drop table kysely_migration; drop table kysely_migration_lock;
+docker compose --profile tools run --rm dev bun run db:migrate   # 12/12 appliquées
+docker compose --profile tools run --rm dev bun run db:migrate   # rejoué après un second drop, 12/12
+  comptes de lignes identiques, 0 doublon de pseudo, 12 migrations enregistrées
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ Lint ✓ Typecheck ✓ Base de données ✓ Spécifications — 267 pass, 15 fichiers
+```
+
+**Portée** : six migrations, `.docs/02-database.md`, ce fichier. Aucune donnée supprimée ; la
+sauvegarde reste dans `/tmp/opencode/`. Aucun commit.
+
+---
+
 # Phase 26 — Le Carnet (charges de grattage)
 
 ## Statut

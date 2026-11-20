@@ -35,6 +35,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
   await db.schema
     .createIndex('friendships_addressee_idx')
+    .ifNotExists()
     .on('friendships')
     .columns(['addressee_id', 'status'])
     .execute();
@@ -53,7 +54,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addCheckConstraint('blocks_self_check', sql`blocker_id <> blocked_id`)
     .execute();
 
-  await db.schema.createIndex('blocks_blocked_idx').on('blocks').columns(['blocked_id']).execute();
+  await db.schema
+    .createIndex('blocks_blocked_idx')
+    .ifNotExists()
+    .on('blocks')
+    .columns(['blocked_id'])
+    .execute();
 
   await sql`insert into game_config (key, value) values
     ('FRIEND_REQUEST_DAILY_CAP', '20'::jsonb),
