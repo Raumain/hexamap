@@ -176,11 +176,17 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 
 - [ ] **[hôte]** `BETTER_AUTH_SECRET` : au moins 32 octets aléatoires, **unique par
       environnement**, jamais dans git. Générer avec `openssl rand -base64 48`. Le schéma
-      `env.ts` refuse moins de 32 caractères ; il ne peut pas juger de l'entropie — c'est le
-      constat A4.
+      `env.ts` refuse moins de 32 caractères **et** la valeur d'exemple `change-me` (même
+      allongée) ; il ne peut pas juger de l'entropie — c'est le constat A4.
 
-- [ ] **[hôte]** `POSTGRES_PASSWORD` changé depuis la valeur par défaut `hexamap`. Le port de la
-      base n'est jamais publié en production : `db` reste sur `backend` (`internal: true`).
+- [ ] **[hôte]** `POSTGRES_PASSWORD` et `DATABASE_URL` sont **obligatoires** : la pile de
+      production refuse de démarrer sans elles (`${POSTGRES_PASSWORD:?…}`), au lieu de retomber
+      silencieusement sur `hexamap`. Changer le mot de passe depuis la valeur de développement.
+      Le port de la base n'est jamais publié en production : `db` reste sur `backend`
+      (`internal: true`).
+
+- [ ] **[code]** `AUTH_COOKIE_SECURE=false` est refusé dès que `NODE_ENV=production` : la
+      dérogation n'existe que pour un banc servi en HTTP simple.
 
 - [ ] **[hôte]** Secrets injectés par la plateforme ou par le `.env` de l'hôte, jamais figés
       dans l'image. `.env.example` ne contient aucune valeur réelle : c'est un modèle.
@@ -196,11 +202,18 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
       ```sh
       TRUSTED_PROXIES=            # défaut : aucun mandataire de confiance
       TRUSTED_PROXIES=172.18.0.0/16   # adresse ou CIDR du reverse proxy, séparés par des virgules
+      TRUSTED_PROXIES=10.0.0.0/8,2001:db8::/32  # IPv4 et IPv6 acceptés
       ```
 
+      Le CIDR est celui de la **bordure qui écrit `X-Forwarded-For`**, jamais une plage de
+      clients. En production, une liste vide produit **un** avertissement bruyant au démarrage
+      (« rate limiting d'authentification réduit à un unique seau partagé ») : ce n'est pas un
+      échec, une bordure peut légitimement terminer TLS sans produire d'en-tête, mais la limite
+      devient alors globale et un attaquant peut épuiser la connexion de tous les joueurs.
+
       **La vérification est hôte, pas code.** Sans `TRUSTED_PROXIES` renseigné et sans en-tête
-      transmis par la bordure, Better Auth retombe sur un seau de rate limiting partagé et
-      journalise un avertissement. Contrôle après déploiement :
+      transmis par la bordure, Better Auth retombe sur ce seau partagé et journalise
+      l'avertissement applicatif. Contrôle après déploiement :
 
       ```sh
       # 1. Aucun avertissement « shared per-path bucket » au démarrage

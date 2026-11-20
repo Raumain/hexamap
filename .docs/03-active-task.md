@@ -5,6 +5,113 @@
 
 ---
 
+# Phase A (suite) — Les sept bloçants de pré-déploiement
+
+## Statut
+
+- **Phase** : A — pré-déploiement, sept constats qui n'étaient couverts ni par A1, ni par la
+  passe A3/A5/A6/A7 de `chore/pre-deploy-hardening`
+- **État** : Terminé côté code et côté preuve ; **banc E2E non rejoué sur cette branche** au
+  moment d'écrire
+- **Priorité** : P0 (avant le premier joueur)
+- **Mis à jour** : 2026-11-20
+- **Branche** : `fix/pre-deploy-blockers`, partie de `main` propre et égale à `origin/main`
+  (`2049da8`)
+- **Livraison** : rien de commité, aucune PR ouverte
+
+## Objectif
+
+Fermer sept défauts qui laissaient passer une carte hors des règles, une progression
+inatteignable, une configuration de production silencieusement fausse et une route
+d'exploitation ouverte. Chacun part d'un cas **rouge** écrit avant le correctif, sauf la
+garde de démarrage sur `TRUSTED_PROXIES`, qui n'a pas de rouge possible parce qu'elle est un
+avertissement et non un refus.
+
+## Ce qui est fermé
+
+| Défaut | Ce qui a changé | Preuve |
+| :--- | :--- | :--- |
+| **Jumelé au-delà de Rare** | `apps/api/src/services/ticket.ts` : `communesWithOdonymeAny` — la seule source de jumelés sans prédicat `rarete` — et son appel dans la branche RUE sont supprimés. Une case `TWIN` ne peut plus être ÉPIQUE, LÉGENDAIRE ou MYTHIQUE ; le vivier national filtré fournit toujours le second jumelé et la garde `503` sous deux jumelés est intacte. | `packages/spec/src/tickets.spec.ts`, cas « un jumelé ne dépasse jamais la rareté RARE, même quand la Pépite est une rue » : rouge avant (`Expected to contain "MYTHIQUE"` / `Received ["INHABITUELLE","RARE"]`), vert après. |
+| **Médailles sociales inatteignables** | `apps/api/src/services/achievements.ts` : `collectMetrics` rendait `friendsAccepted: null` en dur, donc les trois médailles SOCIAL ne pouvaient jamais frapper. Il compte désormais les lignes `friendships` au statut `ACCEPTED`, dans les deux sens, dans la même transaction que la prime. `profileComplete` reste `null` : aucune médaille n'en dépend. | `packages/spec/src/achievements.spec.ts`, deux cas : dix amitiés `ACCEPTED` débloquent `SOCIAL_FIRST_FRIEND` et `SOCIAL_FRIENDS_10` une seule fois, une ligne de grand-livre chacune ; `PENDING` et `DECLINED` ne débloquent rien. Rouge avant (`Expected: 10  Received: null`), vert après. |
+| **Secret d'exemple accepté** | `.env.example` ramené à `change-me`, donc refusé par la longueur minimale de 32 ; `apps/api/src/env.ts` gagne un `superRefine` qui refuse le littéral d'exemple **même rallongé**. La commande d'amorçage du `README.md` passe à `openssl rand -base64 48`. | Preuve par import de `env.ts` : l'ancien littéral de 43 caractères est refusé, une valeur aléatoire de 48 caractères est acceptée. |
+| **Mot de passe PostgreSQL par défaut** | `docker-compose.prod.yml` : `${POSTGRES_PASSWORD:?…}` et `${DATABASE_URL:?…}`, comme `BETTER_AUTH_SECRET`. Plus de mot de passe implicite en production. `compose.yml` et `docker-compose.e2e.yml` intacts. | Interpolation jouée avec `--env-file /dev/null` : code 1 et trois erreurs d'interpolation bruyantes ; avec des valeurs fournies, code 0 et l'URL rendue attendue. |
+| **`/api/v1/import-status` public** | La route quitte `buildPublicRoutes` pour `buildProtectedRoutes`, après `authPlugin`, chemin inchangé. Le front (`apps/web/src/lib/import-status.ts`, `routes/import-status.tsx`) gagne `ImportStatusAccessError` et un panneau « Accès réservé » ; le sondage s'arrête sur une erreur d'accès. | `packages/spec/src/compression.spec.ts` encodait le comportement public : il assert désormais `401` + `UNAUTHORIZED`, et son cas de compression de module est retargeté sur le `404` public de `playerRoutes` pour que la preuve survive. |
+| **`AUTH_COOKIE_SECURE=false` en production** | Refusé par `superRefine` dans `apps/api/src/env.ts`. | Vérifié par import : la production refuse, le développement accepte. `docker-compose.e2e.yml` porte `AUTH_COOKIE_SECURE: "true"`, donc le banc reste valide. |
+| **`TRUSTED_PROXIES` vide** | `apps/api/src/auth.ts` émet un avertissement français au démarrage quand `NODE_ENV=production` et que la variable est blanche. Volontairement **pas** un refus : une bordure sans mandataire reste un déploiement légitime. `.docs/05-deploiement.md` §5 documente les exemples CIDR IPv4 et IPv6 et le fait que le CIDR est celui de la bordure. | Aucun cas rouge possible : c'est un avertissement. La doc est la preuve. |
+
+## Ce qui reste à l'opérateur, sur l'hôte
+
+Inchangé par cette branche : **A2** (référentiel importé), **A3** (preuve que
+`session.ipAddress` est renseignée derrière la bordure), **A4** (un vrai secret en
+production), **A5** (exercice de restauration), **A8** (TLS) et **A9** (décision SMTP). Ce
+sont des gestes d'hébergement, pas du code : aucun n'est coché ici.
+
+## Critères d'acceptation
+
+1. [x] Une case `TWIN` ne porte jamais une rareté supérieure à `RARE`, y compris quand la
+       Pépite est une rue ; la garde `503` sous deux jumelés reste en place.
+2. [x] Les trois médailles SOCIAL frappent sur des amitiés `ACCEPTED`, une seule fois, avec
+       exactement une ligne de `currency_ledger` par prime.
+3. [x] Un secret d'exemple est refusé au démarrage, quelle que soit sa longueur.
+4. [x] `docker-compose.prod.yml` refuse de s'interpoler sans mot de passe PostgreSQL ni
+       `DATABASE_URL`.
+5. [x] `/api/v1/import-status` répond `401 UNAUTHORIZED` sans session, et le front affiche
+       « Accès réservé » au lieu de boucler.
+6. [x] `AUTH_COOKIE_SECURE=false` est refusé en production et accepté en développement.
+7. [x] `TRUSTED_PROXIES` vide en production produit un avertissement au démarrage, pas un
+       arrêt.
+8. [x] `ci:check` vert, `build` vert.
+9. [ ] Banc E2E rejoué sur cette branche.
+
+## Journal
+
+### 2026-11-20 — Sept constats fermés, un banc non rejoué
+
+**Ce qui a été mesuré, et avec quels chiffres.**
+
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint  ✓ 2/4 Typecheck  ✓ 3/4 Base de données  ✓ 4/4 Spécifications
+  307 pass, 0 fail, 1816 expect() calls, Ran 307 tests across 18 files
+
+docker compose --profile tools run --rm dev bun run build
+  ✓ green — chunk principal 461.19 kB bruts / 139.20 kB en gzip, 60 entrées de précache
+```
+
+L'interpolation de `docker-compose.prod.yml` a été jouée dans les deux sens, avec
+`--env-file /dev/null` : `exit 1` et trois erreurs d'interpolation explicites sans valeurs,
+`exit 0` et l'URL attendue avec des valeurs fournies.
+
+**Ce qui n'a pas été prouvé, et qui est écrit comme tel.** Le **banc E2E n'a pas été rejoué
+sur cette branche** au moment d'écrire ces lignes : un run séparé a été dispatché. Les sept
+correctifs sont donc prouvés par `bun:test` et par des vérifications d'import, pas par un
+parcours navigateur. Les points d'hébergement A2, A3, A4, A5, A8 et A9 restent entiers.
+
+**Le seul constat qui n'a pas eu de rouge.** L'avertissement `TRUSTED_PROXIES` est un
+message, pas un refus : rien ne peut être rouge avant lui. Le choix de ne pas faire échouer
+le démarrage est délibéré — une bordure sans mandataire est un déploiement légitime, et
+transformer un avertissement en arrêt aurait bloqué un cas valide pour couvrir un cas douteux.
+
+**Le compromis de la spec de compression.** `packages/spec/src/compression.spec.ts` assertait
+que `/api/v1/import-status` était public ; la route fermée rendait ce cas faux **par
+construction**, et le corriger en le supprimant aurait retiré la preuve de compression de
+module qu'il portait. Le cas est donc retargeté sur le `404` public de `playerRoutes` : la
+preuve de compression survit, et elle porte désormais sur une route qui reste publique.
+
+**Une limite connue, non corrigée.** Le `401` de la garde n'est pas compressé : Elysia ne
+déclenche pas `onAfterHandle` sur un court-circuit d'`onBeforeHandle`. C'est le comportement
+d'avant la phase, pas une régression introduite ici, et la charge utile d'un `401` est de
+toute façon sous le seuil de 1 024 octets.
+
+**Portée** : `apps/api/src/services/ticket.ts`, `apps/api/src/services/achievements.ts`,
+`apps/api/src/env.ts`, `apps/api/src/auth.ts`, `apps/api/src/app.ts` (montage de la route),
+`apps/web/src/lib/import-status.ts`, `apps/web/src/routes/import-status.tsx`, `.env.example`,
+`README.md`, `docker-compose.prod.yml`, `docs/05-deploiement.md`, deux specs
+(`tickets.spec.ts`, `achievements.spec.ts`) et `compression.spec.ts`. Aucune migration, aucun
+changement de schéma ni de contrat d'API, aucune dépendance nouvelle. Rien de commité.
+
+---
+
 # Phase A — Pré-déploiement : A3, A6, A7 et le runbook
 
 ## Statut

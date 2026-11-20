@@ -14,6 +14,8 @@ de la PR qui la ferme.
 | BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Corrigé — branche fix/bug-006-plates-illegibles |
 | BUG-007 | Le tiroir de sélection s'ouvre au bas de la page, hors écran | Moyenne | Corrigé (PR à ouvrir sur `fix/bug-007-overlays-viewport`) |
 | BUG-008 | Les planches du tiroir se chevauchent | Basse | Corrigé (branche `fix/bug-008-tiroir-lignes`) |
+| BUG-009 | Un jumelé peut dépasser la rareté RARE | Haute | Corrigé sur `fix/pre-deploy-blockers` |
+| BUG-010 | Les médailles sociales sont inatteignables | Moyenne | Corrigé sur `fix/pre-deploy-blockers` |
 
 Gravités : `Haute` (donnée utilisateur fausse ou perte de données), `Moyenne`
 (comportement incorrect sans perte), `Basse` (robustesse, hygiène).
@@ -750,3 +752,81 @@ Requête SQL, extrait de log ou scénario de reproduction.
 
 Les étapes, et ce qu'il ne faut pas faire.
 ```
+
+---
+
+## BUG-009 — Un jumelé peut dépasser la rareté RARE
+
+- **Gravité** : Haute
+- **Statut** : Corrigé sur `fix/pre-deploy-blockers`
+- **Constaté le** : 2026-11-20
+- **Zone** : `apps/api/src/services/ticket.ts`
+
+### Symptôme observé
+
+Un ticket peut révéler une case « Lieu jumelé » portant une carte MYTHIQUE, ÉPIQUE ou
+LÉGENDAIRE. La règle du GDD (§2.6) limite les jumelés à INHABITUELLE ou RARE : la case livre
+donc une carte dont la rareté ne correspond pas à sa nature.
+
+### Cause racine
+
+Le service cherchait le second jumelé dans deux viviers. Le premier, filtré par `rarete`,
+respectait la règle. Le second, `communesWithOdonymeAny`, ne portait **aucun prédicat de
+rareté** : il rendait n'importe quelle commune partageant l'odonyme, rareté comprise. Dans la
+branche RUE, c'était la seule source consultée, donc un odonyme dont une commune est MYTHIQUE
+suffisait à produire un jumelé hors règles.
+
+### Preuve
+
+`packages/spec/src/tickets.spec.ts`, cas « un jumelé ne dépasse jamais la rareté RARE, même
+quand la Pépite est une rue », avant correction :
+
+```
+Expected to contain "MYTHIQUE"
+Received: ["INHABITUELLE","RARE"]
+```
+
+### Correction livrée
+
+`communesWithOdonymeAny` est supprimée, ainsi que son appel dans la branche RUE. Le vivier
+national filtré fournit toujours le second jumelé, et la garde `503` qui refuse un ticket de
+moins de deux jumelés est intacte. Le même cas est vert après le correctif.
+
+---
+
+## BUG-010 — Les médailles sociales sont inatteignables
+
+- **Gravité** : Moyenne
+- **Statut** : Corrigé sur `fix/pre-deploy-blockers`
+- **Constaté le** : 2026-11-20
+- **Zone** : `apps/api/src/services/achievements.ts`
+
+### Symptôme observé
+
+Un joueur peut accumuler des amitiés acceptées sans jamais débloquer `SOCIAL_FIRST_FRIEND`
+ni `SOCIAL_FRIENDS_10` : les trois médailles de la famille sociale ne frappent jamais.
+
+### Cause racine
+
+`collectMetrics` rendait `friendsAccepted: null` en dur, quelle que soit la base. Le calcul
+des primes comparait donc un seuil à `null`, ce qui ne satisfait aucune condition. La table
+`friendships` n'était jamais interrogée pendant l'évaluation.
+
+### Preuve
+
+`packages/spec/src/achievements.spec.ts`, avant correction :
+
+```
+Expected: 10
+Received: null
+```
+
+### Correction livrée
+
+`collectMetrics` compte désormais les lignes `friendships` au statut `ACCEPTED`, dans les
+deux sens (demandeur ou destinataire), dans la même transaction que le versement de la prime.
+Deux cas verrouillent le comportement : dix amitiés `ACCEPTED` débloquent
+`SOCIAL_FIRST_FRIEND` et `SOCIAL_FRIENDS_10` une seule fois, avec exactement une ligne de
+`currency_ledger` par prime ; des relations `PENDING` ou `DECLINED` ne débloquent rien.
+`profileComplete` reste `null` : aucune médaille n'en dépend, et l'inventer sans seuil aurait
+été une seconde vérité.

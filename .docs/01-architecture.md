@@ -202,6 +202,7 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - **Français uniquement** : aucun framework i18n, aucun texte anglais visible par le joueur.
 - **Serveur autoritaire** : le tirage, la position de la Pépite, les récompenses, la validation des combos, le carnet de charges, les médailles et la monnaie sont décidés côté serveur.
 - **Pas d'appel externe au runtime** : les API gouvernementales sont utilisées uniquement par le pipeline d'import.
+- **Les routes métier sont fermées par défaut.** Seules la santé, les webhooks de paiement et les profils publics se montent hors du groupe `authPlugin`. `/api/v1/import-status` exige une session : sa charge utile porte des erreurs brutes et un journal qui peuvent contenir chemins, DSN et URL amont.
 
 ### 4.2 API — Elysia
 
@@ -601,7 +602,8 @@ déclare **aucune** dépendance de compression : `node:zlib` et `Bun.gzipSync` s
   aucun corps et **jamais** de `Content-Encoding`.
 - **`HEAD`.** Court-circuité avant la négociation : pas de corps, donc pas d'encodage.
 - **JSON.** Un unique hook `onAfterHandle` global, monté dans `createApp` avant les modules de
-  routes ; `as: 'global'` porte jusque dans les plugins (`/api/v1/import-status` le prouve).
+  routes ; `as: 'global'` porte jusque dans les plugins (`/api/v1/import-status` le prouve, y
+  compris sur son `401`, puisque la route exige désormais une session).
   Le hook tamponne un corps JSON de forme `Response`, et doit donc rendre les octets tamponnés
   dans une `Response` neuve **même lorsqu'il renonce à compresser** : retourner `undefined`
   après avoir lu le corps fait réémettre à Elysia un flux déjà consommé
@@ -613,8 +615,8 @@ déclare **aucune** dépendance de compression : `node:zlib` et `Bun.gzipSync` s
 - **Cache.** 64 entrées, clé `${chemin absolu}\0${taille}\0${mtime}\0${encodage}`, éviction
   FIFO. La lecture du fichier se fait **dans** la fermeture de calcul : un succès de cache ne
   coûte aucune entrée-sortie disque. Le `mtime` dans la clé invalide à chaque déploiement.
-- **Mesures sur l'image de production.** Bundle principal `255 461` → `80 243` octets en gzip
-  (−68,6 %) et `75 518` en brotli (−70,4 %) ; `index.html` `1 527` → `652`.
+- **Mesures sur l'image de production.** Bundle principal ≈ `461` Ko bruts → ≈ `139` Ko en
+  gzip ; `index.html` `1 527` → `652`.
 - Vérifié par `packages/spec/src/compression.spec.ts` (14 cas).
 
 #### Accès psql (développement)
