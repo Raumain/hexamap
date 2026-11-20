@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
+import type { PaymentProvider } from '@hexamap/shared';
 import { Elysia } from 'elysia';
 import { sql } from 'kysely';
 import { auth } from './auth';
@@ -18,8 +19,10 @@ import { marketRoutes } from './routes/market';
 import { playerRoutes } from './routes/players';
 import { profileRoutes } from './routes/profile';
 import { refRoutes } from './routes/ref';
+import { shopCheckoutRoutes, shopWebhookRoutes } from './routes/shop';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
+import { stripePaymentProvider } from './services/stripe-payments';
 import { webRoutes } from './static';
 
 const isDev = env.NODE_ENV !== 'production';
@@ -39,33 +42,41 @@ const productionOrigins = new Set<string>([
   ...extraOrigins,
 ]);
 
-const publicRoutes = new Elysia({ prefix: '/api/v1' }).use(playerRoutes).use(importStatusRoutes);
+function buildPublicRoutes(provider: PaymentProvider) {
+  return new Elysia({ prefix: '/api/v1' })
+    .use(playerRoutes)
+    .use(importStatusRoutes)
+    .use(shopWebhookRoutes(provider));
+}
 
-const protectedRoutes = new Elysia({ prefix: '/api/v1' })
-  .use(authPlugin)
-  .use(refRoutes)
-  .use(ticketRoutes)
-  .use(cardRoutes)
-  .use(tableauRoutes)
-  .use(marketRoutes)
-  .use(chargeRoutes)
-  .use(friendRoutes)
-  .use(achievementRoutes)
-  .use(profileRoutes)
-  .get('/me', ({ user, status }) => {
-    if (!user) {
-      return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
-    }
-    return {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        pseudo: user.pseudo,
-        currency: user.currency,
-      },
-    };
-  });
+function buildProtectedRoutes(provider: PaymentProvider) {
+  return new Elysia({ prefix: '/api/v1' })
+    .use(authPlugin)
+    .use(refRoutes)
+    .use(ticketRoutes)
+    .use(cardRoutes)
+    .use(tableauRoutes)
+    .use(marketRoutes)
+    .use(chargeRoutes)
+    .use(friendRoutes)
+    .use(achievementRoutes)
+    .use(profileRoutes)
+    .use(shopCheckoutRoutes(provider))
+    .get('/me', ({ user, status }) => {
+      if (!user) {
+        return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
+      }
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          pseudo: user.pseudo,
+          currency: user.currency,
+        },
+      };
+    });
+}
 
 export interface CreateAppOptions {
   // Répertoire du build SPA ; par défaut `WEB_DIST_DIR`.
@@ -76,9 +87,12 @@ export interface CreateAppOptions {
   blasonsDir?: string;
   // Seuil de compression sous lequel l'API ne compresse pas ; 1024 octets par défaut.
   compressionMinBytes?: number;
+  // Prestataire de paiement injectable ; Stripe en production, faux en tests.
+  paymentProvider?: PaymentProvider;
 }
 
 export function createApp(options: CreateAppOptions = {}) {
+  const provider = options.paymentProvider ?? stripePaymentProvider;
   const base = new Elysia()
     // Route inconnue : réponse JSON stable, y compris quand le plugin web n'est
     // pas monté (développement). Les autres codes d'erreur restent intacts.
@@ -118,8 +132,8 @@ export function createApp(options: CreateAppOptions = {}) {
         return { status: 'error', database: 'down' };
       }
     })
-    .use(publicRoutes)
-    .use(protectedRoutes)
+    .use(buildPublicRoutes(provider))
+    .use(buildProtectedRoutes(provider))
     // Assets statiques hors du préfixe /api/v1 : servis directement sur /blasons.
     .use(blasonRoutes(options.blasonsDir ?? env.BLASONS_DIR))
     .mount(auth.handler);
