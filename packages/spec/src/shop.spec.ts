@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createApp } from '@hexamap/api/app';
+import { dailyCapReached, refundEcus } from '@hexamap/api/services/shop';
 import { createDb, runMigrations } from '@hexamap/db';
 import type { PackKey } from '@hexamap/shared';
 import { FakePaymentProvider } from './helpers/fake-payment-provider';
@@ -94,6 +95,36 @@ async function postWebhook(rawBody: string, signature: string, target = app): Pr
       body: rawBody,
     }),
   );
+}
+
+/** Ouvre un paiement puis livre son webhook : le compte est crédité une fois. */
+async function completeCheckout(cookie: string, packKey: PackKey): Promise<{ sessionId: string }> {
+  const { sessionId } = await startCheckout(cookie, packKey);
+  const rawBody = JSON.stringify({
+    type: 'checkout.session.completed',
+    sessionId,
+    amountTotal: 499,
+    currency: 'eur',
+  });
+  const res = await postWebhook(rawBody, fake.sign(rawBody));
+  expect(res.status).toBe(200);
+  return { sessionId };
+}
+
+/** Forge un `charge.refunded` sans passer par une décision de remboursement réelle. */
+async function sendRefund(
+  sessionId: string,
+  opts: { amountRefundedCents: number; originalAmountCents: number; amountCents?: number },
+): Promise<Response> {
+  const payload: Record<string, unknown> = {
+    type: 'charge.refunded',
+    sessionId,
+    amountRefundedCents: opts.amountRefundedCents,
+    originalAmountCents: opts.originalAmountCents,
+  };
+  if (opts.amountCents !== undefined) payload.amountCents = opts.amountCents;
+  const rawBody = JSON.stringify(payload);
+  return postWebhook(rawBody, fake.sign(rawBody));
 }
 
 beforeAll(async () => {
@@ -229,5 +260,180 @@ describe('boutique — checkout et crédit des écus', () => {
     expect(foreign.status).toBe(404);
     const body = (await foreign.json()) as { code: string };
     expect(body.code).toBe('ORDER_NOT_FOUND');
+  });
+});
+
+describe('boutique — remboursements', () => {
+  it('un remboursement total écrit -500 et ramène le solde à 0', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await completeCheckout(cookie, 'PACK_500');
+    expect(await readBalance(userId)).toBe(500);
+
+    const res = await sendRefund(sessionId, {
+      amountRefundedCents: 499,
+      originalAmountCents: 499,
+    });
+    expect(res.status).toBe(200);
+
+    const refundRow = (await ledgerRows(userId)).find(
+      (row) => row.reason === `PURCHASE_REFUND:${sessionId}`,
+    );
+    expect(refundRow?.delta).toBe(-500);
+    expect(await readBalance(userId)).toBe(0);
+  });
+
+  it('un remboursement partiel à 50 % écrit -250', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await completeCheckout(cookie, 'PACK_500');
+
+    const res = await sendRefund(sessionId, {
+      amountRefundedCents: 250,
+      originalAmountCents: 499,
+    });
+    expect(res.status).toBe(200);
+
+    const refundRow = (await ledgerRows(userId)).find(
+      (row) => row.reason === `PURCHASE_REFUND:${sessionId}`,
+    );
+    expect(refundRow?.delta).toBe(-250);
+    expect(await readBalance(userId)).toBe(250);
+  });
+
+  it('le rejeu du même remboursement n’écrit aucune ligne', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await completeCheckout(cookie, 'PACK_500');
+
+    const opts = { amountRefundedCents: 250, originalAmountCents: 499 };
+    expect((await sendRefund(sessionId, opts)).status).toBe(200);
+    expect((await sendRefund(sessionId, opts)).status).toBe(200);
+
+    const refundRows = (await ledgerRows(userId)).filter(
+      (row) => row.reason === `PURCHASE_REFUND:${sessionId}`,
+    );
+    expect(refundRows).toHaveLength(1);
+    expect(await readBalance(userId)).toBe(250);
+  });
+
+  it('une session inconnue répond 200 sans écrire', async () => {
+    const { userId } = await signUp();
+    const sessionId = `cs_test_inconnu-${crypto.randomUUID()}`;
+
+    const res = await sendRefund(sessionId, {
+      amountRefundedCents: 499,
+      originalAmountCents: 499,
+    });
+    expect(res.status).toBe(200);
+
+    const rows = await ledgerRows(userId);
+    expect(rows.filter((row) => row.reason.includes(sessionId))).toHaveLength(0);
+  });
+
+  it('un solde dépensé puis remboursé écrit la ligne et ramène le solde à 0', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await completeCheckout(cookie, 'PACK_500');
+
+    await db
+      .insertInto('currency_ledger')
+      .values({ user_id: userId, delta: -500, reason: 'MARKET_BUY' })
+      .execute();
+    await db.updateTable('user').set({ currency: 0 }).where('id', '=', userId).execute();
+    expect(await readBalance(userId)).toBe(0);
+
+    const res = await sendRefund(sessionId, {
+      amountRefundedCents: 499,
+      originalAmountCents: 499,
+    });
+    expect(res.status).toBe(200);
+
+    const refundRow = (await ledgerRows(userId)).find(
+      (row) => row.reason === `PURCHASE_REFUND:${sessionId}`,
+    );
+    expect(refundRow?.delta).toBe(-500);
+    expect(await readBalance(userId)).toBe(0);
+  });
+});
+
+describe('boutique — plafond quotidien', () => {
+  it('un achat au-delà du plafond répond 429 SHOP_DAILY_CAP_REACHED sans créer de session', async () => {
+    const { cookie, userId } = await signUp();
+
+    await db
+      .insertInto('currency_ledger')
+      .values({
+        user_id: userId,
+        delta: 12000,
+        reason: `PURCHASE:seed-${crypto.randomUUID()}`,
+      })
+      .execute();
+
+    const sessionsBefore = fake.sessions.size;
+
+    const res = await authFetch(
+      '/api/v1/shop/checkout',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ packKey: 'PACK_500' }),
+      },
+      cookie,
+    );
+
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe('SHOP_DAILY_CAP_REACHED');
+    expect(body.message).toBe('Plafond quotidien d’écus atteint : réessayez demain.');
+    expect(fake.sessions.size).toBe(sessionsBefore);
+  });
+});
+
+describe('boutique — formules de remboursement et de plafond', () => {
+  it('un remboursement total rend tous les écus du pack', () => {
+    expect(
+      refundEcus({
+        originalEcus: 500,
+        alreadyRefunded: 0,
+        amountRefundedCents: 499,
+        originalAmountCents: 499,
+      }),
+    ).toBe(500);
+  });
+
+  it('un remboursement partiel est proportionnel, arrondi au plancher', () => {
+    expect(
+      refundEcus({
+        originalEcus: 500,
+        alreadyRefunded: 0,
+        amountRefundedCents: 250,
+        originalAmountCents: 499,
+      }),
+    ).toBe(250);
+  });
+
+  it('un rejeu ne reprend rien', () => {
+    expect(
+      refundEcus({
+        originalEcus: 500,
+        alreadyRefunded: 250,
+        amountRefundedCents: 250,
+        originalAmountCents: 499,
+      }),
+    ).toBe(0);
+  });
+
+  it('un cumul supérieur au montant initial est borné au crédit initial', () => {
+    expect(
+      refundEcus({
+        originalEcus: 500,
+        alreadyRefunded: 0,
+        amountRefundedCents: 600,
+        originalAmountCents: 499,
+      }),
+    ).toBe(500);
+  });
+
+  it('le plafond quotidien se compare au cumul du jour', () => {
+    expect(dailyCapReached({ purchasedToday: 11500, packEcus: 500, cap: 12000 })).toBe(false);
+    expect(dailyCapReached({ purchasedToday: 11501, packEcus: 500, cap: 12000 })).toBe(true);
+    expect(dailyCapReached({ purchasedToday: 12000, packEcus: 500, cap: 12000 })).toBe(true);
   });
 });
