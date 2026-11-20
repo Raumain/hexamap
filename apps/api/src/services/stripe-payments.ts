@@ -68,7 +68,11 @@ async function verifyWebhook(
   const stripe = stripeClient();
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    // Bun n'expose pas de crypto synchrone compatible avec le SDK Stripe :
+    // `constructEvent` lève « SubtleCryptoProvider cannot be used in a synchronous
+    // context » et transforme tout webhook en 400. `constructEventAsync` utilise
+    // SubtleCrypto et fonctionne dans Bun.
+    event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
   } catch {
     throw new WebhookSignatureError();
   }

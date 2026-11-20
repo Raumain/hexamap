@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { BOUTIQUE_SUCCESS } from '../content/boutique';
 import { priceLabel } from '../content/market';
 import { sessionQueryOptions } from '../lib/session';
@@ -7,6 +8,8 @@ import { checkoutErrorMessage, shopOrderQueryOptions } from '../lib/shop';
 
 const outlineButtonClass =
   'mt-4 inline-flex min-h-11 touch-manipulation items-center justify-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale disabled:cursor-not-allowed disabled:opacity-40';
+
+const REDIRECT_SECONDS = 5;
 
 export const Route = createFileRoute('/boutique/succes')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -17,6 +20,7 @@ export const Route = createFileRoute('/boutique/succes')({
 
 function BoutiqueSuccessPage() {
   const { session_id: sessionId } = Route.useSearch();
+  const navigate = useNavigate();
 
   // Cinq relectures à deux secondes : le webhook a le temps d'arriver, puis la
   // page cesse d'interroger d'elle-même. Aucun crédit n'est écrit côté client.
@@ -40,6 +44,29 @@ function BoutiqueSuccessPage() {
   });
 
   const account = session.data?.user;
+  const status = order.data?.status;
+  const [remaining, setRemaining] = useState(REDIRECT_SECONDS);
+
+  useEffect(() => {
+    if (status !== 'CREDITED') {
+      setRemaining(REDIRECT_SECONDS);
+      return;
+    }
+
+    setRemaining(REDIRECT_SECONDS);
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const next = Math.max(0, REDIRECT_SECONDS - elapsed);
+      setRemaining(next);
+      if (next === 0) {
+        window.clearInterval(timer);
+        void navigate({ to: '/boutique', search: { session_id: undefined } });
+      }
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [status, navigate]);
 
   return (
     <section>
@@ -82,6 +109,13 @@ function BoutiqueSuccessPage() {
                 {BOUTIQUE_SUCCESS.balanceLoading}
               </p>
             )}
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-6 font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/55"
+            >
+              {BOUTIQUE_SUCCESS.redirectIn(remaining)}
+            </p>
           </>
         ) : (
           <>

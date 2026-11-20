@@ -224,7 +224,7 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
           const session = await provider.createCheckoutSession({
             userId: user.id,
             packKey,
-            successUrl: `${origin}/boutique?session_id={CHECKOUT_SESSION_ID}`,
+            successUrl: `${origin}/boutique/succes?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/boutique`,
           });
 
@@ -289,52 +289,46 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
 }
 
 export function shopWebhookRoutes(provider: PaymentProvider) {
-  return (
-    new Elysia({ name: 'routes.shop.webhook', prefix: '/shop' })
-      // Le corps brut est indispensable à la vérification de signature : le parseur
-      // par défaut consommerait le flux et réécrirait les octets signés.
-      .onParse({ as: 'scoped' }, ({ request }) => {
-        if (new URL(request.url).pathname !== '/api/v1/shop/webhook') return undefined;
-        return request.text();
-      })
-      .post(
-        '/webhook',
-        async ({ body, request, set }) => {
-          try {
-            if (!provider.isEnabled()) {
-              set.status = 503;
-              return { code: 'SHOP_DISABLED', message: shopClosedMessage };
-            }
+  return new Elysia({ name: 'routes.shop.webhook', prefix: '/shop' }).post(
+    '/webhook',
+    async ({ body, request, set }) => {
+      try {
+        if (!provider.isEnabled()) {
+          set.status = 503;
+          return { code: 'SHOP_DISABLED', message: shopClosedMessage };
+        }
 
-            const rawBody = typeof body === 'string' ? body : '';
-            const event = await provider.verifyWebhook(
-              rawBody,
-              request.headers.get('stripe-signature'),
-            );
+        const rawBody = typeof body === 'string' ? body : '';
+        const event = await provider.verifyWebhook(
+          rawBody,
+          request.headers.get('stripe-signature'),
+        );
 
-            if (event) await applyPaymentEvent(event);
+        if (event) await applyPaymentEvent(event);
 
-            return { received: true };
-          } catch (error) {
-            if (error instanceof WebhookSignatureError) {
-              set.status = 400;
-              return { code: 'INVALID_SIGNATURE', message: error.message };
-            }
-            if (error instanceof ShopDisabledError) {
-              set.status = 503;
-              return { code: 'SHOP_DISABLED', message: error.message };
-            }
-            throw error;
-          }
-        },
-        {
-          body: t.String(),
-          response: {
-            200: webhookAck,
-            400: errorSchema,
-            503: errorSchema,
-          },
-        },
-      )
+        return { received: true };
+      } catch (error) {
+        if (error instanceof WebhookSignatureError) {
+          set.status = 400;
+          return { code: 'INVALID_SIGNATURE', message: error.message };
+        }
+        if (error instanceof ShopDisabledError) {
+          set.status = 503;
+          return { code: 'SHOP_DISABLED', message: error.message };
+        }
+        throw error;
+      }
+    },
+    {
+      // `parse: 'text'` garde le corps brut : le parseur JSON par défaut
+      // consommerait le flux et invaliderait la signature Stripe.
+      parse: 'text',
+      body: t.String(),
+      response: {
+        200: webhookAck,
+        400: errorSchema,
+        503: errorSchema,
+      },
+    },
   );
 }
