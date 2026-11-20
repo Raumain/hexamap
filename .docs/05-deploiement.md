@@ -294,94 +294,105 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 > le TLS et joint les services par le réseau externe `dokploy-network`, sur le **port du
 > conteneur**, pas sur un port publié de l'hôte.
 >
-> `docker-compose.prod.yml` tel qu'il est écrit ne satisfait pas cette topologie sur deux
-> points seulement : le réseau (aucun `external`) et le port publié. Le reste — un seul
-> conteneur de bordure, migrations au démarrage, volumes nommés — est déjà correct.
+> Le dépôt porte deux fichiers : `docker-compose.prod.yml` (suffisant à un VPS nu) et
+> `docker-compose.dokploy.yml` (**override** de la variante Dokploy, jamais monté seul). La
+> commande exacte est rappelée en §8.1.
 >
 > Une case **[vérif VPS]** signale une valeur ou un comportement qui ne peut pas être constaté
 > depuis le dépôt. Aucune n'est affirmée ici.
 
-### 8.1 Le réseau du compose
+### 8.1 Le réseau et le port — fichiers livrés
 
-`api` est aujourd'hui sur `backend` + `public` (`docker-compose.prod.yml:93-95`) ; aucun réseau
-`external` n'est déclaré (`:97-104`). Traefik ne peut donc pas le joindre autrement que par
-l'IP de l'hôte et le port publié.
+```sh
+# VPS nu
+docker compose -f docker-compose.prod.yml up -d --build
 
-- [ ] **[code]** Déclarer le réseau externe et rattacher `api` :
+# Dokploy
+docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
+```
 
-      ```yaml
-      services:
-        api:
-          networks:
-            - backend
-            - dokploy-network   # remplace `public`
+- [x] **[code]** `docker-compose.dokploy.yml` rattache `api` au réseau de la bordure :
+      `dokploy-network` (`external: true`, `name: dokploy-network`), en plus de `backend`.
+      `db` **reste** sur `backend` seul (`docker-compose.prod.yml:46`) : il n'est jamais
+      joignable depuis le réseau de Traefik. `external: true` n'est **pas** dans le fichier de
+      base : un VPS nu ne déclare pas ce réseau et n'en dépend donc pas.
 
-      networks:
-        backend:
-          internal: true
-        dokploy-network:
-          external: true
-      ```
+- [x] **[code]** Le port. `docker-compose.prod.yml:62` publie
+      `"${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_HOST_PORT:-8080}:3000"` et déclare
+      `expose: ["3000"]` (`:66`). L'override **remplace** la liste (`!override`) par une
+      liaison sur la boucle locale : Compose concatène les séquences `ports` d'un override, et
+      deux liaisons sur le même port d'hôte échoueraient au démarrage.
 
-      `db` reste sur `backend` **seul** (`:38-39`) : il ne doit jamais être joignable depuis
-      `dokploy-network`. Le bloc `public:` (`:104`) devient inutile et peut disparaître.
+      | Contexte | `WEB_BIND_ADDRESS` | Effet |
+      | :--- | :--- | :--- |
+      | VPS nu, non posée | `0.0.0.0` (défaut) | port joignable depuis l'extérieur ; un proxy en amont le vise (§4) |
+      | VPS nu, firewall fermé | `127.0.0.1` | le port n'écoute que sur la boucle locale ; un proxy local le vise |
+      | Dokploy | `127.0.0.1` (défaut de l'override) | Traefik joint le conteneur par `dokploy-network`, **port 3000** ; le port publié n'est pas un chemin d'accès |
 
-- [ ] **[code]** Supprimer le bloc `ports:` de `api` et le remplacer par :
-
-      ```yaml
-        expose:
-          - "3000"
-      ```
-
-      Le port publié (`:48-51`) n'est plus nécessaire et devient nuisible : il exposerait
-      l'application en HTTP clair sur `0.0.0.0:8080`, hors Traefik. Ce chemin contourne le TLS
-      et, le cookie de session étant `Secure` (`auth.ts:43`), une connexion y semble réussir
-      sans jamais persister. Le paragraphe §4 (« si `WEB_HOST_PORT` n'est pas `8080`… ») perd
-      sa raison d'être dans cette topologie.
+      Un port publié sur `0.0.0.0` sous Dokploy contourne le TLS : le cookie de session étant
+      `Secure` (`auth.ts:43`), une connexion en HTTP clair semble réussir sans jamais persister.
+      C'est la seule raison du `127.0.0.1`, pas un confort.
 
 - [ ] **[vérif VPS]** Dans Dokploy, associer le domaine public au service `api` en indiquant le
       **port 3000** comme port du conteneur. Un seul domaine, une seule origine : ne jamais
       créer un `api.example.com` à côté de `example.com` (§4, et `.docs/01-architecture.md`
       §4.5).
 
+- [ ] **[vérif VPS]** Constater que le port publié n'est pas un chemin d'accès, depuis
+      l'extérieur du VPS :
+
+      ```sh
+      curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 http://<ip-du-vps>:8080/
+      # attendu : 000 (connexion refusée) ; un 200 signifie que la liaison n'est pas sur 127.0.0.1
+      ```
+
 ### 8.2 Les variables d'environnement
 
-Trois pièges, dans cet ordre d'importance.
+Le compose **impose** les noms `PROD_*` et **refuse de démarrer** sans eux : `APP_URL`,
+`BETTER_AUTH_URL` et `FRONTEND_URL` s'écrivent `${PROD_APP_URL:?…}`, `${PROD_BETTER_AUTH_URL:?…}`
+et `${PROD_FRONTEND_URL:?…}` (`docker-compose.prod.yml:84-86`). Injecter `FRONTEND_URL` depuis
+Dokploy **n'a aucun effet** : la variable lue par le compose est `PROD_FRONTEND_URL`. Le `:?`
+est volontaire — le repli `http://localhost:…` retiré satisfaisait `z.url()` (`env.ts:8-13`) et
+l'application démarrait avec une liste blanche CORS limitée à l'hôte local, sans aucune erreur.
 
-1. **Le compose impose les noms `PROD_*`.** `APP_URL`, `BETTER_AUTH_URL` et `FRONTEND_URL` sont
-   écrits en dur comme `${PROD_APP_URL:-…}`, `${PROD_BETTER_AUTH_URL:-…}` et
-   `${PROD_FRONTEND_URL:-…}` (`docker-compose.prod.yml:63-65`). Injecter `FRONTEND_URL` depuis
-   Dokploy **n'a aucun effet** : la valeur du compose gagne et retombe sur
-   `http://localhost:8080`. Cette valeur passe `z.url()` (`env.ts:8-13`) : la mauvaise
-   configuration est **silencieuse** — aucune erreur au démarrage, un CORS qui n'autorise que
-   localhost.
-2. **`FRONTEND_URL` est obligatoire en production**, pas seulement recommandée :
-   `env.ts:59-66` refuse de démarrer sans elle.
-3. **Le secret d'exemple est refusé** même allongé (`env.ts:50-57`) : `change-me`,
-   `change-me-change-me` et toute répétition échouent.
+Le secret d'exemple reste refusé même allongé (`env.ts:50-57`) : `change-me` et ses répétitions
+échouent, quelle que soit leur longueur. Et `AUTH_COOKIE_SECURE=false` est refusé dès
+`NODE_ENV=production` (`env.ts:70-77`).
+
+Les six `STRIPE_*` sont désormais **exigées** : la boutique ouvre au lancement, et une clé
+absente doit arrêter la pile plutôt que dégrader en `503 SHOP_DISABLED` pendant que l'opérateur
+croit la boutique en ligne. Le schéma de `apps/api/src/env.ts:37-43` les garde optionnelles à
+dessein : un conteneur de développement sans Stripe continue de tourner.
 
 Liste à poser dans l'environnement du service `api` (ou dans le `.env` du déploiement Dokploy,
 jamais dans git) :
 
 | Variable | Valeur attendue | Lue par |
 | :--- | :--- | :--- |
-| `PROD_APP_URL` | `https://hexamap.example.com` | compose `:63` → `APP_URL` (`env.ts:8`, requis) |
-| `PROD_BETTER_AUTH_URL` | `https://hexamap.example.com` | compose `:64` → `BETTER_AUTH_URL` (`env.ts:9`, requis) |
-| `PROD_FRONTEND_URL` | `https://hexamap.example.com` | compose `:65` → `FRONTEND_URL` (`env.ts:13`, **obligatoire en prod**) |
-| `BETTER_AUTH_SECRET` | `openssl rand -base64 48` | `env.ts:10` (≥ 32, anti-`change-me`) |
-| `POSTGRES_PASSWORD` | mot de passe unique | compose `:20` (`:?` — refus de démarrer sans) |
-| `DATABASE_URL` | `postgres://hexamap:<mdp>@db:5432/hexamap` | compose `:60`, `env.ts:7` |
+| `PROD_APP_URL` | `https://hexamap.example.com` | compose `:84` → `APP_URL` (`env.ts:8`, requis) |
+| `PROD_BETTER_AUTH_URL` | `https://hexamap.example.com` | compose `:85` → `BETTER_AUTH_URL` (`env.ts:9`, requis) |
+| `PROD_FRONTEND_URL` | `https://hexamap.example.com` | compose `:86` → `FRONTEND_URL` (`env.ts:13`, **obligatoire en prod** — `FRONTEND_URL` seule ne sert à rien) |
+| `BETTER_AUTH_SECRET` | `openssl rand -base64 48` | compose `:87` (≥ 32, anti-`change-me`) |
+| `POSTGRES_PASSWORD` | mot de passe unique | compose `:28` (`:?` — refus de démarrer sans) |
+| `DATABASE_URL` | `postgres://hexamap:<mdp>@db:5432/hexamap` | compose `:76`, `env.ts:7` |
 | `TRUSTED_ORIGINS` | **vide** si une seule origine | `env.ts:15` |
 | `TRUSTED_PROXIES` | CIDR de `dokploy-network` (§8.3) | `env.ts:20` → `auth.ts:133` |
 | `AUTH_COOKIE_SECURE` | **ne pas poser** | `auth.ts:43` : `NODE_ENV=production` suffit à forcer `Secure` |
-| `RUN_MIGRATIONS` | `1` (défaut) — voir §8.4 | compose `:70` |
-| `BLASONS_VOLUME` | `hexamap_prod_blasons` (défaut) | compose `:119` |
-| `IMPORT_STATUS_VOLUME` | `hexamap_prod_importstatus` (défaut) | compose `:121` |
-| `PROD_PGDATA_VOLUME` | `hexamap_prod_pgdata` (défaut) | compose `:109` |
-| `STRIPE_*` | voir §8.6 — toutes absentes ⇒ boutique fermée | `env.ts:38-43` |
+| `RUN_MIGRATIONS` | `1` (défaut) — voir §8.4 | compose `:91` |
+| `WEB_BIND_ADDRESS` | `127.0.0.1` (défaut de l'override Dokploy) | compose `:62`, `docker-compose.dokploy.yml:28` |
+| `BLASONS_VOLUME` | `hexamap_prod_blasons` (défaut) | compose `:145` |
+| `IMPORT_STATUS_VOLUME` | `hexamap_prod_importstatus` (défaut) | compose `:147` |
+| `PROD_PGDATA_VOLUME` | `hexamap_prod_pgdata` (défaut) | compose `:135` |
+| `STRIPE_SECRET_KEY` | `sk_live_…` (ou `sk_test_…` avant ouverture) | compose `:98` (`:?`) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` de l'endpoint (§8.7) | compose `:99` (`:?`) |
+| `STRIPE_PRICE_PACK_500` | `price_…` du pack 500 | compose `:100` (`:?`) |
+| `STRIPE_PRICE_PACK_1200` | `price_…` du pack 1 200 | compose `:101` (`:?`) |
+| `STRIPE_PRICE_PACK_2500` | `price_…` du pack 2 500 | compose `:102` (`:?`) |
+| `STRIPE_PRICE_PACK_6000` | `price_…` du pack 6 000 | compose `:103` (`:?`) |
 
 `DATABASE_URL` garde `db` comme hôte : le nom du service Compose est résolu sur `backend`.
-`AUTH_COOKIE_SECURE=false` est **refusé** dès `NODE_ENV=production` (`env.ts:70-77`).
+Contrôle immédiat, sans démarrer la pile : `docker compose -f docker-compose.prod.yml config`
+échoue en listant exactement les variables manquantes (douze).
 
 ### 8.3 Le mandataire et l'IP cliente
 
@@ -418,15 +429,9 @@ stables alors que Dokploy régénère son nom de projet à chaque déploiement.
       ```
 
 - [ ] **[vérif VPS]** Relever le nom de projet réel de la pile — il n'est pas `hexamap-prod`
-      sous Dokploy. Il est sur les conteneurs :
-
-      ```sh
-      docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' \
-        "$(docker ps --filter name=api --format '{{.ID}}' | head -1)"
-      ```
-
-      Cette valeur sert en §8.8. **Ne pas** redéployer en supprimant les volumes : ce sont eux
-      qui portent la base, les blasons et l'état d'import.
+      sous Dokploy. `docker compose ls` l'affiche en première colonne ; la procédure et son
+      usage par `scripts/backup.sh` sont en §8.8. **Ne pas** redéployer en supprimant les
+      volumes : ce sont eux qui portent la base, les blasons et l'état d'import.
 
 ### 8.5 Migrations au démarrage
 
@@ -541,50 +546,64 @@ l'extérieur, sans session.
       | `checkout.session.completed` (`:80`) | crédite les écus, `currency_ledger.reason = 'PURCHASE:<session.id>'` |
       | `charge.refunded` (`:97`) | contrepartie négative proportionnelle, `PURCHASE_REFUND:<session.id>` |
 
-- [ ] **[vérif VPS]** Copier le secret de signature de l'endpoint dans `STRIPE_WEBHOOK_SECRET`,
-      `STRIPE_SECRET_KEY` et les quatre `STRIPE_PRICE_PACK_*`
-      (`docker-compose.prod.yml:72-77`). Une seule absente ferme la boutique :
-      `503 SHOP_DISABLED` (`routes/shop.ts:186-188`, `:296-298`). Le corps brut est conservé
-      par `parse: 'text'` : ne jamais placer devant ce chemin un mandataire qui re-encode le
-      corps, la signature deviendrait invalide (`400 INVALID_SIGNATURE`).
+- [ ] **[vérif VPS]** Copier le secret de signature de l'endpoint dans `STRIPE_WEBHOOK_SECRET`, la
+      clé secrète dans `STRIPE_SECRET_KEY` et les quatre `STRIPE_PRICE_PACK_*`
+      (`docker-compose.prod.yml:98-103`). Les six sont exigées par le compose : une seule
+      manquante **empêche la pile de démarrer**, au lieu de laisser la boutique répondre
+      `503 SHOP_DISABLED` (`routes/shop.ts:186-188`, `:296-298`) sans que personne ne s'en
+      aperçoive. Le corps brut est conservé par `parse: 'text'` : ne jamais placer devant ce
+      chemin un mandataire qui re-encode le corps, la signature deviendrait invalide
+      (`400 INVALID_SIGNATURE`).
 
 ### 8.8 La sauvegarde
 
-`scripts/backup.sh` résout la pile par `docker compose -f "$COMPOSE_FILE" ps` (`:51`) et attend
-un service `db` (`:52`). Sous Dokploy le nom de projet est généré : la commande ne verra rien
-et le garde-fou échouera alors que la pile tourne. Les volumes, eux, sont adressés par leur nom
-global (`:32-33`) et fonctionnent déjà.
+`scripts/backup.sh` accepte un nom de projet — `-p <projet>`, `--project-name <projet>`, ou le
+repli `COMPOSE_PROJECT_NAME` — et le passe à **toutes** ses invocations `docker compose` (garde-fou
+et `exec`). C'était nécessaire : `docker-compose.prod.yml:16` porte un `name:` (`hexamap-prod`),
+que `docker compose` préfère à `COMPOSE_PROJECT_NAME`, et Dokploy déploie sous un nom qu'il
+génère. Sans `-p`, `docker compose ps` ne voyait aucun service et le garde-fou échouait alors que
+la pile tournait. Les volumes, eux, sont adressés par leur nom global (`:43-44`) et fonctionnent
+déjà.
 
-- [ ] **[vérif VPS]** Lancer le script avec le nom de projet réel relevé en §8.4 :
+- [ ] **[vérif VPS]** Relever le nom de projet réel — c'est la colonne `NAME`, pas `hexamap-prod` :
 
       ```sh
+      docker compose ls
+      # NAME              STATUS       CONFIG FILES
+      # <projet-dokploy>  running(2)   /etc/dokploy/compose/…/docker-compose.yml
+      ```
+
+      Il se lit aussi sur les conteneurs :
+
+      ```sh
+      docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' \
+        "$(docker ps --filter name=api --format '{{.ID}}' | head -1)"
+      ```
+
+      **Ne pas** redéployer en supprimant les volumes : ce sont eux qui portent la base, les
+      blasons et l'état d'import.
+
+- [ ] **[vérif VPS]** Lancer la sauvegarde avec ce nom :
+
+      ```sh
+      ./scripts/backup.sh -p <projet-dokploy>
+      # ou, par variable :
       COMPOSE_PROJECT_NAME=<projet-dokploy> BACKUP_DIR=/srv/backups ./scripts/backup.sh
+      ./scripts/backup.sh -h        # aide en français
       ```
 
-      **Ceci ne suffit pas aujourd'hui** : le script lit `COMPOSE_FILE` mais pas
-      `COMPOSE_PROJECT_NAME`, et `docker compose` n'honore cette variable que si le fichier ne
-      porte pas de `name:` — or `docker-compose.prod.yml:8` en porte un (`hexamap-prod`).
-      Le changement minimal, **non appliqué ici**, est d'accepter `-p` :
+      Le garde-fou est conservé : si le service `db` de **cette** pile ne tourne pas, le script
+      s'arrête bruyamment, affiche le fichier compose et le nom de projet, et n'écrit aucun
+      fichier vide. Éprouvé contre une pile arrêtée avant livraison.
 
-      ```sh
-      COMPOSE_ARGS="-f $COMPOSE_FILE"
-      if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
-        COMPOSE_ARGS="$COMPOSE_ARGS -p $COMPOSE_PROJECT_NAME"
-      fi
-      ```
-
-      puis de remplacer les quatre `docker compose -f "$COMPOSE_FILE"` (`:51`, `:67`) par
-      `docker compose $COMPOSE_ARGS`. Tant que ce n'est pas fait, la sauvegarde sous Dokploy
-      échoue bruyamment — ce qui vaut mieux qu'une archive vide, mais ne sauvegarde rien.
-
-- [ ] **[hôte]** Tant que le correctif n'est pas livré, l'équivalent manuel :
+- [ ] **[hôte]** L'équivalent manuel, si le script n'est pas sur le VPS :
 
       ```sh
       docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$(docker ps -qf name=db)" \
         pg_dump -U hexamap -d hexamap -Fc > /srv/backups/hexamap-$(date -u +%Y%m%dT%H%M%SZ).dump
       ```
 
-      et les deux volumes par le conteneur jetable de `scripts/backup.sh:89-92`
+      et les deux volumes par le conteneur jetable de `scripts/backup.sh:162-165`
       (`hexamap_prod_blasons`, `hexamap_prod_importstatus`).
 
 ### 8.9 Vérification après déploiement
