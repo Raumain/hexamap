@@ -93,22 +93,28 @@ async function verifyWebhook(
   if (event.type === 'charge.refunded') {
     const charge = event.data.object;
     const intent = charge.payment_intent;
-    const paymentIntent = typeof intent === 'string' ? intent : intent?.id;
-    if (!paymentIntent) return null;
+    const paymentIntentId = typeof intent === 'string' ? intent : intent?.id;
+    if (!paymentIntentId) return null;
     const sessions = await stripe.checkout.sessions.list({
-      payment_intent: paymentIntent,
+      payment_intent: paymentIntentId,
       limit: 1,
     });
     const session = sessions.data[0];
     if (!session) return null;
     const packKey = PACK_KEYS.find((key) => key === session.metadata?.packKey) ?? null;
+    const amountRefundedCents = charge.amount_refunded ?? 0;
     return {
       kind: 'PURCHASE_REFUNDED',
       sessionId: session.id,
-      userId: session.metadata?.userId ?? session.client_reference_id ?? null,
+      paymentIntentId,
       packKey,
-      amountTotal: charge.amount_refunded ?? null,
-      currency: charge.currency ?? null,
+      // Le détail des remboursements n'est pas développé dans l'événement :
+      // `amount_refunded` est le cumul, jamais un appel réseau supplémentaire.
+      amountCents: amountRefundedCents,
+      amountRefundedCents,
+      originalAmountCents:
+        session.amount_total ?? (packKey ? packByKey(packKey)?.priceCents : undefined) ?? 0,
+      currency: charge.currency ?? session.currency ?? null,
     };
   }
 

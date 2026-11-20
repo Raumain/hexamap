@@ -157,6 +157,8 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - **Aucune médaille ne récompense une dépense d'argent réel**, jamais : cela mêlerait le pay-to-win à la progression, et la boutique doit rester un raccourci, pas le chemin.
 - **Interrupteur.** `ACHIEVEMENT_PAYOUTS_ENABLED` coupe les primes sans migration, sans retirer les médailles déjà obtenues.
 - **Le ticket ne se vend jamais.** Vendre de la monnaie à valeur fixe est une microtransaction ; vendre des tickets aléatoires est un coffre à butin, et la réglementation française des jeux d'argent (ANJ) s'appliquerait. Le ticket gratuit reste la seule source de cartes — c'est aussi ce qui empêche la limite de charges de devenir un péage.
+- **Plafond quotidien.** `SHOP_DAILY_PURCHASE_CAP` (12 000 écus) est lu dans `game_config` **avant** l'appel à Stripe et hors transaction : un aller-retour réseau ne tient aucune transaction ouverte. Un achat qui ferait dépasser le cumul crédité depuis minuit UTC répond `429 SHOP_DAILY_CAP_REACHED` sans créer de session ; un paiement déjà effectué reste crédité par le webhook.
+- **Remboursement.** Un remboursement Stripe écrit une contrepartie négative `PURCHASE_REFUND:<session.id>` **proportionnelle** au montant rendu et plafonnée au crédit initial. Le solde n'est jamais négatif : la ligne est écrite, le solde ramené à 0, et `SHOP_REFUND_NEGATIVE` journalisé. Aucune table nouvelle — le grand-livre suffit.
 
 ### 2.9 Relations — amis et vitrine publique
 
