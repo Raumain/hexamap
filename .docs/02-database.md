@@ -283,6 +283,12 @@ create index currency_ledger_user_idx on currency_ledger (user_id, created_at de
 | `PURCHASE:<provider_ref>` | achat d'écus par un moyen de paiement (phase 30) | positif |
 | `PURCHASE_REFUND:<provider_ref>` | remboursement d'un achat, contrepartie négative (phase 30) | négatif |
 
+`provider_ref` est, **pour les deux motifs**, l'identifiant de session Checkout Stripe
+(`session.id`) : le remboursement porte donc la même référence que le crédit, ce qui rend la
+contrepartie retrouvable depuis la ligne d'achat. Un remboursement partiel est **proportionnel**
+au montant remboursé — `floor(ecus × remboursé / montant initial)` —, calculé sur le cumul
+`amount_refunded` rendu par Stripe, et jamais au-delà du crédit initial.
+
 `PURCHASE:<provider_ref>` porte la référence du prestataire pour qu'un webhook rejoué ne
 crédite pas deux fois. **L'unicité ne peut pas être une vérification avant insertion** : deux
 livraisons simultanées du même événement lisent toutes deux « absent » puis insèrent toutes deux.
