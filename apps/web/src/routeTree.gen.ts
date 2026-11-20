@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
+import { Route as AssemblageRouteImport } from './routes/assemblage'
 import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as ImportStatusRouteImport } from './routes/import-status'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const AchievementsRoute = AchievementsRouteImport.update({
   id: '/achievements',
   path: '/achievements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssemblageRoute = AssemblageRouteImport.update({
+  id: '/assemblage',
+  path: '/assemblage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollectionRoute = CollectionRouteImport.update({
@@ -98,6 +104,7 @@ const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
+  '/assemblage': typeof AssemblageRoute
   '/collection': typeof CollectionRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
+  '/assemblage': typeof AssemblageRoute
   '/collection': typeof CollectionRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
+  '/assemblage': typeof AssemblageRoute
   '/collection': typeof CollectionRoute
   '/friends': typeof FriendsRoute
   '/import-status': typeof ImportStatusRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/achievements'
+    | '/assemblage'
     | '/collection'
     | '/friends'
     | '/import-status'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/achievements'
+    | '/assemblage'
     | '/collection'
     | '/friends'
     | '/import-status'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/achievements'
+    | '/assemblage'
     | '/collection'
     | '/friends'
     | '/import-status'
@@ -198,6 +210,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AchievementsRoute: typeof AchievementsRoute
+  AssemblageRoute: typeof AssemblageRoute
   CollectionRoute: typeof CollectionRoute
   FriendsRoute: typeof FriendsRoute
   ImportStatusRoute: typeof ImportStatusRoute
@@ -226,6 +239,13 @@ declare module '@tanstack/react-router' {
       path: '/achievements'
       fullPath: '/achievements'
       preLoaderRoute: typeof AchievementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assemblage': {
+      id: '/assemblage'
+      path: '/assemblage'
+      fullPath: '/assemblage'
+      preLoaderRoute: typeof AssemblageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/collection': {
@@ -318,6 +338,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AchievementsRoute: AchievementsRoute,
+  AssemblageRoute: AssemblageRoute,
   CollectionRoute: CollectionRoute,
   FriendsRoute: FriendsRoute,
   ImportStatusRoute: ImportStatusRoute,
