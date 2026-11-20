@@ -13,6 +13,11 @@ const envSchema = z
     FRONTEND_URL: z.url().optional(),
     // Origines supplémentaires autorisées (CORS + Better Auth), séparées par des virgules.
     TRUSTED_ORIGINS: z.string().default(''),
+    // Adresses ou CIDR des mandataires de confiance pour la résolution de l'IP
+    // cliente (reverse proxy, ingress). Vide par défaut : tant que la bordure
+    // d'hébergement n'est pas connue, aucun en-tête `X-Forwarded-For` n'est cru
+    // et l'IP reste celle de la connexion. Séparés par des virgules.
+    TRUSTED_PROXIES: z.string().default(''),
     // Cookies `Secure` : forcés en production, désactivables uniquement pour les
     // bancs de test servis en HTTP simple (jamais en production réelle).
     AUTH_COOKIE_SECURE: z

@@ -94,7 +94,9 @@ the repair is on branch `fix/migrations-rejouables`.
 ### A. Pre-deploy hardening — verdict on the production image (P0)
 
 **Status:** verified on 2026-11-20, **A1 now fixed**. Findings A2 → A9 are the backlog of this
-track; the host checklist is a decision aid, not code.
+track; the host checklist is a decision aid, not code. **A3, A6, A7 and the backup script (A5)
+are now closed in code**; the column "still host-side" is the runbook `.docs/05-deploiement.md`,
+which replaced the plain checklist as the procedure to follow.
 
 What was actually executed on 2026-11-20, in Docker, against a **virgin PostgreSQL 16 volume** —
 not against the development database.
@@ -121,17 +123,22 @@ decisions, except A3 and A6 which touch code/config.
 | :--- | :--- | :--- | :--- |
 | A1 | **Closed** — a missing hashed asset used to answer **`200 text/html`**: `GET /assets/nope.js` fell into the SPA fallback | `import()` and `<script>` send `Accept: */*`, so a stale or missing chunk yielded `Unexpected token '<'` behind a `200` — undiagnosable | `static.ts`: an allow-listed extension with no file on disk answers `404 ROUTE_NOT_FOUND` before the fallback. One red case in `static.spec.ts` first, 14 cases green |
 | A2 | Reference data is not shipped in the image — a fresh volume has none | The game cannot draw a single card (`503`), and no blason loads | Run `scripts/import` once on the host (or seed the two read-only volumes) **before** opening |
-| A3 | Better Auth cannot resolve the client IP: `session.ipAddress` is `""` and it logs a shared-bucket warning | Every player shares one rate-limit bucket behind a proxy | Set `advanced.ipAddress.ipAddressHeaders: ['x-forwarded-for']` and `trustedProxies`; make the ingress forward the header |
+| A3 | **Configuration ready, host verification pending** — Better Auth could not resolve the client IP: `session.ipAddress` was `""` and it logged a shared-bucket warning | Every player shares one rate-limit bucket behind a proxy | `advanced.ipAddress` now carries `ipAddressHeaders: ['x-forwarded-for']` and `trustedProxies` fed by `TRUSTED_PROXIES` (empty by default: no header is trusted until the border is known). Still to do on the host: forward `X-Forwarded-For`, set `TRUSTED_PROXIES`, and confirm `session.ipAddress` is not `""` — `.docs/05-deploiement.md` §5 |
 | A4 | `BETTER_AUTH_SECRET` was low-entropy; Better Auth warned at boot | Session forgery if leaked | 32+ random bytes per environment, injected by the platform, rotated once |
-| A5 | No backup exists | One `down -v` loses the whole game | Daily `pg_dump` + retention, **plus** the `blasons` / `import-status` volumes, which the dump does not contain. Restore drill before launch |
-| A6 | Container logs are unbounded (`restart:` is set, `logging:` is not) | A full disk stops the API | `json-file` driver with `max-size` / `max-file` on both services |
-| A7 | Volumes carry explicit names (`hexamap_blasons`, `hexamap_importstatus`) and prod reused the dev ones — compose warned | A host can silently attach the wrong data | `PROD_PGDATA_VOLUME`, `BLASONS_VOLUME`, `IMPORT_STATUS_VOLUME` set explicitly per environment |
+| A5 | **Script delivered, schedule and drill pending** — no backup existed | One `down -v` loses the whole game | `scripts/backup.sh` dumps the database **and** tars the `blasons` / `importstatus` volumes, with retention. Still host-side: schedule it and run one restore drill — `.docs/05-deploiement.md` §3 |
+| A6 | **Closed (code)** — container logs were unbounded (`restart:` was set, `logging:` was not) | A full disk stops the API | `json-file` driver, `max-size: 10m`, `max-file: 5`, on both `db` and `api`; assert with `docker compose -f docker-compose.prod.yml config` |
+| A7 | **Closed (code)** — volumes carried explicit names (`hexamap_blasons`, `hexamap_importstatus`) and prod reused the dev ones — compose warned | A host can silently attach the wrong data | Defaults are now `hexamap_prod_blasons` / `hexamap_prod_importstatus`; the three volume variables stay overridable and are documented in `.env.example` |
 | A8 | Production forces `Secure` cookies | Over plain HTTP, login appears to succeed and no session ever sticks | Terminate TLS; every public URL is `https://` |
 | A9 | No SMTP provider is configured | No password reset, no verification mail | Decide before launch: ship SMTP, or state that password reset is unavailable |
 
 ### A.2 Host checklist — what to have ready before choosing a provider
 
 Provider-agnostic on purpose: these are the properties the app needs, not a vendor list.
+
+> **Superseded as a procedure.** The executable version of this list — every command, every
+> restore step, and a **[code] / [hôte] / [juridique]** tag per item — is
+> `.docs/05-deploiement.md`. This table stays as the decision record; edit both when the
+> checklist changes.
 
 **Compute and image**
 
@@ -367,9 +374,10 @@ reward and no `game_config` grant — and `ACHIEVEMENT_PAYOUTS_ENABLED` cuts it 
 | The production image does not boot against a clean database | **Disproven** | 2026-11-20: virgin `postgres:16-alpine`, `target: prod`, boot applied 12/12 migrations, signup `200`, charges seeded 6/6, draw rolled back cleanly on `503` |
 | A missing hashed asset answers `200` + `index.html` | **Hit and fixed** | `static.ts` answers `404 ROUTE_NOT_FOUND` for any allow-listed extension with no file on disk, before the SPA fallback. Locked red-then-green in `static.spec.ts` (14 cases) |
 | A host starts with no reference data | **Open — A2** | Draw returns `503 REFERENCE_DATA_MISSING` until `scripts/import` runs. Operator step, now in the host checklist |
-| Rate limiting sees one bucket for the whole world | **Open — A3** | Better Auth cannot resolve the client IP behind a proxy; `advanced.ipAddress` not configured |
-| A full disk stops the API | **Open — A6** | Logs are unbounded (`restart:` set, `logging:` absent) |
-| Losing the volume loses the game | **Open — A5** | No `pg_dump`, no restore drill; the `blasons` volume is outside any database dump |
+| Rate limiting sees one bucket for the whole world | **Config ready, host pending — A3** | `advanced.ipAddress` is set from `TRUSTED_PROXIES`, empty by default so no header is trusted. The ingress must forward `X-Forwarded-For` and the host must set the CIDR; `session.ipAddress` is the proof, not the code |
+| A full disk stops the API | **Covered — A6** | `json-file` with `max-size: 10m` / `max-file: 5` on `db` and `api`, so 50 MiB per service at most. Verified by `docker compose -f docker-compose.prod.yml config` |
+| Losing the volume loses the game | **Script covered, drill pending — A5** | `scripts/backup.sh` dumps the database plus both asset volumes with 7-day retention, and fails loudly when prod is down. Scheduling and the one restore drill remain host-side |
+| Two environments silently sharing volumes | **Covered — A7** | Prod defaults are `hexamap_prod_*`; the dev project's unprefixed names no longer collide |
 
 Invariants, unchanged: `import type { App }` is the only cross-boundary import; `scratch-cell.tsx`
 has 0 `useState` and 0 mouse/touch handlers; every backend change starts in `packages/spec`; French
