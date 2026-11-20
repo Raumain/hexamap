@@ -31,6 +31,8 @@ export const BOUTIQUE = {
   errors: {
     SHOP_DISABLED: "La boutique n'est pas encore ouverte.",
     SHOP_DAILY_CAP_REACHED: 'Vous avez atteint le plafond d’achat de la journée. Revenez demain.',
+    SHOP_PROVIDER_ERROR:
+      'Le prestataire de paiement n’a pas pu préparer la commande. Aucun écu n’a été débité : réessayez dans un instant.',
     UNKNOWN_PACK: "Ce pack n'existe pas.",
     UNAUTHORIZED: 'Votre session a expiré. Reconnectez-vous.',
     ORDER_NOT_FOUND: 'Cette commande est introuvable.',

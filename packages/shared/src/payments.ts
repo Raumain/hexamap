@@ -49,6 +49,24 @@ export class ShopDisabledError extends Error {
   }
 }
 
+/**
+ * Panne du prestataire de paiement (clé révoquée, `price_…` inexistant, devise
+ * incompatible). Ce n'est ni une faute du joueur ni une erreur du serveur : la
+ * route répond `502 SHOP_PROVIDER_ERROR`. Le message ne porte jamais la clé
+ * secrète, seulement le code et le type rendus par le prestataire.
+ */
+export class ShopProviderError extends Error {
+  readonly providerCode: string | null;
+  readonly providerType: string | null;
+
+  constructor(providerCode: string | null = null, providerType: string | null = null) {
+    super('Le prestataire de paiement a refusé la demande. Réessayez plus tard.');
+    this.name = 'ShopProviderError';
+    this.providerCode = providerCode;
+    this.providerType = providerType;
+  }
+}
+
 export class WebhookSignatureError extends Error {
   constructor(message = 'Signature de webhook invalide.') {
     super(message);

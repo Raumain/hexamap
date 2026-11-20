@@ -72,6 +72,8 @@ export function checkoutErrorMessage(error: unknown): string {
         return BOUTIQUE.errors.SHOP_DISABLED;
       case 'SHOP_DAILY_CAP_REACHED':
         return BOUTIQUE.errors.SHOP_DAILY_CAP_REACHED;
+      case 'SHOP_PROVIDER_ERROR':
+        return BOUTIQUE.errors.SHOP_PROVIDER_ERROR;
       case 'UNKNOWN_PACK':
         return BOUTIQUE.errors.UNKNOWN_PACK;
       case 'UNAUTHORIZED':
