@@ -41,6 +41,15 @@ const envSchema = z
     STRIPE_PRICE_PACK_1200: z.string().optional(),
     STRIPE_PRICE_PACK_2500: z.string().optional(),
     STRIPE_PRICE_PACK_6000: z.string().optional(),
+    // Consentement aux CGV au paiement. Désactivé par défaut : Stripe refuse
+    // `terms_of_service: 'required'` tant qu'aucune URL de CGV n'est configurée
+    // dans le Dashboard (Settings → Business → Public details). Un checkout
+    // cassé est pire qu'une case absente : l'interrupteur s'allume une fois
+    // l'URL en place (`.docs/05-deploiement.md` §7).
+    SHOP_REQUIRE_TOS_CONSENT: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
   })
   .superRefine((value, ctx) => {
     // La valeur d'exemple de `.env.example` ne doit jamais servir de secret :

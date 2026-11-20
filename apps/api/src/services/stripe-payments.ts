@@ -9,6 +9,7 @@ import {
   WebhookSignatureError,
 } from '@hexamap/shared';
 import Stripe from 'stripe';
+import { env } from '../env';
 
 export { ShopDisabledError, WebhookSignatureError };
 
@@ -45,14 +46,34 @@ async function createCheckoutSession(input: CheckoutInput): Promise<CheckoutSess
 
   const stripe = stripeClient();
 
-  const session = await stripe.checkout.sessions.create({
+  // La facture est demandée sans condition : elle ne casse aucun paiement et
+  // Stripe la génère à partir du prix configuré.
+  const params: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     line_items: [{ price: priceId, quantity: 1 }],
     client_reference_id: input.userId,
     metadata: { userId: input.userId, packKey: pack.key },
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
-  });
+    invoice_creation: { enabled: true },
+    custom_text: {
+      submit: {
+        message:
+          'Achat de contenu numérique fourni immédiatement : vous renoncez au droit de rétractation, conformément aux CGV.',
+      },
+    },
+  };
+
+  // Stripe refuse `terms_of_service: 'required'` tant qu'aucune URL de CGV n'est
+  // déclarée dans le Dashboard : l'interrupteur existe pour cette raison et
+  // reste éteint par défaut (`.docs/05-deploiement.md` §7).
+  if (env.SHOP_REQUIRE_TOS_CONSENT === true) {
+    params.consent_collection = { terms_of_service: 'required' };
+  }
+
+  // Une erreur Stripe (prix inconnu, clé révoquée, devise refusée) remonte
+  // telle quelle : la route la traduit en `ShopProviderError` (502).
+  const session = await stripe.checkout.sessions.create(params);
 
   if (!session.url) throw new Error('Session de paiement sans URL.');
   return { id: session.id, url: session.url };
