@@ -25,9 +25,11 @@ export interface PurchaseCompletedEvent {
 export interface PurchaseRefundedEvent {
   readonly kind: 'PURCHASE_REFUNDED';
   readonly sessionId: string;
-  readonly userId: string | null;
+  readonly paymentIntentId: string;
   readonly packKey: PackKey | null;
-  readonly amountTotal: number | null;
+  readonly amountCents: number;
+  readonly amountRefundedCents: number;
+  readonly originalAmountCents: number;
   readonly currency: string | null;
 }
 
