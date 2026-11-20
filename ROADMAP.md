@@ -1,11 +1,12 @@
 # Hexamap — Live roadmap (what is actually left)
 
-**Updated:** 2026-11-19.
-**Baseline:** `main` after the merge of PR #16 (`feat/phase-16-le-geste`) and PR #15
-(`feat/phase-17-installation`).
-**Status:** the original plan (phases 12 → 15, written against the `chore/phase-11-release`
-baseline) is **fully consumed**. It survives in git history; this file now tracks only what
-remains. Per-phase detail and measurements live in `.docs/03-active-task.md`; defects live in
+**Updated:** 2026-11-20.
+**Baseline:** `main` after the merge of PR #26 (`feat/phase-28-les-amis`), #27
+(`feat/phase-26-le-carnet`), #28 (`feat/phase-27-les-medailles`), #29
+(`feat/phase-29-la-vitrine`) and #30 (`chore/agents-et-contrat-economie`).
+**Status:** the original plan (phases 12 → 15) and the economy/social layer (phases 26 → 29) are
+**fully consumed**. They survive in git history; this file now tracks only what remains.
+Per-phase detail and measurements live in `.docs/03-active-task.md`; defects live in
 `.docs/04-bugs.md`.
 
 Rules that did not change: spec-first (`packages/spec` before implementation), everything runs in
@@ -30,135 +31,52 @@ Docker, French UI, server authoritative, no external call at runtime.
 | 23 | Les lignes du tiroir (BUG-008) | Done |
 | 24 | Le mode d'emploi (README PWA) | Done |
 | 25 | Les encoches latérales (safe-area insets) | Done |
+| 26 | Le Carnet (charges, derived balance) | Done — PR #27 |
+| 27 | Les Médailles (achievements → écus, first faucet) | Done — PR #28 |
+| 28 | Les Amis (friendships, blocks) | Done — PR #26 |
+| 29 | La Vitrine (public profile, unique pseudo) | Done — PR #29 |
+| — | Migrations rejouables (ordering repair) | Done — `fix/migrations-rejouables` |
 
 Original roadmap → repo mapping: its Phase 12 = repo 12; **its Phase 13 = repo 13 + 14** (the
 design system was rewritten once); **its Phase 14 = repo 14/15 partially + 16**; **its Phase 15 =
 repo 17, at ~80 %, closed in practice by repo 19**.
 
-Verified today: `ci:check` green with **159 specs across 11 files**; the production image compresses
-text payloads in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %) and `75 518`
-in brotli (−70,4 %) — while still serving `/manifest.webmanifest` (`application/manifest+json`),
-`/sw.js` (`text/javascript`, `no-cache`), 46 precache entries; Playwright **58 tests, 56 passed /
-2 skipped**, aucun flaky.
+Verified on 2026-11-20: `ci:check` green with **267 specs across 15 files**; the production image
+compresses text payloads in-process — main bundle `255 461` → `80 243` octets in gzip (−68,6 %)
+and `75 518` in brotli (−70,4 %) — while still serving `/manifest.webmanifest`
+(`application/manifest+json`) and `/sw.js` (`text/javascript`, `no-cache`). The twelve migrations
+replay from a dropped `kysely_migration` — twice — with row counts unchanged. The Playwright bench
+was last run in full at **58 tests, 56 passed / 2 skipped** (2026-11-19) and has not been re-run
+since phases 26 → 29; `charges.spec.ts` adds 3 cases, so the suite now discovers 61.
 
 ---
 
 ## 2. What remains, in order
 
-The previous backlog is empty: the README PWA section and the lateral safe-area insets both
-shipped on 2026-11-19 as phases 24 and 25, recorded in `.docs/03-active-task.md`.
+The economy and social layer (phases 26 → 29) shipped on 2026-11-19 and 2026-11-20. The backlog
+is empty again: the only unscheduled work left is **phase 30**, blocked on legal rather than code.
+The rationale of each shipped phase — the charge/card ambiguity, the finite faucet, the symmetric
+friendship, the 404 private showcase — lives in `.docs/03-active-task.md` and in git history.
 
-What follows is the **economy and social layer**, in dependency order. Each phase starts in
-`packages/spec`. The data contract for all five phases is already ratified — `.docs/01-architecture.md`
-§2.6, §2.8, §2.9 and `.docs/02-database.md` §4.7–§4.9, tables marked **Contrat** — so no phase
-may reopen it silently: a change starts by editing those two documents, then a migration. The
-rule stays the same as the rest of the game: the server decides, the client displays.
+### Shipped — economy and social layer (2026-11-19 → 20)
 
-### Phase 26 — Le Carnet (scratch pace)
+| Phase | What now exists | PR |
+| :--- | :--- | :--- |
+| 26 — Le Carnet | `user_scratch_charges`; balance derived from `last_regen_at` (no incrementing counter); 6 charges / 30 min, regeneration suspended at the cap; generation and draw in one transaction under `FOR UPDATE`; `/charges` returns `charges` + `nextChargeAt`, the client ticks locally, no polling | #27 |
+| 27 — Les Médailles | `user_achievements`; finite one-time ledger faucet `ACHIEVEMENT:<key>` written in the same transaction as the medal row; ~66 000 écus catalogue locked in `packages/shared`; `ACHIEVEMENT_PAYOUTS_ENABLED` cuts payouts without a migration | #28 |
+| 28 — Les Amis | `friendships` (one unordered pair via `least/greatest`), `blocks` (unilateral and silent), daily request cap in `game_config`, only `ACCEPTED` rows count toward medals | #26 |
+| 29 — La Vitrine | `user_profiles`; unique `lower(pseudo)` index with a deterministic pre-dedupe; `/players/$playerId` with a strict allow-list and **404** for a private showcase; 3–24 character pseudo validation at signup | #29 |
 
-A player holds **charges**, and one charge buys one ticket. `SCRATCH_CHARGE_CAP = 6`,
-`SCRATCH_REGEN_MS = 30 min`. One charge regenerates while below the cap, and regeneration
-**pauses** at the cap: nothing accrues, nothing is lost.
+Contract status: `0009_scratch_charges`, `0010_friendships`, `0011_achievements` and
+`0012_profiles` are all **Migrée** in `.docs/02-database.md` §2. No table remains in **Contrat**.
 
-- A new account starts **at the cap**, not at 1. The first session must be able to produce a
-  real ticket, and phase 27's "scratch your first ticket" medal must fire on a real object.
-- The server derives the balance from `last_regen_at` on every read. Never a counter that a
-  request increments, never a client clock. Generation runs in the same transaction and under
-  the same `FOR UPDATE` lock as the draw, so two parallel requests cannot both spend the last
-  charge.
-- The API returns `charges` and `nextChargeAt`; the client ticks the countdown locally from
-  those two values and re-synchronises on each mutation. No polling: `/charges` is not called
-  every minute, and the service worker keeps no cached copy of a balance.
+### Maintenance — migrations are replayable
 
-**The objection, answered.** *"1 card every 30 minutes"* is ambiguous against the GDD, where
-a **carte à gratter** is the 16-cell ticket and the **case** is what gets scratched. Read
-literally as one cell, a ticket would take eight hours. The limit is therefore on **ticket
-generation**, and "stock 6" means **six bankable tickets** — the only reading in which
-"stock a max of 6 cards" is coherent. This has to be written into `.docs/01-architecture.md`
-§2.6, whose current text says a user has at most one `ACTIVE` ticket.
-
-**The collision that decides the design.** `tickets_one_active_per_user` (`.docs/02-database.md`
-§4.3) is a unique partial index on `status = 'ACTIVE'`. Banking six tickets either drops that
-index or breaks the invariant. Recommended shape: keep the index, bank **charges** in
-`user_scratch_charges (user_id, charges, last_regen_at)`, and spend a charge when a ticket is
-generated. One active ticket stays true, the anti-cheat model (`grid` stays server-only) is
-untouched, and the cap sits one `FOR UPDATE` away from the draw.
-
-**The numbers.** Keep 30 min / 6 for V1, but put both in `game_config` so tuning is not a
-migration. My objection is not the 3-hour refill as such — 30 min still yields up to 48 tickets
-a day for a player who empties the bank — it is that a three-hour dead zone punishes the player
-who opens the app twice in an evening. If retention says so, `20 min / 6` (2 h) or `30 min / 8`
-are the two honest alternatives, and either is one config row.
-
-Open questions to settle in the GDD: a banked charge never expires (only a generated ticket's
-`expires_at` does), and regeneration does not continue at the cap.
-
-### Phase 27 — Les Médailles (achievements → écus)
-
-This phase **closes the known gap** recorded below: it is the market's first faucet.
-
-- The currency gets a display name, the **écu**. `currency` and `currency_ledger` keep their
-  columns; the name is a French-UI string plus a line in `.docs/01-architecture.md`.
-- `user.currency` starts at 0 and only ever rises through `currency_ledger` rows. A claim
-  writes `reason = 'ACHIEVEMENT:<key>'` **in the same transaction** as the `user_achievements`
-  row, whose unique `(user_id, key)` makes a retried claim pay once.
-- Progress is computed server-side from authoritative rows — revealed tickets, `user_cards`,
-  `tableaux`, `SOLD` listings, accepted friendships — never from a client counter and never
-  from a mutable column that can be replayed.
-- The faucet is **finite**: every claim is one-time. That is what bounds inflation, unlike a
-  daily bonus. `achievements` is a `packages/shared` catalogue (key, family, threshold, écus),
-  not a table anyone can edit at runtime.
-
-Catalogue, ~66 000 écus in total, of which ~28 000 is the collection family. Amounts are the
-opening bid; they live in the shared catalogue and are locked by a spec, not tuned by hand.
-
-| Family | Medal | Écus |
-| :--- | :--- | ---: |
-| Grattage | First ticket / 10 / 50 / 100 / 500 / 1 000 tickets | 100 / 250 / 500 / 1 000 / 2 500 / 5 000 |
-| Grattage | First Pépite / 10 Pépites / a Mythique from a ticket | 150 / 750 / 2 000 |
-| Collection | 10 / 50 / 100 / 500 cards owned | 200 / 500 / 1 200 / 4 000 |
-| Collection | All 18 régions / all 101 départements | 3 000 / 15 000 |
-| Collection | One card of each of the six rarity tiers | 1 500 |
-| Collection | A rue found in only one commune in France (`N = 1`) | 2 500 |
-| La Planche | First tableau / multiplier ×1,5 / ×2,5 / ×5 | 100 / 200 / 500 / 1 500 |
-| La Planche | Tableau total ≥ 5 000 / 10 000 / 15 000 pts | 500 / 1 500 / 4 000 |
-| Le Comptoir | First sale / first purchase | 150 / 150 |
-| Le Comptoir | 10 / 100 cards sold / 10 000 écus earned from sales | 500 / 3 000 / 2 000 |
-| Le Comptoir | One purchase at ≥ 1 000 écus | 300 |
-| Social | First friend / 10 / 50 / 100 friends | 100 / 500 / 2 000 / 5 000 |
-| Social | Public profile complete (pseudo, avatar, bio) | 100 |
-| Assiduité | 7 / 30 consecutive days with at least one ticket | 700 / 3 000 |
-
-Two rules the catalogue must keep. No medal is ever claimable twice, and **no medal pays for
-spending real money** — that would braid pay-to-win into progression, which phase 30 exists to
-avoid. The social rows ship **declared and locked** with this phase, then unlock in phase 28,
-so the catalogue is written once.
-
-### Phase 28 — Les Amis
-
-- Friendship is **symmetric and consensual**: `friendships (requester_id, addressee_id, status
-  in PENDING/ACCEPTED/DECLINED, created_at, responded_at)`, `check (requester_id <> addressee_id)`,
-  and an unordered-pair unique index on `(least(a, b), greatest(a, b))` so the reverse request
-  cannot create a second row.
-- Send, accept, decline, cancel, remove. A `blocks` row is separate and hides the profile in
-  both directions; it also drops any pending request.
-- A request cap per day (`game_config`) and the Better Auth rate limiter, because "add 100
-  friends" is a medal and therefore a farming target. Only **ACCEPTED** rows count toward it, so
-  a sock-puppet farm costs one accepted request per account per day.
-- A pending-request badge on the rail and the mobile tab bar. No email, no push in V1.
-
-### Phase 29 — La Vitrine (public profile)
-
-- Route `/players/$userId`, by id and not by pseudo, because `pseudo` is nullable and not
-  unique today. Display name is `pseudo ?? name`.
-- Content: pseudo, member since, cards owned, per-category completion (`x / 18`, `x / 101`),
-  best tableau score and multiplier, achievement badges, open listings, friend count, and the
-  "Ajouter en ami" control from phase 28.
-- **Never**: email, `currency`, `session` or `account` rows, `locked` state, `grid`,
-  `treasure_index`. A private profile answers **404**, not 403 — same reasoning as
-  `CARD_NOT_VISIBLE`.
-- Linkable profiles need a stable handle: a unique index on `lower("user".pseudo)` and pseudo
-  validation on the registration form (3–24 characters) are prerequisites, not follow-ups.
+The development database had executed `0011_achievements` before `0009` and `0010` existed on
+`main`, so Kysely rejected the sequence. Every `up` now carries `if not exists` /
+`on conflict do nothing` guards, and the tracking table can be dropped and the twelve migrations
+replayed without losing a row. The rule lives in `.docs/02-database.md` §1 rule 8 and §8 step 8;
+the repair is on branch `fix/migrations-rejouables`.
 
 ### Phase 30 — La Boutique (real money) — unscheduled, deliberately
 
@@ -173,19 +91,19 @@ microtransaction; selling randomized tickets is a loot box, and French gambling 
 (ANJ) would apply. The free ticket stays the only source of cards, which is also what keeps
 phase 26's charge limit meaningful rather than a paywall.
 
-### Known gap — the market has no faucet
+### Known gap — the market has no faucet — **closed by phase 27**
 
-A new account starts at `currency = 0` (Better Auth `defaultValue`), and the market buy
-transaction is today the **only** writer of `currency_ledger`: no daily bonus, no ticket
-reward, no `game_config` grant. A fresh player can never buy anything, and the plateau only
-becomes reachable after a sale. **Scheduled as phase 27**; it needs the GDD and
-`.docs/02-database.md` before any migration.
+A new account still starts at `currency = 0` (Better Auth `defaultValue`), but the phase 27
+medals are now a second writer of `currency_ledger`: each medal pays once, in the same transaction
+as its `user_achievements` row. A fresh player can therefore earn écus by playing before ever
+selling. The faucet stays finite by construction — there is still no daily bonus, no ticket
+reward and no `game_config` grant — and `ACHIEVEMENT_PAYOUTS_ENABLED` cuts it without a migration.
 
 ### Parked — decided 2026-11-19, no work planned
 
 | Item | Why it is parked |
 | :--- | :--- |
-| Double-tap e2e fixture | Blocked by the gap above: no account can pay, so the test would prove the UI half against a purchase that always answers `409 INSUFFICIENT_FUNDS`. The server half is already proven by `market.spec.ts`; the case in `mobile.spec.ts` re-enables itself once phase 27 ships |
+| Double-tap e2e fixture | Unblocked by phase 27 — an account can now earn écus — but still unscheduled: the case needs a second account with an open listing, which `global-setup.ts` does not create. The server half is already proven by `market.spec.ts` |
 | Lighthouse PWA audit | A new dependency for information the 7 `pwa.spec.ts` cases already give, and the PWA category's status across Lighthouse versions is uncertain |
 | `dev.sh --prod` | Tapping two commands instead of one does not justify touching the script that starts the whole stack |
 
@@ -202,6 +120,7 @@ becomes reachable after a sale. **Scheduled as phase 27**; it needs the GDD and
 | No `@elysiajs/static` | `Bun.file` + ETag is the proven pattern and keeps TypeBox response typing |
 | Scratch e2e uses taps, not a synthetic drag | Playwright's `touchscreen` exposes only `tap`; CDP-coalesced drags measured 8–39 % coverage. Continuous drag stays a manual check |
 | The compression hook runs on mounted Better Auth handlers | `app.mount()` is not a bypass for a global `onAfterHandle`; the route's 4-byte payload stays under the 1 KiB threshold, so it is never compressed. Verified by curl |
+| Migrations gain `if not exists` guards after they were applied | The history stays replayable when a branch ran ahead of `main`; only the guard is added, the schema effect is unchanged |
 
 ---
 
@@ -209,16 +128,17 @@ becomes reachable after a sale. **Scheduled as phase 27**; it needs the GDD and
 
 | Risk | Status | Notes |
 | :--- | :--- | :--- |
-| `workbox-build` under Bun | **Disproven** | Build green, 46 precache entries, `dist/sw.js` emitted |
-| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 159 / 0 |
+| `workbox-build` under Bun | **Disproven** | Build green, `dist/sw.js` emitted, precache populated |
+| The two failing `Plan §5.6` specs | **Resolved** | Never a timeout; suite is at 267 / 0 |
 | `GET /*` shadowing `/api`, `/api/auth`, `/blasons` | **Covered** | 13 cases in `static.spec.ts`, deny-list evaluated in the handler, not by route order |
 | `backend` network `internal: true` blocking the published port | **Covered** | `api` attaches to both `backend` and `public` |
 | Removing nginx loses gzip/brotli | **Covered** | in-process gzip + brotli, 13 specs, measured on the production image |
 | `navigateFallback` without a precached `index.html` | **Hit and fixed** | Otherwise `non-precached-url` at install; `html` is in `globPatterns` |
 | A stale service worker pinning players | **Covered** | `pwa.spec.ts`, 7 cases, on the HTTPS bench: install, precache, offline shell fallback, no `/api/` entry in any cache |
 | Any future transform on `<main>` re-breaks every `fixed` overlay | **Covered** | `.enter-salon` runs `animation-fill-mode: backwards`, so `main` carries no transform after the 180 ms entry; `OverlayPortal` renders both route overlays in `document.body`, immune to any transformed ancestor. Asserted in `design-system.spec.ts` |
+| A branch executes a later migration before `main` introduces an earlier one | **Covered** | Every `up` is idempotent; `kysely_migration` can be dropped and replayed twice with row counts unchanged. Rule and proof procedure in `.docs/02-database.md` §1 rule 8 / §8 step 8 |
 
 Invariants, unchanged: `import type { App }` is the only cross-boundary import; `scratch-cell.tsx`
 has 0 `useState` and 0 mouse/touch handlers; every backend change starts in `packages/spec`; French
-UI, English identifiers; no `pg`; `currency_ledger` in the same transaction as any balance change;
-no external runtime asset or API call.
+UI, English identifiers; no `pg`; every migration `up` is replayable; `currency_ledger` in the
+same transaction as any balance change; no external runtime asset or API call.
