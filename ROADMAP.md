@@ -36,6 +36,9 @@ Docker, French UI, server authoritative, no external call at runtime.
 | 28 | Les Amis (friendships, blocks) | Done — PR #26 |
 | 29 | La Vitrine (public profile, unique pseudo) | Done — PR #29 |
 | — | Migrations rejouables (ordering repair) | Done — `fix/migrations-rejouables` |
+| — | Pre-deploy hardening (production image, host checklist) | **In progress — §2.A** |
+| 30 | La Boutique (Stripe, écus packs) | **Planned — blocked on legal, §2.B** |
+| 31 | L'Assemblage (map of owned territory) | **Teaser shipped, feature in V2 — §2.C** |
 
 Original roadmap → repo mapping: its Phase 12 = repo 12; **its Phase 13 = repo 13 + 14** (the
 design system was rewritten once); **its Phase 14 = repo 14/15 partially + 16**; **its Phase 15 =
@@ -53,10 +56,20 @@ since phases 26 → 29; `charges.spec.ts` adds 3 cases, so the suite now discove
 
 ## 2. What remains, in order
 
-The economy and social layer (phases 26 → 29) shipped on 2026-11-19 and 2026-11-20. The backlog
-is empty again: the only unscheduled work left is **phase 30**, blocked on legal rather than code.
-The rationale of each shipped phase — the charge/card ambiguity, the finite faucet, the symmetric
-friendship, the 404 private showcase — lives in `.docs/03-active-task.md` and in git history.
+The economy and social layer (phases 26 → 29) shipped on 2026-11-19 and 2026-11-20. Three tracks
+remain, and they are not interchangeable: **A. pre-deploy hardening** blocks the first player,
+**B. phase 30 — La Boutique** is blocked on legal, **C. phase 31 — L'Assemblage** is the V2
+feature whose teaser ships now. The rationale of each shipped phase — the charge/card ambiguity,
+the finite faucet, the symmetric friendship, the 404 private showcase — lives in
+`.docs/03-active-task.md` and in git history.
+
+**State of the three tracks, at a glance**
+
+| Track | Done | To do | Start a fresh session at |
+| :--- | :--- | :--- | :--- |
+| **A. Pre-deploy** | The production image was built and run against a **virgin PostgreSQL 16**: 12/12 migrations, signup, charges 6/6, CORS, compression, cache, SPA, JSON 404 — all observed (§A) | Nine findings, **none implemented**; the host checklist; one real loop on the host | **A1** — `apps/api/src/static.ts` + one red case in `static.spec.ts`. A2/A5/A7/A9 are operator steps, A3/A4/A6 are config |
+| **B. La Boutique** | Nothing implemented. The plan below is complete enough to start | 30.1 → 30.8, plus the legal gate | **30.1** — the unique index on `currency_ledger`; it blocks every other step |
+| **C. L'Assemblage** | The **teaser is shipped**: `/assemblage`, nav entry, content, pure outline module, e2e case | 31.1 → 31.5 — the whole map | **31.1** — precomputed paths in `scripts/import` |
 
 ### Shipped — economy and social layer (2026-11-19 → 20)
 
@@ -78,18 +91,232 @@ The development database had executed `0011_achievements` before `0009` and `001
 replayed without losing a row. The rule lives in `.docs/02-database.md` §1 rule 8 and §8 step 8;
 the repair is on branch `fix/migrations-rejouables`.
 
-### Phase 30 — La Boutique (real money) — unscheduled, deliberately
+### A. Pre-deploy hardening — verdict on the production image (P0)
 
-Blocked on legal, not on code: CGV, the right of withdrawal and its digital-content exception,
-VAT on digital services, and parental consent for minors. Two engineering rules when it comes:
-a payment provider (Stripe Checkout) and a webhook that writes `currency_ledger` with
-`reason = 'PURCHASE'` and a **unique provider reference**, so a retried webhook cannot credit
-twice; no client-side credit, ever.
+**Status:** verified on 2026-11-20, **nothing fixed**. Findings A1 → A9 are the backlog of this
+track; the host checklist is a decision aid, not code.
 
-Hard product rule: **the ticket is never sold.** Selling fixed-value currency is a
-microtransaction; selling randomized tickets is a loot box, and French gambling regulation
-(ANJ) would apply. The free ticket stays the only source of cards, which is also what keeps
-phase 26's charge limit meaningful rather than a paywall.
+What was actually executed on 2026-11-20, in Docker, against a **virgin PostgreSQL 16 volume** —
+not against the development database.
+
+| Check | Result |
+| :--- | :--- |
+| `target: prod` build | green, **180 MB**, runs as `USER bun`, no `node_modules` copied |
+| `docker compose -f docker-compose.prod.yml up --build` | `api` healthy, `db` healthy, `0.0.0.0:8080 → 3000` |
+| Empty database, no `kysely_migration` | **12/12 migrations applied** by `prod-entrypoint.sh`, 24 tables, 6 `game_config` keys, 0 users |
+| Signup on that fresh database | `200`, session cookie set, `user_scratch_charges` created lazily at **6/6** |
+| Draw with no reference data | `503 REFERENCE_DATA_MISSING`, and **the charge was not consumed** (still 6/6) |
+| SPA served by the API | `/` `200 text/html`, deep links `/cadastre` and `/assemblage` `200 text/html` |
+| Unknown API path | `404 {"code":"ROUTE_NOT_FOUND"}` — never HTML |
+| Unauthenticated API | `401` |
+| Compression | main bundle `260 233` → `81 494` gzip (−68,7 %) / `76 664` br (−70,5 %) |
+| Cache | hashed assets `immutable`, `index.html` `no-cache`, `If-None-Match` → `304` |
+| CORS | allowed origin echoed; `https://evil.example` receives **no** `Access-Control-Allow-Origin` |
+| Better Auth mounted handlers | `/api/auth/get-session` `200`, delegation intact |
+
+**Findings to close before the first player.** A1 is a defect with a spec; A2 → A9 are operator
+decisions, except A3 and A6 which touch code/config.
+
+| # | Finding | Consequence | Fix |
+| :--- | :--- | :--- | :--- |
+| A1 | A missing hashed asset answers **`200 text/html`**: `GET /assets/nope.js` falls into the SPA fallback | `import()` and `<script>` send `Accept: */*`, so a stale or missing chunk yields `Unexpected token '<'` with a `200` — undiagnosable | `static.ts`: the extension allow-list guards the file branch only; apply the same guard **before** the fallback, answer `404 ROUTE_NOT_FOUND`. One red case in `static.spec.ts` first |
+| A2 | Reference data is not shipped in the image — a fresh volume has none | The game cannot draw a single card (`503`), and no blason loads | Run `scripts/import` once on the host (or seed the two read-only volumes) **before** opening |
+| A3 | Better Auth cannot resolve the client IP: `session.ipAddress` is `""` and it logs a shared-bucket warning | Every player shares one rate-limit bucket behind a proxy | Set `advanced.ipAddress.ipAddressHeaders: ['x-forwarded-for']` and `trustedProxies`; make the ingress forward the header |
+| A4 | `BETTER_AUTH_SECRET` was low-entropy; Better Auth warned at boot | Session forgery if leaked | 32+ random bytes per environment, injected by the platform, rotated once |
+| A5 | No backup exists | One `down -v` loses the whole game | Daily `pg_dump` + retention, **plus** the `blasons` / `import-status` volumes, which the dump does not contain. Restore drill before launch |
+| A6 | Container logs are unbounded (`restart:` is set, `logging:` is not) | A full disk stops the API | `json-file` driver with `max-size` / `max-file` on both services |
+| A7 | Volumes carry explicit names (`hexamap_blasons`, `hexamap_importstatus`) and prod reused the dev ones — compose warned | A host can silently attach the wrong data | `PROD_PGDATA_VOLUME`, `BLASONS_VOLUME`, `IMPORT_STATUS_VOLUME` set explicitly per environment |
+| A8 | Production forces `Secure` cookies | Over plain HTTP, login appears to succeed and no session ever sticks | Terminate TLS; every public URL is `https://` |
+| A9 | No SMTP provider is configured | No password reset, no verification mail | Decide before launch: ship SMTP, or state that password reset is unavailable |
+
+### A.2 Host checklist — what to have ready before choosing a provider
+
+Provider-agnostic on purpose: these are the properties the app needs, not a vendor list.
+
+**Compute and image**
+
+- [ ] x86_64 host, **or** build with `--platform linux/amd64` (an Apple-silicon workstation
+      produces an arm64 image that will not start on most hosts).
+- [ ] 2 vCPU / 2 GB RAM / 20 GB disk minimum with PostgreSQL colocated; 1 GB is tight once the
+      reference import and the SPA sit in the same container.
+- [ ] Image built in CI and pushed to a registry, or built on the host from a checkout — either
+      way, `docker compose -f docker-compose.prod.yml up -d` must be reproducible.
+
+**Persistence**
+
+- [ ] A named volume for `hexamap_prod_pgdata`, or a managed PostgreSQL 16 (then drop the `db`
+      service and point `DATABASE_URL` at it).
+- [ ] Volumes for `blasons` and `import-status`, mounted **read-only** by the API and filled by the
+      import job.
+- [ ] Disk-usage alerting at 80 % — Postgres plus logs are the only unbounded writers.
+
+**Network and TLS**
+
+- [ ] **One origin** serves the API and the SPA on 443: never `api.example.com` next to
+      `example.com` (CORS, cookies and the service worker all assume a single origin).
+- [ ] DNS `A`/`AAAA` to the host and automated certificate renewal.
+- [ ] `PROD_APP_URL`, `PROD_BETTER_AUTH_URL`, `PROD_FRONTEND_URL` all `https://…`, and
+      `TRUSTED_ORIGINS` listing exactly the real origins.
+- [ ] The proxy forwards `X-Forwarded-For` and `X-Forwarded-Proto` (see A3).
+
+**Secrets and access**
+
+- [ ] `BETTER_AUTH_SECRET` ≥ 32 random bytes, unique per environment, never in git.
+- [ ] `POSTGRES_PASSWORD` changed from the `hexamap` default; the port is never published.
+- [ ] Secrets injected by the platform, not baked into the image; SSH limited to an admin key.
+
+**Operations**
+
+- [ ] Health probe on `/api/v1/health` (`start-period` 30 s: boot runs the migrations).
+- [ ] Log rotation and a retention window (A6).
+- [ ] Uptime monitor on `/api/v1/health` and one error sink (the wide-event log is the only
+      observability today).
+- [ ] `pg_dump` daily with 7/30-day retention, **and one restore drill** (A5).
+- [ ] Know how to disable `RUN_MIGRATIONS` for a blue/green or a two-replica rollout — today the
+      boot applies migrations, which assumes exactly one starting container.
+
+**Product and legal**
+
+- [ ] Reference data imported (A2): `ref_regions`, `ref_departements`, `ref_communes`,
+      `ref_odonymes`, `commune_odonymes`.
+- [ ] Blasons imported and attributed (`blason_credit` is served with every card).
+- [ ] Mentions légales, CGV, politique de confidentialité, cookie disclosure (a session cookie is
+      still a cookie).
+- [ ] DPA signed with the host; EU data residency.
+- [ ] Rate limiting at the edge in front of `/api/auth/*`, in addition to Better Auth's.
+- [ ] SMTP if password reset ships (A9).
+
+**Gate.** Launch is green when A1 → A9 are closed, the checklist is ticked, `ci:check` is green on
+the deployed commit, and one real loop — signup → ticket → scratch → tableau — has been played on
+the host, not on a laptop.
+
+### B. Phase 30 — La Boutique (real money) — blocked on legal, planned in full
+
+**Status:** plan only, **not started**. Entry point: step 30.1.
+
+Blocked on legal, not on code: CGV, the right of withdrawal and its digital-content exception, VAT
+on digital services, and parental consent for minors. What follows is the plan to execute **the day
+that clears**; the scope is deliberately **écus packs only** — no cosmetics, no subscription (see
+the park list).
+
+**Product rules that do not bend**
+
+- **The ticket is never sold.** Selling fixed-value currency is a microtransaction; selling
+  randomized tickets is a loot box, and French gambling regulation (ANJ) would apply. The free
+  ticket stays the only source of cards, which is what keeps phase 26's charge limit meaningful
+  instead of a paywall.
+- **Écus never convert back to money.** No cash-out, no transfer between accounts. Buying écus buys
+  market liquidity, not a store of value.
+- **The server owns every price.** The client sends a pack **key**; the amount and the credited
+  quantity are read server-side. A tampered client can only choose a different pack.
+- **No client-side credit, ever.** Only the verified webhook writes `currency_ledger`.
+
+**Packs (proposal, to confirm against market prices before launch)**
+
+| Key | Écus | Price (TTC) | Bonus | Rationale |
+| :--- | ---: | ---: | ---: | :--- |
+| `PACK_500` | 500 | 4,99 € | — | entry point, one rare card's worth |
+| `PACK_1200` | 1 200 | 9,99 € | +20 % | the default choice |
+| `PACK_2500` | 2 500 | 19,99 € | +25 % | |
+| `PACK_6000` | 6 000 | 44,99 € | +33 % | whale tier, deliberately not infinite |
+
+Stripe fees (~1,5 % + 0,25 € on EU cards) and 20 % VAT are taken out of these numbers, not added
+on top: the displayed price is the price. `stripe.tax` computes the VAT if the account is
+configured for it.
+
+**Steps**
+
+- [ ] **30.1 — Idempotence in the schema first.** `currency_ledger` has no unique constraint today:
+      `.docs/02-database.md` §4.6 says uniqueness "is checked on `(user_id, reason)` before
+      insertion", and a check-then-write is exactly what two parallel webhook deliveries defeat.
+      Migration `0013_purchase_idempotence` adds
+      `create unique index currency_ledger_purchase_uniq on currency_ledger (user_id, reason) where reason like 'PURCHASE:%'`.
+      Spec-first: a replayed `PURCHASE:<id>` inserts one row, not two.
+- [ ] **30.2 — Catalogue in `packages/shared`.** `packs.ts` holds key, écus, price, Stripe price
+      id, currency; `packages/spec` locks écus > 0, price > 0 and a strictly increasing
+      écus-per-euro ratio, so a future edit cannot make the biggest pack the worst deal.
+- [ ] **30.3 — Checkout session, server-side.** `POST /api/v1/shop/checkout { packKey }` creates a
+      `mode: 'payment'` session with `client_reference_id = userId`, `metadata.userId`,
+      `success_url` / `cancel_url` on the same origin. Response: `{ url }`. Nothing is credited
+      here.
+- [ ] **30.4 — Webhook, raw body.** `POST /api/v1/shop/webhook` verifies
+      `stripe.webhooks.constructEvent` against the **raw** request body (Elysia: read
+      `request.text()` before any parsing — a parsed body breaks the signature). On
+      `checkout.session.completed`: one Kysely transaction, `insert … on conflict do nothing`
+      into `currency_ledger` with `reason = 'PURCHASE:' || session.id` and `delta = +écus`.
+      Return `200` on a duplicate.
+- [ ] **30.5 — Refunds.** `charge.refunded` writes the negative counterpart
+      `PURCHASE_REFUND:<id>`, capped at the amount actually credited; a refund that would drive the
+      balance negative is recorded and the account frozen for review rather than silently clamped.
+      The `reason` list in `.docs/02-database.md` §4.6 gains this prefix in the same change.
+- [ ] **30.6 — The shop room.** `La Boutique` next to `Le Comptoir`: four packs, price TTC, the
+      écu balance, and a success page that **reads** the webhook result (`GET /shop/orders/:id`)
+      instead of believing the redirect. Never the word "gift", never a countdown.
+- [ ] **30.7 — Abuse and limits.** Per-account daily purchase cap in `game_config`, 3-D Secure via
+      Checkout, and no purchase path that bypasses the charge system.
+- [ ] **30.8 — Tests without a network.** A `PaymentProvider` interface with a fake in
+      `packages/spec`: signature rejection, replay, refund, unknown session, webhook arriving
+      before the row is visible. Stripe CLI is a manual check, never a CI dependency.
+
+**New environment variables**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the four
+`STRIPE_PRICE_*` ids. All optional at boot; the shop route returns `503 SHOP_DISABLED` when they
+are absent, so the rest of the app never depends on Stripe being configured.
+
+### C. Phase 31 — L'Assemblage (the map of owned territory)
+
+**Done — the teaser (2026-11-20).** A new room, `L'Assemblage` (`/assemblage`), appears in the
+`Plus` sheet and states, in French, that the feature is coming. It shows the empty outline of
+France and **no fake progress**: no percentage, no greyed-out region implying data the player
+does not have. Marketing by promise, not by mock.
+
+| What exists | File |
+| :--- | :--- |
+| The room (public, no session guard, no query, no state) | `apps/web/src/routes/assemblage.tsx` |
+| Every French string of the room | `apps/web/src/content/assemblage.ts` (`ASSEMBLAGE_ROOM`) |
+| The schematic outline, a pure module — **not** the V2 geometry | `apps/web/src/lib/france-outline.ts` |
+| Nav entry in `SECONDARY_NAV`, glyph, `SALON_TITLES` | `apps/web/src/components/layout/nav-items.ts` |
+| One case: `mobile — la salle de l'Assemblage annonce sa venue` | `packages/e2e/tests/mobile.spec.ts` |
+
+Verified: `ci:check` green (lint, typecheck, PostgreSQL, **267 specs / 15 files**); `mobile.spec.ts`
+36 passed / 2 skipped, the new case green on `Pixel 7`. The outline is deliberately coarse (~4 px)
+and is replaced wholesale by step 31.1 — do not "fix" it by fetching a GeoJSON at runtime.
+
+**V2 scope.** A blank map of France where the cards a player owns draw the contour of the zone
+they cover: régions, départements and communes fill in as they are collected; rues never do (an
+odonym has no polygon). The map is a reading of `user_cards`, not a new source of truth.
+
+**Why this is not a weekend feature — three hard constraints.**
+
+1. **There is no PostGIS.** The image is vanilla `postgres:16-alpine`, so no server-side
+   `st_union`, no simplification, no reprojection. Overlapping contours (a commune inside its
+   département inside its région) would double-stroke and shimmer.
+2. **`geom jsonb` is too heavy to ship per request.** A single region's raw geometry is hundreds of
+   kilobytes; a player owning all 18 would pull megabytes for one screen.
+3. **Projection is a promise.** The outline must be the same shape on every device, so the
+   projection and the viewBox are fixed at import, never derived at render.
+
+**Plan**
+
+- [ ] **31.1 — Precompute at import.** `scripts/import` projects (Lambert-93 → a fixed
+      `viewBox=0 0 1000 1000`) and simplifies each entity with a Douglas-Peucker pass, then stores
+      an SVG `path` string. New columns `path_d text` (and `path_simplified text`) on
+      `ref_regions`, `ref_departements`, `ref_communes` — `.docs/02-database.md` first, then
+      migration `0014_assemblage_paths`.
+- [ ] **31.2 — Precompute the union per département.** Without PostGIS, the only correct way to
+      avoid double-stroking is to store the union's path once, at import, rather than unioning at
+      render.
+- [ ] **31.3 — The endpoint.** `GET /api/v1/assemblage` returns
+      `{ owned: { regions: string[], departements: string[], communes: string[] }, completion }`,
+      with `completion` computed from the total reference counts — server-side, like every other
+      score.
+- [ ] **31.4 — The render.** One inline SVG, one `<path>` per owned entity, `vector-effect:
+      non-scaling-stroke`, no per-frame React state (§4.6's spirit: this is a drawing, not a form).
+      Budget: the room must stay under 200 Ko of path data for a completionist account.
+- [ ] **31.5 — The tease becomes the room.** Same route, same nav entry: the empty outline is
+      replaced by the player's map. No second migration of the URL, no redirect.
+
+**Deliberately out of scope for V2**: rues on the map, cross-player comparison, animated progress,
+export as an image.
 
 ### Known gap — the market has no faucet — **closed by phase 27**
 
@@ -137,6 +364,12 @@ reward and no `game_config` grant — and `ACHIEVEMENT_PAYOUTS_ENABLED` cuts it 
 | A stale service worker pinning players | **Covered** | `pwa.spec.ts`, 7 cases, on the HTTPS bench: install, precache, offline shell fallback, no `/api/` entry in any cache |
 | Any future transform on `<main>` re-breaks every `fixed` overlay | **Covered** | `.enter-salon` runs `animation-fill-mode: backwards`, so `main` carries no transform after the 180 ms entry; `OverlayPortal` renders both route overlays in `document.body`, immune to any transformed ancestor. Asserted in `design-system.spec.ts` |
 | A branch executes a later migration before `main` introduces an earlier one | **Covered** | Every `up` is idempotent; `kysely_migration` can be dropped and replayed twice with row counts unchanged. Rule and proof procedure in `.docs/02-database.md` §1 rule 8 / §8 step 8 |
+| The production image does not boot against a clean database | **Disproven** | 2026-11-20: virgin `postgres:16-alpine`, `target: prod`, boot applied 12/12 migrations, signup `200`, charges seeded 6/6, draw rolled back cleanly on `503` |
+| A missing hashed asset answers `200` + `index.html` | **Open — A1** | `GET /assets/nope.js` returns HTML; a stale chunk would fail as `Unexpected token '<'`. Fix in `static.ts` with a red spec first |
+| A host starts with no reference data | **Open — A2** | Draw returns `503 REFERENCE_DATA_MISSING` until `scripts/import` runs. Operator step, now in the host checklist |
+| Rate limiting sees one bucket for the whole world | **Open — A3** | Better Auth cannot resolve the client IP behind a proxy; `advanced.ipAddress` not configured |
+| A full disk stops the API | **Open — A6** | Logs are unbounded (`restart:` set, `logging:` absent) |
+| Losing the volume loses the game | **Open — A5** | No `pg_dump`, no restore drill; the `blasons` volume is outside any database dump |
 
 Invariants, unchanged: `import type { App }` is the only cross-boundary import; `scratch-cell.tsx`
 has 0 `useState` and 0 mouse/touch handlers; every backend change starts in `packages/spec`; French
