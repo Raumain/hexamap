@@ -13,7 +13,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hexamap}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hexamap}
+      # Mot de passe obligatoire : la valeur de développement `hexamap` est
+      # publique, et la laisser par défaut ouvrirait la base de production avec
+      # un identifiant connu. `:?` fait échouer `docker compose` avant tout
+      # démarrage, comme BETTER_AUTH_SECRET plus bas.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire (mot de passe unique de production)}
       POSTGRES_DB: ${POSTGRES_DB:-hexamap}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -51,7 +55,9 @@ services:
       # SPA compilée, copiée en `./public` dans l'image.
       WEB_DIST_DIR: /app/public
       SERVE_WEB: "true"
-      DATABASE_URL: ${DATABASE_URL:-postgres://hexamap:hexamap@db:5432/hexamap}
+      # Même raison : cette URL embarque le mot de passe de l'étape `db` et ne
+      # doit donc pas retomber sur les identifiants de développement.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL est obligatoire (elle embarque le mot de passe de production)}
       # Origine publique du frontend : seule origine autorisée par CORS.
       # `PROD_*` évite la collision avec les valeurs de développement de `.env`.
       APP_URL: ${PROD_APP_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
