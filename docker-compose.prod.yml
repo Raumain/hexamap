@@ -1,10 +1,18 @@
 # Stack de production Hexamap : PostgreSQL + un unique conteneur de bordure
 # (oven/bun:alpine) qui sert l'API ET la SPA compilée.
 #
-#   docker compose -f docker-compose.prod.yml up --build
+# Deux fichiers, deux topologies :
 #
-# Ports publiés : uniquement celui de l'application (8080 par défaut). La base
-# n'est joignable que sur le réseau interne Docker.
+#   VPS nu :  docker compose -f docker-compose.prod.yml up -d --build
+#   Dokploy : docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
+#
+# Ce fichier-ci suffit à un VPS nu. Sous Dokploy, `docker-compose.dokploy.yml`
+# est un **override** : il rattache `api` au réseau externe de Traefik et ramène
+# le port publié sur la boucle locale. Il ne se monte jamais seul.
+#
+# Ports publiés : uniquement celui de l'application (8080 par défaut), sur
+# l'interface choisie par `WEB_BIND_ADDRESS`. La base n'est joignable que sur le
+# réseau interne Docker.
 name: hexamap-prod
 
 services:
@@ -45,10 +53,18 @@ services:
       target: prod
     restart: unless-stopped
     # Seul service publié : l'API sert aussi la SPA (WEB_DIST_DIR).
+    #
+    # `WEB_BIND_ADDRESS` choisit l'interface d'écoute. `0.0.0.0` par défaut (VPS
+    # nu, éventuellement derrière un proxy qui vise le port publié). Sous Dokploy
+    # la valeur est `127.0.0.1` : Traefik joint le conteneur par `dokploy-network`,
+    # et un port ouvert sur toutes les interfaces contournerait le TLS.
     ports:
-      - target: 3000
-        published: "${WEB_HOST_PORT:-8080}"
-        protocol: tcp
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_HOST_PORT:-8080}:3000"
+    # Déclaré pour Traefik, qui adresse le **port du conteneur**. `expose` ne
+    # publie rien sur l'hôte : il ne fait qu'inscrire le port dans les métadonnées
+    # du conteneur et sur le réseau.
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
       PORT: 3000
