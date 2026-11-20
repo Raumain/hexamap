@@ -18,3 +18,7 @@ test-results
 playwright-report
 blob-report
 packages/e2e/.auth/
+
+# Sauvegardes locales produites par `scripts/backup.sh` : contiennent la base
+# entière, ne doivent jamais entrer dans le dépôt.
+backups/
