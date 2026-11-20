@@ -1,0 +1,43 @@
+# Override Dokploy — à combiner avec `docker-compose.prod.yml`, jamais seul :
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
+#
+# Dokploy construit `Dockerfile` (cible `prod`), exécute cette pile et place
+# Traefik devant elle. Traefik termine le TLS et joint les services par le réseau
+# externe `dokploy-network`, sur le **port du conteneur** (3000) — pas sur un
+# port publié de l'hôte.
+#
+# Ce fichier n'existe que pour cette topologie. Un VPS nu continue d'utiliser
+# `docker-compose.prod.yml` seul : il ne dépend donc pas de l'existence de
+# `dokploy-network`, qui est créé par Dokploy avant le premier déploiement.
+
+services:
+  api:
+    # `!override` **remplace** la liste de `docker-compose.prod.yml` au lieu de
+    # s'y ajouter. Compose concatène les séquences `ports` d'un override : deux
+    # liaisons sur le même port d'hôte échouent au démarrage (« address already
+    # in use »). Le port reste publié sur l'hôte, mais sur la boucle locale
+    # seulement — c'est-à-dire que `WEB_BIND_ADDRESS` vaut effectivement
+    # `127.0.0.1` sous Dokploy. Traefik ne l'utilise pas : il parle au conteneur
+    # par `dokploy-network`, et un port ouvert sur `0.0.0.0` contournerait le TLS
+    # depuis l'extérieur (le cookie de session est `Secure` : la connexion en
+    # clair semblerait réussir sans jamais persister).
+    ports: !override
+      - target: 3000
+        published: "${WEB_HOST_PORT:-8080}"
+        host_ip: "${WEB_BIND_ADDRESS:-127.0.0.1}"
+        protocol: tcp
+    # `db` n'entre jamais ici : il reste sur `backend` seul, inaccessible depuis
+    # le réseau de Traefik. Les réseaux d'un service se fusionnent par nom, donc
+    # `backend` (déclaré dans `docker-compose.prod.yml`) reste attaché.
+    networks:
+      - backend
+      - dokploy-network
+
+networks:
+  # Réseau géré par Dokploy, créé avant le déploiement de la pile. `external: true`
+  # ne peut pas vivre dans `docker-compose.prod.yml` : un VPS sans Dokploy
+  # refuserait de démarrer sur un réseau qui n'existe pas.
+  dokploy-network:
+    external: true
+    name: dokploy-network

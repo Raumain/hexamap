@@ -141,7 +141,7 @@ Les petits villages ont souvent des noms de rues uniques (`N = 1`, 3 000 pts), t
 La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affichage** : la colonne reste `currency`, le grand-livre reste `currency_ledger`, et le renommer n'exige aucune migration.
 
 - **Un compte neuf démarre à 0 écu.** Le solde ne monte que par une ligne de `currency_ledger`, jamais par une écriture directe sur `user.currency`.
-- **Deux robinets seulement.** Les médailles (V1) et l'achat contre de l'argent réel (V1 ultérieure, non planifiée). Il n'existe **aucun bonus quotidien** : un robinet à taux fixe se règle mal et ne se révoque pas.
+- **Deux robinets seulement.** Les médailles (V1) et l'achat contre de l'argent réel (La Boutique, **ouverte au lancement**). Il n'existe **aucun bonus quotidien** : un robinet à taux fixe se règle mal et ne se révoque pas.
 - **Le robinet des médailles est fini.** Chaque prime est unique et versée une seule fois, ce qui borne l'inflation. C'est la différence structurelle avec une prime récurrente.
 - **Idempotence.** Une prime s'écrit `currency_ledger.reason = 'ACHIEVEMENT:<key>'` dans la transaction qui insère `user_achievements (user_id, achievement_key)` ; la clé primaire composite fait qu'un rejeu ne paie pas. `MARKET_BUY` et `MARKET_SELL` restent les deux autres motifs existants.
 - **Le catalogue vit dans `packages/shared`**, pas en base : clé, famille, seuil, montant. Il est verrouillé par `packages/spec`, aucune prime ne se modifie depuis un écran d'administration. Budget d'ouverture : **6 000 écus** au total, dont **2 440** pour la seule famille « collection ».
@@ -154,6 +154,10 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 | `PACK_1200` | 1 200 | 9,99 € | 20 % | `STRIPE_PRICE_PACK_1200` |
 | `PACK_2500` | 2 500 | 19,99 € | 25 % | `STRIPE_PRICE_PACK_2500` |
 | `PACK_6000` | 6 000 | 44,99 € | 33 % | `STRIPE_PRICE_PACK_6000` |
+- **La boutique ouvre au lancement.** Elle n'est plus une fonctionnalité différée : les quatre packs sont achetables dès la mise en ligne, sous réserve des préalables juridiques de `.docs/05-deploiement.md` §7. Trois comportements sont désormais verrouillés par `packages/spec/src/shop.spec.ts` :
+  - **Seul un paiement encaissé crédite.** `creditPurchase` ignore tout `checkout.session.completed` dont `payment_status` ne vaut pas `paid` : une session terminée mais impayée (moyen de paiement différé) n'écrit aucune ligne de `currency_ledger`. La garde vit dans la route et non dans l'adaptateur Stripe, donc elle vaut pour tout prestataire.
+  - **Une panne du prestataire n'est pas un 500.** Une erreur Stripe (prix inconnu, clé révoquée, devise refusée) est traduite en `ShopProviderError` et répond `502 SHOP_PROVIDER_ERROR` avec un message français ; seuls le `type` et le `code` rendus par Stripe sont journalisés, jamais la clé. `SHOP_DISABLED` reste un `503`.
+  - **Facture et consentement.** `invoice_creation` est activée à chaque session, et `consent_collection.terms_of_service` est piloté par `SHOP_REQUIRE_TOS_CONSENT`. L'interrupteur est **éteint par défaut** : Stripe refuse `terms_of_service: 'required'` tant qu'aucune URL de CGV n'est enregistrée dans le Dashboard (Settings → Business → Public details), et un checkout cassé serait pire qu'une case absente.
 - **Aucune médaille ne récompense une dépense d'argent réel**, jamais : cela mêlerait le pay-to-win à la progression, et la boutique doit rester un raccourci, pas le chemin.
 - **Interrupteur.** `ACHIEVEMENT_PAYOUTS_ENABLED` coupe les primes sans migration, sans retirer les médailles déjà obtenues.
 - **Le ticket ne se vend jamais.** Vendre de la monnaie à valeur fixe est une microtransaction ; vendre des tickets aléatoires est un coffre à butin, et la réglementation française des jeux d'argent (ANJ) s'appliquerait. Le ticket gratuit reste la seule source de cartes — c'est aussi ce qui empêche la limite de charges de devenir un péage.

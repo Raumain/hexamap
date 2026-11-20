@@ -13,6 +13,12 @@ export const FAKE_WEBHOOK_SECRET = 'whsec_spec_boutique';
 export class FakePaymentProvider implements PaymentProvider {
   readonly sessions = new Map<string, { userId: string; packKey: PackKey }>();
   enabled: boolean;
+  /**
+   * Panne simulée du prestataire, levée par `createCheckoutSession`. Elle prend
+   * la forme d'une erreur Stripe (`code`, `type`) pour que la route la traduise
+   * comme une vraie.
+   */
+  checkoutFailure: Error | null = null;
 
   constructor(options: { enabled?: boolean } = {}) {
     this.enabled = options.enabled ?? true;
@@ -24,6 +30,7 @@ export class FakePaymentProvider implements PaymentProvider {
 
   async createCheckoutSession(input: CheckoutInput): Promise<CheckoutSession> {
     if (!this.enabled) throw new ShopDisabledError();
+    if (this.checkoutFailure) throw this.checkoutFailure;
     const id = `cs_test_${randomUUID()}`;
     this.sessions.set(id, { userId: input.userId, packKey: input.packKey });
     return { id, url: `https://checkout.stripe.test/${id}` };
@@ -52,6 +59,7 @@ export class FakePaymentProvider implements PaymentProvider {
       originalAmountCents?: number;
       paymentIntentId?: string;
       currency?: string;
+      paymentStatus?: string;
     };
 
     if (payload.type === 'charge.refunded' && payload.sessionId) {
@@ -82,6 +90,10 @@ export class FakePaymentProvider implements PaymentProvider {
       packKey: session.packKey,
       amountTotal: payload.amountTotal ?? null,
       currency: payload.currency ?? null,
+      // Une charge utile sans statut simule le cas nominal des anciens cas :
+      // Stripe renseigne toujours `payment_status`, la valeur par défaut n'existe
+      // que pour le faux prestataire.
+      paymentStatus: payload.paymentStatus ?? 'paid',
     };
   }
 }

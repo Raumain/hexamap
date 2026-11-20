@@ -1,10 +1,18 @@
 # Stack de production Hexamap : PostgreSQL + un unique conteneur de bordure
 # (oven/bun:alpine) qui sert l'API ET la SPA compilée.
 #
-#   docker compose -f docker-compose.prod.yml up --build
+# Deux fichiers, deux topologies :
 #
-# Ports publiés : uniquement celui de l'application (8080 par défaut). La base
-# n'est joignable que sur le réseau interne Docker.
+#   VPS nu :  docker compose -f docker-compose.prod.yml up -d --build
+#   Dokploy : docker compose -f docker-compose.prod.yml -f docker-compose.dokploy.yml up -d
+#
+# Ce fichier-ci suffit à un VPS nu. Sous Dokploy, `docker-compose.dokploy.yml`
+# est un **override** : il rattache `api` au réseau externe de Traefik et ramène
+# le port publié sur la boucle locale. Il ne se monte jamais seul.
+#
+# Ports publiés : uniquement celui de l'application (8080 par défaut), sur
+# l'interface choisie par `WEB_BIND_ADDRESS`. La base n'est joignable que sur le
+# réseau interne Docker.
 name: hexamap-prod
 
 services:
@@ -45,10 +53,18 @@ services:
       target: prod
     restart: unless-stopped
     # Seul service publié : l'API sert aussi la SPA (WEB_DIST_DIR).
+    #
+    # `WEB_BIND_ADDRESS` choisit l'interface d'écoute. `0.0.0.0` par défaut (VPS
+    # nu, éventuellement derrière un proxy qui vise le port publié). Sous Dokploy
+    # la valeur est `127.0.0.1` : Traefik joint le conteneur par `dokploy-network`,
+    # et un port ouvert sur toutes les interfaces contournerait le TLS.
     ports:
-      - target: 3000
-        published: "${WEB_HOST_PORT:-8080}"
-        protocol: tcp
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_HOST_PORT:-8080}:3000"
+    # Déclaré pour Traefik, qui adresse le **port du conteneur**. `expose` ne
+    # publie rien sur l'hôte : il ne fait qu'inscrire le port dans les métadonnées
+    # du conteneur et sur le réseau.
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -60,21 +76,31 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL est obligatoire (elle embarque le mot de passe de production)}
       # Origine publique du frontend : seule origine autorisée par CORS.
       # `PROD_*` évite la collision avec les valeurs de développement de `.env`.
-      APP_URL: ${PROD_APP_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
-      BETTER_AUTH_URL: ${PROD_BETTER_AUTH_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
-      FRONTEND_URL: ${PROD_FRONTEND_URL:-http://localhost:${WEB_HOST_PORT:-8080}}
+      #
+      # `:?` et non `:-` : un repli `http://localhost:…` satisfait `z.url()`
+      # (`apps/api/src/env.ts`), donc l'application démarrerait avec une liste
+      # blanche CORS qui n'autorise qu'un hôte local — panne silencieuse, aucune
+      # erreur au démarrage. Une valeur absente arrête `docker compose` ici.
+      APP_URL: ${PROD_APP_URL:?PROD_APP_URL est obligatoire (origine publique du serveur, ex. https://hexamap.example.com)}
+      BETTER_AUTH_URL: ${PROD_BETTER_AUTH_URL:?PROD_BETTER_AUTH_URL est obligatoire (origine publique du serveur, ex. https://hexamap.example.com)}
+      FRONTEND_URL: ${PROD_FRONTEND_URL:?PROD_FRONTEND_URL est obligatoire (seule origine autorisée par CORS)}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire (32 caractères minimum)}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
-      # Boutique : toutes optionnelles, une valeur vide ferme la boutique (503).
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      STRIPE_PRICE_PACK_500: ${STRIPE_PRICE_PACK_500:-}
-      STRIPE_PRICE_PACK_1200: ${STRIPE_PRICE_PACK_1200:-}
-      STRIPE_PRICE_PACK_2500: ${STRIPE_PRICE_PACK_2500:-}
-      STRIPE_PRICE_PACK_6000: ${STRIPE_PRICE_PACK_6000:-}
+      # Boutique : ouverte au lancement, donc les six variables sont **exigées**.
+      #
+      # Une clé absente arrête la pile au lieu de dégrader en `503 SHOP_DISABLED`
+      # pendant que l'opérateur croit la boutique en ligne. Le schéma de
+      # `apps/api/src/env.ts` les garde optionnelles à dessein : un conteneur de
+      # développement sans Stripe doit continuer de tourner.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY est obligatoire (boutique ouverte au lancement)}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET est obligatoire (boutique ouverte au lancement)}
+      STRIPE_PRICE_PACK_500: ${STRIPE_PRICE_PACK_500:?STRIPE_PRICE_PACK_500 est obligatoire (boutique ouverte au lancement)}
+      STRIPE_PRICE_PACK_1200: ${STRIPE_PRICE_PACK_1200:?STRIPE_PRICE_PACK_1200 est obligatoire (boutique ouverte au lancement)}
+      STRIPE_PRICE_PACK_2500: ${STRIPE_PRICE_PACK_2500:?STRIPE_PRICE_PACK_2500 est obligatoire (boutique ouverte au lancement)}
+      STRIPE_PRICE_PACK_6000: ${STRIPE_PRICE_PACK_6000:?STRIPE_PRICE_PACK_6000 est obligatoire (boutique ouverte au lancement)}
     volumes:
       - blasons:/data/blasons:ro
       - importstatus:/data/import-status:ro

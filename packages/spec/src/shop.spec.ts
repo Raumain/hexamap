@@ -170,6 +170,66 @@ describe('boutique — checkout et crédit des écus', () => {
     expect(body.code).toBe('SHOP_DISABLED');
   });
 
+  it('une panne du prestataire répond 502 SHOP_PROVIDER_ERROR sans écrire', async () => {
+    const broken = new FakePaymentProvider();
+    // Forme d'une erreur Stripe réelle : `code` et `type` sont ce que la route
+    // journalise, jamais la clé.
+    broken.checkoutFailure = Object.assign(new Error('No such price: price_inconnu'), {
+      code: 'resource_missing',
+      type: 'StripeInvalidRequestError',
+    });
+    const brokenApp = createApp({ paymentProvider: broken, serveWeb: false });
+    const { cookie, userId } = await signUp();
+
+    const res = await brokenApp.handle(
+      new Request(`${baseUrl}/api/v1/shop/checkout`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin, cookie },
+        body: JSON.stringify({ packKey: 'PACK_500' }),
+      }),
+    );
+
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe('SHOP_PROVIDER_ERROR');
+    expect(body.message.length).toBeGreaterThan(0);
+    expect(body.message).not.toContain('price_inconnu');
+    expect(await ledgerRows(userId)).toHaveLength(0);
+    expect(await readBalance(userId)).toBe(0);
+  });
+
+  it('une session au paiement en attente ne crédite rien', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await startCheckout(cookie, 'PACK_500');
+
+    const rawBody = JSON.stringify({
+      type: 'checkout.session.completed',
+      sessionId,
+      paymentStatus: 'unpaid',
+    });
+    const res = await postWebhook(rawBody, fake.sign(rawBody));
+
+    expect(res.status).toBe(200);
+    expect(await ledgerRows(userId)).toHaveLength(0);
+    expect(await readBalance(userId)).toBe(0);
+  });
+
+  it('une session payée crédite comme avant', async () => {
+    const { cookie, userId } = await signUp();
+    const { sessionId } = await startCheckout(cookie, 'PACK_500');
+
+    const rawBody = JSON.stringify({
+      type: 'checkout.session.completed',
+      sessionId,
+      paymentStatus: 'paid',
+    });
+    const res = await postWebhook(rawBody, fake.sign(rawBody));
+
+    expect(res.status).toBe(200);
+    expect(await ledgerRows(userId)).toHaveLength(1);
+    expect(await readBalance(userId)).toBe(500);
+  });
+
   it('le checkout rend une URL et n’écrit aucune ligne de grand-livre', async () => {
     const { cookie, userId } = await signUp();
 

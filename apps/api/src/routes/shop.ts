@@ -1,4 +1,5 @@
 import {
+  type CheckoutSession,
   type PackKey,
   type PaymentEvent,
   type PaymentProvider,
@@ -6,6 +7,7 @@ import {
   type PurchaseRefundedEvent,
   packByKey,
   ShopDisabledError,
+  ShopProviderError,
   WebhookSignatureError,
 } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
@@ -47,11 +49,39 @@ const orderSchema = t.Object(
 const webhookAck = t.Object({ received: t.Boolean() }, { additionalProperties: false });
 
 /**
+ * Traduit une erreur du prestataire de paiement en `ShopProviderError`.
+ * Seuls `code` et `type` sont journalisés : la clé secrète ne sort jamais d'ici,
+ * et l'erreur d'origine n'est pas recopiée dans la réponse.
+ */
+function toProviderError(error: unknown): ShopProviderError {
+  if (error instanceof ShopProviderError) return error;
+  if (error && typeof error === 'object') {
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : null;
+    const type = 'type' in error && typeof error.type === 'string' ? error.type : null;
+    console.error(`[shop] erreur du prestataire — type=${type ?? '?'} code=${code ?? '?'}`);
+    return new ShopProviderError(code, type);
+  }
+  console.error('[shop] erreur du prestataire sans détail exploitable');
+  return new ShopProviderError();
+}
+
+/**
  * Crédite l'achat d'un pack, une seule fois par session.
  * L'index partiel `currency_ledger_purchase_uniq` porte l'idempotence : un rejeu
  * n'insère aucune ligne et n'incrémente donc pas le solde.
  */
 async function creditPurchase(event: PurchaseCompletedEvent): Promise<void> {
+  // Seul un paiement encaissé crédite. `checkout.session.completed` peut arriver
+  // avec `payment_status: 'unpaid'` sur un moyen de paiement différé : la
+  // session est terminée, l'argent n'est pas là. La garde vaut pour tout
+  // prestataire, donc elle vit ici et non dans l'adaptateur Stripe.
+  if (event.paymentStatus !== 'paid') {
+    console.warn(
+      `[shop] session non payée ignorée : ${event.sessionId} (statut ${event.paymentStatus ?? 'inconnu'})`,
+    );
+    return;
+  }
+
   await db.transaction().execute(async (trx) => {
     const user = await trx
       .selectFrom('user')
@@ -221,12 +251,19 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
             }
           }
 
-          const session = await provider.createCheckoutSession({
-            userId: user.id,
-            packKey,
-            successUrl: `${origin}/boutique/succes?session_id={CHECKOUT_SESSION_ID}`,
-            cancelUrl: `${origin}/boutique`,
-          });
+          let session: CheckoutSession;
+          try {
+            session = await provider.createCheckoutSession({
+              userId: user.id,
+              packKey,
+              successUrl: `${origin}/boutique/succes?session_id={CHECKOUT_SESSION_ID}`,
+              cancelUrl: `${origin}/boutique`,
+            });
+          } catch (error) {
+            // Une clé absente reste une boutique fermée (503), pas une panne.
+            if (error instanceof ShopDisabledError) throw error;
+            throw toProviderError(error);
+          }
 
           return { url: session.url };
         } catch (error) {
@@ -238,6 +275,12 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
             set.status = 503;
             return { code: 'SHOP_DISABLED', message: error.message };
           }
+          // Panne du prestataire (prix inconnu, clé révoquée, devise refusée) :
+          // ce n'est pas une erreur du serveur, donc pas un 500 générique.
+          if (error instanceof ShopProviderError) {
+            set.status = 502;
+            return { code: 'SHOP_PROVIDER_ERROR', message: error.message };
+          }
           throw error;
         }
       },
@@ -248,6 +291,7 @@ export function shopCheckoutRoutes(provider: PaymentProvider) {
           400: errorSchema,
           401: errorSchema,
           429: errorSchema,
+          502: errorSchema,
           503: errorSchema,
         },
       },

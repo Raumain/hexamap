@@ -5,6 +5,94 @@
 
 ---
 
+# Durcissement de déploiement et ouverture de la boutique
+
+## Statut
+
+- **Phase** : hors phase numérotée — durcissement Dokploy, boutique Stripe et volet légal
+- **État** : code et documentation terminés sur la branche ; **rien n'est fusionné**, aucune PR
+- **Priorité** : P0 (avant le premier joueur)
+- **Mis à jour** : 2026-11-20
+- **Branche** : `chore/deploy-hardening`, partie de `main` (`2049da8`)
+- **Livraison** : cinq commits poussés sur `origin/chore/deploy-hardening`
+
+## Objectif
+
+Rendre la pile réellement déployable sur un VPS (Dokploy), ouvrir la boutique au lancement
+plutôt que la repousser, et livrer la **structure** des pages légales sans écrire à la place du
+juriste. Aucune table, aucune colonne, aucun contrat d'API modifié.
+
+## Ce qui est fermé
+
+### Dokploy et production (commits antérieurs de la branche)
+
+| Sujet | Ce qui a changé |
+| :--- | :--- |
+| **URLs et secrets fail-closed** | `docker-compose.prod.yml` exige `PROD_FRONTEND_URL`, `PROD_APP_URL`, `PROD_BETTER_AUTH_URL` et les six `STRIPE_*` par `:?` : une variable absente arrête l'interpolation avec un message explicite, plus jamais une valeur vide injectée en silence. |
+| **Port exposé, pas publié** | `WEB_BIND_ADDRESS` pilote la liaison du port, et `expose: 3000` remplace la publication : Traefik joint le conteneur sur son port interne. |
+| **Variante Dokploy** | `docker-compose.dokploy.yml` est un *override* : seul `api` rejoint le réseau externe `dokploy-network`, `db` reste sur `backend` (`internal: true`). Le fichier n'est jamais monté seul. |
+| **Sauvegarde nommable** | `scripts/backup.sh` accepte `-p`/`--project-name` : la sauvegarde vise explicitement la pile de production, sans dépendre du répertoire courant. |
+
+### Boutique et légal (cette série de commits)
+
+| Sujet | Ce qui a changé | Preuve |
+| :--- | :--- | :--- |
+| **Seul un paiement encaissé crédite** | `creditPurchase` ignore tout `checkout.session.completed` dont `payment_status` ne vaut pas `paid`. La garde vit dans la route, donc elle vaut pour tout prestataire. | `shop.spec.ts` : « une session au paiement en attente ne crédite rien » (0 ligne de grand-livre, solde 0) et « une session payée crédite comme avant » (1 ligne, 500 écus). |
+| **Panne du prestataire en 502** | `toProviderError` traduit une erreur Stripe en `ShopProviderError` ; la route répond `502 SHOP_PROVIDER_ERROR`, message français, seuls `type` et `code` journalisés. Le front mappe le code sur un libellé français. `SHOP_DISABLED` reste un `503`. | `shop.spec.ts` : « une panne du prestataire répond 502 SHOP_PROVIDER_ERROR sans écrire » — le message ne contient pas l'identifiant `price_…` et aucune ligne n'est écrite. |
+| **Facture et consentement** | `invoice_creation.enabled` est activée à chaque session, `custom_text.submit` porte la mention de renoncement à la rétractation, et `consent_collection.terms_of_service` est piloté par `SHOP_REQUIRE_TOS_CONSENT` (éteint par défaut). | Aucun cas de spécification : le faux prestataire ne rend pas les options de session. Vérifié par lecture du code, pas par un test. |
+| **Pages légales provisoires** | `/cgv`, `/mentions-legales`, `/confidentialite` rendent trois documents dont chaque section porte un repère `[À COMPLÉTER — …]`, sous un bandeau « Texte provisoire — à compléter avant la mise en vente. ». Liens en pied de page et depuis La Boutique, titres dans `nav-items.ts`. | `apps/web/src/content/legal.ts` ne contient **aucune prose juridique** : titres et repères seulement. |
+
+## Critères d'acceptation
+
+1. [x] Une session `unpaid` n'écrit aucune ligne de `currency_ledger` et laisse le solde à 0.
+2. [x] Une erreur du prestataire répond `502 SHOP_PROVIDER_ERROR`, sans fuite de la clé ni du
+       `price_…`, et sans écriture comptable.
+3. [x] `invoice_creation` et le consentement CGV sont demandés au checkout ; l'interrupteur est
+       éteint par défaut.
+4. [x] Les trois routes légales existent, sont liées, et n'exposent que des repères à compléter.
+5. [x] `docker-compose.prod.yml` refuse de s'interpoler sans URL publique ni clé Stripe.
+6. [x] `ci:check` vert — **310 spécifications, 18 fichiers, 0 échec** — et `build` vert
+       (**465,83 kB** bruts / **140,78 kB** gzip, **65 entrées** de précache).
+7. [ ] Texte juridique définitif : livrable du titulaire du site.
+8. [ ] Dashboard Stripe : produits, prix, webhook, URL de CGV — gestes d'hébergement.
+9. [ ] Phase 305 : rejouer les migrations avec `0013` (jamais exercé), un achat réussi, un
+       remboursement et le plafond `429` en navigateur.
+10. [ ] Banc E2E rejoué sur cette branche.
+
+## Journal
+
+### 2026-11-20 — Boutique ouverte, durcissement consigné
+
+**Ce qui a été mesuré, et sur quel arbre.** `ci:check` a rendu **310 pass, 0 fail, 18 fichiers**
+et `build` a produit un chunk principal de **465,83 kB** bruts / **140,78 kB** gzip avec **65
+entrées** de précache. Ces trois chiffres viennent de la session précédente, sur cet arbre
+exact ; ils n'ont **pas** été rejoués après les commits de documentation, qui ne touchent ni le
+code ni la configuration de build.
+
+**Ce que le découpage en commits a coûté.** Trois fichiers portaient deux sujets à la fois —
+la route de boutique, le module partagé `payments.ts` et l'adaptateur Stripe. Ils ont donc été
+staged par état intermédiaire plutôt que par `git add -p` : chaque commit porte un arbre
+cohérent, le suivant ajoute la couche manquante. Un commit « 502 » dont la spec dépendrait d'un
+champ ajouté deux commits plus loin serait rouge à la lecture.
+
+**Ce qui n'est pas prouvé, et qui est écrit comme tel.** Aucune spécification ne couvre
+`invoice_creation` ni l'interrupteur de consentement : la seule preuve est la lecture de
+l'adaptateur. Le texte juridique n'existe pas — le dépôt livre des titres et des repères, jamais
+une clause. Les migrations n'ont pas été rejouées avec `0013`, aucun achat réussi n'a été joué
+dans un navigateur, et le banc E2E n'a pas été relancé sur cette branche.
+
+**Portée** : `apps/api/src/routes/shop.ts`, `apps/api/src/services/stripe-payments.ts`,
+`apps/api/src/env.ts`, `packages/shared/src/payments.ts`, `packages/spec/src/shop.spec.ts`,
+`packages/spec/src/helpers/fake-payment-provider.ts`, `apps/web/src/lib/shop.ts`,
+`apps/web/src/content/boutique.ts`, `apps/web/src/content/legal.ts`,
+`apps/web/src/components/legal/legal-document.tsx`,
+`apps/web/src/routes/{cgv,confidentialite,mentions-legales}.tsx`,
+`apps/web/src/routes/boutique.index.tsx`, `apps/web/src/components/layout/{app-shell,nav-items}.ts`,
+`apps/web/src/routeTree.gen.ts`, `.env.example`, `.docs/01-architecture.md` §2.8,
+`.docs/05-deploiement.md` §7 et ce fichier. Aucune migration, aucun changement de schéma.
+
+---
+
 # Phase A (suite) — Les sept bloçants de pré-déploiement
 
 ## Statut

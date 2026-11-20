@@ -20,6 +20,13 @@ export interface PurchaseCompletedEvent {
   readonly packKey: PackKey;
   readonly amountTotal: number | null;
   readonly currency: string | null;
+  /**
+   * `session.payment_status` du prestataire. Seul `'paid'` autorise un crédit :
+   * un `checkout.session.completed` peut arriver avec un paiement encore en
+   * attente (moyen de paiement différé), et créditer d'avance reviendrait à
+   * donner des écus sans encaissement.
+   */
+  readonly paymentStatus: string | null;
 }
 
 export interface PurchaseRefundedEvent {
@@ -46,6 +53,24 @@ export class ShopDisabledError extends Error {
   constructor(message = 'La boutique est désactivée : aucune clé de paiement configurée.') {
     super(message);
     this.name = 'ShopDisabledError';
+  }
+}
+
+/**
+ * Panne du prestataire de paiement (clé révoquée, `price_…` inexistant, devise
+ * incompatible). Ce n'est ni une faute du joueur ni une erreur du serveur : la
+ * route répond `502 SHOP_PROVIDER_ERROR`. Le message ne porte jamais la clé
+ * secrète, seulement le code et le type rendus par le prestataire.
+ */
+export class ShopProviderError extends Error {
+  readonly providerCode: string | null;
+  readonly providerType: string | null;
+
+  constructor(providerCode: string | null = null, providerType: string | null = null) {
+    super('Le prestataire de paiement a refusé la demande. Réessayez plus tard.');
+    this.name = 'ShopProviderError';
+    this.providerCode = providerCode;
+    this.providerType = providerType;
   }
 }
 

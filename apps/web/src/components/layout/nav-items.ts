@@ -113,6 +113,9 @@ const SALON_TITLES: Record<string, string> = {
   '/assemblage': "L'Assemblage",
   '/boutique': 'La Boutique',
   '/boutique/succes': 'La Boutique',
+  '/cgv': 'Conditions de vente',
+  '/mentions-legales': 'Mentions légales',
+  '/confidentialite': 'Confidentialité',
   '/login': 'Le Seuil',
   '/register': 'Le Seuil',
 };

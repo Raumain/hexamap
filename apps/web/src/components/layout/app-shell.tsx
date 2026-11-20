@@ -1,5 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { LEGAL_LINKS } from '../../content/legal';
 import { CURRENCY, priceLabel } from '../../content/market';
 import { useSession } from '../../lib/session';
 import { BottomTabBar } from './bottom-tab-bar';
@@ -61,7 +62,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <footer className="gutter-safe mx-auto w-full max-w-[1600px] pb-28 md:pb-10">
           <div className="brass-rule opacity-25" />
-          <p className="mt-4 font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/50">
+          <nav
+            className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2"
+            aria-label="Informations légales"
+          >
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/60 transition-colors duration-150 hover:text-brass"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/50">
             Hexamap · Cabinet de cartographie · {year}
           </p>
         </footer>
