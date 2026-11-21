@@ -5,6 +5,92 @@
 
 ---
 
+# La page de suivi d'import s'en va
+
+## Statut
+
+- **Phase** : hors phase numérotée — retrait de la page web `/import-status`
+- **État** : code terminé, `ci:check` vert (**341 specs, 18 fichiers, 0 échec**), `build` vert,
+  banc E2E rejoué **68 passés, 0 ignoré, 0 échec, 0 flaky**
+- **Priorité** : P3
+- **Mis à jour** : 2026-11-21
+- **Branche** : `feat/planche-compatibilite`
+- **Livraison** : rien de commité
+
+## Objectif
+
+La salle « Les Archives » était un panneau de suivi d'import qui se déclarait lui-même
+« Outil de développement — cette page peut être supprimée une fois l'import terminé ». Le
+référentiel est importé depuis longtemps : plus personne ne l'ouvre, et pour lire un
+`status.json` elle imposait une session, un écran et une entrée de navigation. La décision est
+donc **page web seulement** : l'écran disparaît, l'API et son statut restent — un outil
+d'exploitation n'a pas besoin d'une salle.
+
+## Ce qui a changé
+
+- `apps/web/src/routes/import-status.tsx` — supprimé.
+- `apps/web/src/components/layout/nav-items.ts` — `/import-status` quitte `SalonPath`,
+  `SECONDARY_NAV` et `SALON_TITLES`. `isNavItemActive` n'avait aucune branche dessus.
+- `apps/web/src/routeTree.gen.ts` — régénéré par `tsr generate`, jamais édité à la main :
+  plus aucune occurrence de `/import-status`.
+- `packages/e2e/tests/mobile.spec.ts` — `SECONDARY_LABELS` ne contient plus « Les Archives » ;
+  le docblock et le commentaire de la section 9 ne citent plus la salle ni `DESIGN_SYSTEM.md`
+  §9.1. La boucle de visibilité des salles secondaires est intacte, aucune assertion retirée.
+- `DESIGN_SYSTEM.md` — ligne de salle du tableau §2, section « 8.6 Les Archives » supprimée
+  avec renumérotation (`8.7` → `8.6` Le Cartel, `8.8` → `8.7` Les Amis, `8.9` → `8.8` La
+  Vitrine, renvois internes compris), §9.1 (entrées secondaires), §9.2 (« les entrées de
+  `SECONDARY_NAV` à `min-h-[44px]` », sans inventaire ni nombre) et ordre de livraison.
+- `.docs/01-architecture.md` §4.9 — la liste des salles nommées perd « Les Archives ». La
+  règle §4.1 sur `/api/v1/import-status` et la preuve de compression §6.1 sont **inchangées**.
+- `scripts/bootstrap.sh` — les deux `echo` qui annonçaient `http://localhost:5174/import-status`
+  sont supprimés ; `rm -f /data/import-status/status.json` reste, l'import écrit toujours son
+  statut.
+- `apps/web/src/components/ui/cards/detailed-plate.tsx` et `apps/web/src/styles.css` — deux
+  commentaires renvoyaient au Cartel en `§8.7` : ils suivent la renumérotation en `§8.6`.
+
+## Ce qui reste
+
+- `apps/api/src/routes/import-status.ts`, son montage dans `apps/api/src/app.ts`,
+  `IMPORT_STATUS_DIR` dans `apps/api/src/env.ts`, le cas `401` de
+  `packages/spec/src/compression.spec.ts`, le volume `importstatus` et `scripts/import/**` :
+  **conservés sur décision explicite**. `GET /api/v1/import-status` exige toujours une session,
+  donc le statut reste lisible par un outil d'exploitation.
+- `apps/web/src/lib/import-status.ts` est **conservé sur disque** et n'a plus d'importateur.
+  C'est assumé : le fichier n'est plus mort par oubli, il l'est par choix.
+
+## Vérification
+
+Tout dans Docker, jamais sur l'hôte.
+
+```
+docker compose --profile tools run --rm dev bun run --cwd apps/web generate
+  $ tsr generate — routeTree.gen.ts sans aucune occurrence de /import-status
+
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint  ✓ 2/4 Typecheck  ✓ 3/4 Base de données  ✓ 4/4 Spécifications
+  341 pass, 0 fail, 1971 expect() calls, Ran 341 tests across 18 files [18.35s]
+
+docker compose --profile tools run --rm dev bun run build
+  ✓ built in 1.84s — index-QD7SRDzo.js 465.63 kB bruts / 140.73 kB gzip,
+  62 entrées de précache
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test \
+  tests/mobile.spec.ts --project="Pixel 7" --project="iPhone 13"
+  40 passed (1.6m) — 0 ignoré, 0 échec
+
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  68 passed (2.3m) — 0 ignoré, 0 échec, 0 flaky
+```
+
+Deux retouches de **commentaire seulement** (`detailed-plate.tsx`, `styles.css`) sont arrivées
+après la construction de l'image E2E : `ci:check` et `build` ont donc été rejoués après elles,
+le banc E2E non — un commentaire ne change aucun comportement observable. Les greps de contrôle
+sont vides : `Archives|import-status` dans `DESIGN_SYSTEM.md`, `Les Archives` dans
+`.docs/01-architecture.md`, `import-status` dans `nav-items.ts` et `routeTree.gen.ts`.
+
+---
+
 # Le tri par compatibilité — le tiroir range ses cartes
 
 ## Statut

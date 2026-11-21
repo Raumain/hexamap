@@ -260,7 +260,7 @@
     background: radial-gradient(120% 70% at 50% -20%, rgb(255 246 214 / 0.16), transparent 62%);
   }
 
-  /* Cône de lumière d'une planche exposée hors carton (Le Cartel, §8.7). */
+  /* Cône de lumière d'une planche exposée hors carton (Le Cartel, §8.6). */
   .light-cone {
     background: radial-gradient(120% 70% at 50% -10%, rgb(255 246 214 / 0.12), transparent 62%);
   }

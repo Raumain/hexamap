@@ -56,7 +56,6 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/friends` | **Les Amis** | Ajouter des joueurs, accepter les demandes, tenir son cercle. |
 | `/market` | **Le Comptoir** | Parcourir les lots mis en vente, acheter. |
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
-| `/import-status` | **Les Archives** | Suivre l'entrée des fonds cartographiques. |
 | `/card/$cardId` | **Le Cartel** | Lire la fiche complète d'une planche : cartel, lieu, réserves, mise à l'offre. |
 | `/players/$playerId` | **La Vitrine** | Lire la fiche publique d'un joueur : complétude, meilleur tableau, médailles, annonces, amis. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
@@ -268,7 +267,7 @@ article.exhibit                 ← le carton de montage (métal de rareté)
   On ne duplique donc pas un « petit » et un « grand » gabarit : la collection, le marché,
   les emplacements et le chapiteau du Relevé rendent exactement le même objet.
 - **Deux compositions, un seul vocabulaire.** Les listes rendent la planche fluide décrite
-  ci-dessus. Le Cartel (§8.7) rend une **composition distincte**,
+  ci-dessus. Le Cartel (§8.6) rend une **composition distincte**,
   `apps/web/src/components/ui/cards/detailed-plate.tsx` — et non une planche agrandie : quatre
   zones réservées (en-tête, bande de gravure, cartouche blason + lecture, pied). La raison est
   mécanique : le blason et la gravure ne doivent **jamais** partager la même surface. Le
@@ -461,12 +460,7 @@ Un **catalogue de vente**, pas une boutique.
 - Bouton primaire pleine largeur, laiton. Lien secondaire en `ink-soft` souligné.
 - Aucune carte flottante générique, aucun logo centré, aucun dégradé violet.
 
-### 8.6 Les Archives — `/import-status`
-
-Un **panneau technique** : jauges de laiton (barres segmentées), compteurs mono, journal
-en lignes. Sobre, presque militaire, mais sur le même fond.
-
-### 8.7 Le Cartel — `/card/$cardId`
+### 8.6 Le Cartel — `/card/$cardId`
 
 La **fiche d'une planche**, atteinte depuis n'importe quelle vignette (Le Cadastre, Le
 Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
@@ -494,7 +488,7 @@ Comptoir, Mes Offres, La Planche). Deux colonnes à partir de `lg`.
 - Téléphone : une seule colonne, montage en premier, cibles tactiles de 44 px, chiffres
   tabulaires, aucun défilement horizontal.
 
-### 8.8 Les Amis — `/friends`
+### 8.7 Les Amis — `/friends`
 
 Le **cercle du joueur** : une seule salle pour ajouter, accepter et retenir ses amis.
 
@@ -516,7 +510,7 @@ Le **cercle du joueur** : une seule salle pour ajouter, accepter et retenir ses 
   à 390 px. La salle s'atteint par le rail, ou sur téléphone par la barre basse puis la
   feuille « Plus ».
 
-### 8.9 La Vitrine — `/players/$playerId`
+### 8.8 La Vitrine — `/players/$playerId`
 
 La **fiche publique d'un joueur**, en deux colonnes à partir de `lg`, une seule requête
 serveur et aucun recalcul : pseudo, ancienneté, biographie en vélin, complétude en quatre
@@ -539,8 +533,7 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   **Le Relevé** `/`, **Le Cadastre** `/collection`, **La Planche** `/tableau`,
   **Le Comptoir** `/market`.
 - Entrées secondaires, plus petites, séparées par un filet :
-  **Les Planches** `/tableaux`, **Les Amis** `/friends`, **Mes Offres** `/market/mine`,
-  **Les Archives** `/import-status` (si l'utilisateur y a droit).
+  **Les Planches** `/tableaux`, **Les Amis** `/friends`, **Mes Offres** `/market/mine`.
 - État actif : fond `cabinet`, filet gauche de laiton de 2 px, libellé en `vellum`.
   `aria-current="page"`.
 - En bas : la **bourse** (pièce de laiton + « 1 250 écus » en mono) et l'**usager**
@@ -558,8 +551,7 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   le dernier onglet ne doivent pas passer sous la découpe.
 - **La feuille des salles secondaires** s'ouvre depuis `Plus` : `role="dialog"`,
   `aria-modal="true"`, recouvre la barre, `rounded-t-panel`, `bg-cabinet-raised`, poignée,
-  titre « Autres salles », les quatre entrées de `SECONDARY_NAV` (**Les Planches**,
-  **Les Amis**, **Mes Offres**, **Les Archives**) à `min-h-[44px]`,
+  titre « Autres salles », les entrées de `SECONDARY_NAV` à `min-h-[44px]`,
   `aria-current="page"` sur la salle courante seulement. Fermeture par Échap, par le voile
   et par le bouton ; le focus revient au contrôle.
 - **Le contrôle `Plus` n'apparaît qu'avec une session ouverte**, comme le bloc de
@@ -688,7 +680,7 @@ Les titres de salle sont des noms, pas des verbes. « Le Cadastre », pas « Ma 
 | `apps/web/src/routes/*` | les salles |
 
 Ordre de livraison : jetons et polices → coquille → planches → Le Relevé → Le Cadastre →
-La Planche → Le Comptoir → Le Seuil → Les Archives.
+La Planche → Le Comptoir → Le Seuil.
 
 ---
 
