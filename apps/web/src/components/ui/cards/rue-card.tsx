@@ -67,10 +67,10 @@ export function RueCard({
         {fragment}
 
         <header className="relative flex items-start justify-between gap-[3%]">
-          <span className="font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
+          <span className="plate-optional font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
             {CATEGORY_META.RUE.label}
           </span>
-          <span className="font-mono text-[clamp(7px,3cqi,9px)] uppercase tracking-[0.1em] text-ink-faint">
+          <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] uppercase tracking-[0.1em] text-ink-faint">
             Spécimen
           </span>
         </header>

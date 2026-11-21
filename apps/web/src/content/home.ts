@@ -13,12 +13,40 @@ export const HOME_PAGE = {
   primaryCta: 'Ouvrir le cabinet',
   secondaryCta: 'Découvrir la Boutique',
   heroCaption:
-    'Gratuit. Aucune installation. Le tirage, la Pépite et les récompenses sont décidés par le serveur, jamais par le navigateur.',
+    'Astuce : depuis votre téléphone, « Ajouter à l’écran d’accueil » pose le cabinet près de vos autres applications — il s’ouvre ensuite d’un seul appui, en plein écran.',
   heroPlates: [
-    { type: 'REGION', rarity: 'MYTHIQUE', name: 'Bretagne', score: 3500, refCode: '53' },
-    { type: 'DEPARTEMENT', rarity: 'EPIQUE', name: 'Finistère', score: 1250, refCode: '29' },
-    { type: 'COMMUNE', rarity: 'LEGENDAIRE', name: 'Quimper', score: 2450, refCode: '29232' },
-    { type: 'RUE', rarity: 'RARE', name: 'Rue des Écoles', score: 1000, refCode: '—' },
+    {
+      type: 'REGION',
+      rarity: 'MYTHIQUE',
+      name: 'Bretagne',
+      score: 3500,
+      refCode: '53',
+      blasonUrl: '/blasons/regions/53.svg',
+    },
+    {
+      type: 'DEPARTEMENT',
+      rarity: 'EPIQUE',
+      name: 'Finistère',
+      score: 1250,
+      refCode: '29',
+      blasonUrl: '/blasons/departements/29.svg',
+    },
+    {
+      type: 'COMMUNE',
+      rarity: 'LEGENDAIRE',
+      name: 'Quimper',
+      score: 2450,
+      refCode: '29232',
+      blasonUrl: '/blasons/communes/29232.svg',
+    },
+    {
+      type: 'RUE',
+      rarity: 'RARE',
+      name: 'Rue des Écoles',
+      score: 1000,
+      refCode: '—',
+      blasonUrl: null,
+    },
   ],
 
   gestureEyebrow: 'Salle I · Le Relevé',
@@ -76,7 +104,7 @@ export const HOME_PAGE = {
   synergyEyebrow: 'Salle III · La Planche',
   synergyTitle: 'Quatre cartes, un seul territoire',
   synergyBody:
-    'Un tableau expose une région, un département, une commune et une rue. Chaque lien géographique réel est vérifié par le serveur, puis multiplie le total.',
+    'Un tableau expose une région, un département, une commune et une rue. Chaque lien géographique réel est vérifié, puis multiplie le total.',
   synergyLinks: [
     'La région contient le département',
     'Le département contient la commune',
@@ -89,7 +117,7 @@ export const HOME_PAGE = {
     { links: '3 liens', value: '×5,0' },
   ],
   synergyNote:
-    'Aucun multiplicateur n’est calculé dans le navigateur : l’alignement vient du serveur, à la lecture comme à la soumission.',
+    'Chaque lien est vérifié sur la géographie réelle : une rue n’est comptée que si la commune la possède vraiment.',
 
   metalsEyebrow: 'Le barème · Les six métaux',
   metalsTitle: 'Six métaux, six raretés',

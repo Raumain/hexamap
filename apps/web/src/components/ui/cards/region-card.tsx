@@ -2,6 +2,7 @@ import type { Rarity } from '@hexamap/shared';
 import { CATEGORY_META } from '../../../lib/category-theme';
 import { RARITY_THEME } from '../../../lib/rarity-theme';
 import { RaritySeal } from '../rarity-seal';
+import { CardBlason } from './card-blason';
 import { cardShellProps, formatNumber } from './card-shell';
 
 export interface RegionCardProps {
@@ -69,21 +70,18 @@ export function RegionCard({
         {art}
 
         <header className="relative flex items-start justify-between gap-[3%]">
-          <span className="font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
+          <span className="plate-optional font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
             {CATEGORY_META.REGION.label}
           </span>
-          {blasonUrl ? (
-            <img
-              src={blasonUrl}
-              alt=""
-              title={blasonCredit ?? undefined}
-              className="h-[clamp(18px,18cqi,44px)] w-[clamp(18px,18cqi,44px)] object-contain opacity-90 mix-blend-multiply"
-            />
-          ) : (
-            <span className="font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.1em] text-ink-faint">
-              {refCode}
-            </span>
-          )}
+          <CardBlason
+            url={blasonUrl}
+            credit={blasonCredit}
+            fallback={
+              <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.1em] text-ink-faint">
+                {refCode}
+              </span>
+            }
+          />
         </header>
 
         <div className="relative mt-auto">

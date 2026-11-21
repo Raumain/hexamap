@@ -113,6 +113,7 @@ function Hero() {
                 name={plate.name}
                 score={plate.score}
                 refCode={plate.refCode}
+                blasonUrl={plate.blasonUrl}
                 className="w-full"
               />
             </div>
@@ -170,6 +171,7 @@ function Categories() {
                   name={plate.name}
                   score={plate.score}
                   refCode={plate.refCode}
+                  blasonUrl={plate.blasonUrl}
                   className="w-full"
                 />
               </div>
