@@ -99,8 +99,10 @@ Règles d'implémentation (Phase 8) :
 
 - Toutes les règles ci-dessus vivent dans `packages/shared/src/tableau.ts` (`evaluateTableauAlignment`, `evaluateTableau`, `rueExistsInCommune`) et `scoring.ts` (`tableauScore`, `alignmentMultiplier`). Le serveur et le client importent les mêmes fonctions ; aucune formule n'est dupliquée.
 - Le score d'un tableau n'est **pas stocké** : il est recalculé à la lecture et à la soumission à partir des `user_cards.score`. Une évolution vers un score figé devrait passer par `.docs/02-database.md`.
-- Les cartes d'un tableau ne passent **pas** à `locked = true` : `locked` reste réservé à la vente. La soumission exige en revanche `locked = false` et refuse (`409`) une carte déjà engagée dans un autre tableau du même joueur.
+- Les cartes d'un tableau ne passent **pas** à `locked = true` : `locked` reste réservé à la vente. La soumission exige en revanche `locked = false` et refuse (`403 CARD_NOT_OWNED`) une carte verrouillée. **Une carte peut en revanche appartenir à autant de tableaux que le joueur le souhaite, sans aucune limite** : aucune exclusivité n'est vérifiée, et rejouer la même soumission crée un tableau de plus. Une carte est un **objet de collection**, pas un pion : l'exclusivité aurait obligé le joueur à détruire un tableau pour en composer un autre, alors que le score est recalculé à la lecture et qu'aucune règle ne dépend de l'unicité d'appartenance. Seul le marché conserve son exclusivité — une carte ne peut être dans qu'une seule annonce ouverte.
 - Une carte ne peut occuper que l'emplacement de sa catégorie (`slotMatchesCategory`).
+- **Le tiroir de sélection trie par compatibilité, sans jamais cacher.** `GET /api/v1/tableaux/candidates` reçoit l'emplacement visé et les cartes déjà choisies, et rend `{ slot, considered, cardIds }`. L'identifiant fourni pour l'emplacement visé est **ignoré** : le tiroir sert aussi à *remplacer* une carte, et cette carte ne doit pas se contraindre elle-même. `TABLEAU_CANDIDATE_LINKS` est la seule table qui dise quels liens une carte candidate peut valider — un lien n'existe qu'entre voisins —, et `hasConstrainingSelection` décide s'il y a matière à comparer : sans extrémité choisie, `considered = false`, aucune pastille, ordre naturel. Les cartes non compatibles restent **toutes** listées, après les compatibles (`rankCardsByCompatibility`, tri stable, entrée jamais mutée) : le joueur garde le droit de poser une carte hors-zone. L'endpoint décrit la **compatibilité**, pas l'éligibilité : le tiroir ne filtre que `locked` et la catégorie de l'emplacement (`slotMatchesCategory`). Aucune exclusivité n'y est vérifiée — une carte peut appartenir à plusieurs tableaux —, donc une carte déjà posée reste listée, sans badge « déjà placée ailleurs ».
+- **La rue est le seul cas que le navigateur ne peut pas trancher.** `user_cards.ref_code` d'une rue porte l'identifiant d'odonyme, et « la rue existe dans la commune » est une jointure `commune_odonymes` que le client ne possède pas : la réponse vient du serveur, jamais d'une heuristique de nom. Quand la commune choisie ne contient aucun des odonymes possédés, le tiroir l'écrit (« Aucune carte compatible avec votre sélection ») au lieu de laisser croire que le tri n'a pas eu lieu — c'est le seul emplacement où une carte du joueur peut n'avoir aucun équivalent pour une sélection donnée.
 
 ### 2.6 Ticket à gratter « Le Relevé Topographique »
 
@@ -243,6 +245,16 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - **Le navigateur ne parle qu'à l'origine du web.** Le client Eden est initialisé sur `window.location.origin` (`treaty(window.location.origin)`) : les requêtes partent vers `<origine>/api/...`, donc sur le même host et le même port que le front, quelle que soit l'adresse d'accès (localhost ou IP LAN). **Ne jamais passer une chaîne vide** : Eden la préfixe par `https://` et produit `https://api/v1/health`, où `api` devient le nom de domaine. En dev, **Vite relaye `/api` vers l'API Docker** (`server.proxy` → `API_INTERNAL_URL`, par défaut `http://api:3000`). Aucune URL absolue `localhost:3000` ne doit fuiter côté navigateur. En production, il n'y a plus de proxy : **l'API sert elle-même le SPA** sur la même origine, donc `/api/...` reste un chemin relatif au même host et au même port (voir §6.1).
 - Les composants sont en français, accessibles (rôles, labels, `aria-live`), et stylés avec Tailwind.
 - Les libellés réutilisables sont centralisés dans `apps/web/src/content/`. Pas de dépendance i18n.
+- **Une requête de session en échec n'est pas une déconnexion.** `useSessionState()` distingue
+  `loading` / `anonymous` / `authenticated` / `unavailable` ; seule une réponse **aboutie** sans
+  utilisateur redirige vers Le Seuil. Dès la première tentative échouée, TanStack expose
+  `status: 'error'` avec `data` vide pendant que les retries tournent : un garde qui teste
+  `!data?.user` éjecte un joueur authentifié. Le panneau `SessionUnavailable` propose de
+  réessayer, et la coquille (`sidebar.tsx`, `bottom-tab-bar.tsx`) applique la même règle pour
+  ses salles secondaires. Le corollaire est côté serveur : une lecture de session refusée en
+  `429` produit exactement la même panne, donc `auth.ts` relève le plafond de `/get-session`
+  (défaut de Better Auth : 100 par fenêtre et par IP, atteint par un NAT partagé) au lieu de
+  laisser un joueur authentifié être éjecté par le limiteur.
 
 ### 4.6 Règle stricte du Canvas
 
@@ -298,6 +310,14 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
   adresses DNS pour la même origine enverraient des requêtes HTTP nues sur une origine `https`.
   `encode` reste désactivé dans le `Caddyfile` : la compression mesurée doit rester celle de
   l'API.
+- **Fixtures du banc.** Le référentiel E2E porte désormais des blasons — `scripts/import` remplit
+  `blason_url` sur les régions, départements et communes `E2E`, et les fichiers SVG vivent dans
+  `packages/e2e/fixtures/blasons`, monté en lecture seule sur `/data/blasons` du service `api`.
+  Une annonce de marché appartenant à un second compte est créée par
+  `packages/e2e/fixtures/market-fixture.ts`, exécutée par le service `seed` après le référentiel :
+  `global-setup.ts` n'inscrit qu'un joueur, et sans vendeur étranger le double-appui du Comptoir
+  n'avait rien à acquérir. Les deux fixtures sont idempotentes — suppression ciblée puis
+  insertion —, comme le seed, et aucune donnée de jeu n'est écrite depuis `scripts/import`.
 
 ### 4.9 Design system : jetons, métaux, planches, coquille
 

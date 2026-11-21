@@ -5,6 +5,372 @@
 
 ---
 
+# Le tri par compatibilité — le tiroir range ses cartes
+
+## Statut
+
+- **Phase** : hors phase numérotée — tri par compatibilité du tiroir de sélection
+- **État** : code terminé, `ci:check` vert (**341 specs, 18 fichiers, 0 échec**), `build` vert ;
+  une troisième passe du banc avait révélé un **flaky** (deux exemplaires du même `ref_code` dans
+  le tiroir), corrigé : la fixture passe désormais en dernier et les clics visent `.first()`. Le
+  cas est rejoué **6/6** en `--repeat-each=6`, puis **deux passes complètes consécutives** à
+  **68 passés, 0 ignoré, 0 échec, 0 flaky**
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-21
+- **Branche** : `feat/planche-compatibilite`, partie de `feat/planche-musee` (elle-même hors
+  `main`, pour ne pas déclencher de déploiement)
+- **Livraison** : rien de commité
+
+## Objectif
+
+Composer une planche demandait de fouiller sa collection à l'aveugle : le tiroir listait les
+cartes éligibles dans l'ordre d'acquisition, sans dire lesquelles s'aligneraient avec ce qui
+était déjà posé. Choisir la région « Mayotte » puis ouvrir l'emplacement « Département »
+n'aidait en rien à trouver Mayotte. Le tiroir trie désormais les **compatibles en tête** et les
+marque, sans jamais masquer les autres.
+
+## Étapes
+
+### 1. Le contrat — deux tables et deux fonctions pures
+- [x] `packages/shared/src/tableau.ts` : `TABLEAU_LINK_SLOTS` (quel lien relie quels deux
+      emplacements), `TABLEAU_CANDIDATE_LINKS` (quels liens une carte candidate peut valider,
+      par emplacement visé).
+- [x] `hasConstrainingSelection(slot, filled)` : le tri n'a de sens que si l'**autre** extrémité
+      d'un lien est choisie — sans cette exclusion, `REGION` se contraindrait elle-même.
+- [x] `rankCardsByCompatibility(cards, compatibleIds)` : deux passes, tri stable, entrée jamais
+      mutée.
+
+### 2. Le serveur — `GET /api/v1/tableaux/candidates`
+- [x] `apps/api/src/routes/tableaux.ts` : `{ slot, considered, cardIds }`, schéma `response`
+      TypeBox obligatoire, `401`/`403`/`400` en `errorSchema`.
+- [x] L'identifiant de l'emplacement visé est **ignoré** (remplacement d'une carte posée).
+- [x] Court-circuit `considered: false` **avant** toute requête au référentiel.
+- [x] Les six contraintes du tableau ci-dessous, cumulatives (`DEPARTEMENT`, `COMMUNE`).
+- [x] `locked` volontairement non filtré : l'endpoint décrit la compatibilité, pas l'éligibilité.
+
+### 3. Le tiroir
+- [x] `apps/web/src/lib/tableaux.ts` : `tableauCandidatesQueryKey`, `fetchTableauCandidates`,
+      `tableauCandidatesQueryOptions` — `enabled` tant que le tiroir est ouvert **et** qu'une
+      extrémité contraignante est choisie, donc aucune requête inutile.
+- [x] `apps/web/src/routes/tableau.tsx` : `ranked` remplace `eligible` devant le virtualiseur
+      (`count`, `getItemKey`, rendu, compteur, liste vide) ; `NO_COMPATIBLE_IDS` stable pour ne
+      pas relancer les `useMemo` du tiroir.
+- [x] `apps/web/src/content/tableau.ts` : `compatible`, `compatibilitySort`,
+      `compatibilityNone`, et `compatibilityReason(slot, filled)` qui ne cite que les liens
+      réellement contraignants.
+- [x] La pastille vit sur la ligne d'identité existante : la hauteur de ligne ne change pas,
+      donc `DRAWER_ROW_ESTIMATE` (86) reste juste.
+
+### 4. Mémoire
+- [x] `.docs/01-architecture.md` §2.5.
+- [x] Ce fichier.
+
+## Contrat des contraintes
+
+| Emplacement visé | Extrémité choisie | Contrainte |
+| :--- | :--- | :--- |
+| `REGION` | `DEPARTEMENT` | `ref_code = departementRegionCode` |
+| `DEPARTEMENT` | `REGION` | `ref_code` ∈ départements dont `code_region = regionCode` |
+| `DEPARTEMENT` | `COMMUNE` | `ref_code = communeDepartementCode` |
+| `COMMUNE` | `DEPARTEMENT` | `ref_code` ∈ communes dont `code_departement = departementCode` |
+| `COMMUNE` | `RUE` | ∃ ligne `commune_odonymes` (code_insee = `ref_code`, odonyme = rue) |
+| `RUE` | `COMMUNE` | ∃ ligne `commune_odonymes` (code_insee = commune, odonyme = `ref_code`) |
+
+Une donnée de référence absente rend la liste **vide**, jamais un faux positif, et
+`considered` reste `true` : on ne peut pas comparer, ce n'est pas la même chose que « rien à
+comparer ».
+
+## Critères d'acceptation
+
+1. [x] Poser la région « Mayotte » puis ouvrir l'emplacement Département place ses départements
+       en tête, avec la pastille « Compatible » ; les autres départements restent listés.
+2. [x] Aucune pastille et aucun tri quand aucune extrémité d'un lien n'est choisie
+       (`considered: false`) : la région seule ne classe ni les communes ni les rues.
+3. [x] Une rue n'est compatible que si son odonyme existe réellement dans la commune choisie
+       (`commune_odonymes`), jamais sur une ressemblance de nom.
+4. [x] `GET /tableaux/candidates` exige une session (`401`), ne renvoie que les cartes du
+       demandeur, et répond `403 CARD_NOT_OWNED` pour une carte étrangère.
+5. [x] L'identifiant de l'emplacement visé est ignoré : remplacer une carte ne la contraint pas
+       par elle-même.
+6. [x] Aucun changement de schéma, aucune migration, aucune dépendance nouvelle.
+7. [x] `ci:check` vert ; `build` vert.
+8. [x] Banc E2E rejoué sur cette branche : deux passes consécutives à **68 passés, 0 ignoré,
+       0 échec, 0 flaky**, dont le cas navigateur du tiroir (`tests/tableau.spec.ts`).
+
+## Journal
+
+### 2026-11-21 — Le tiroir est enfin regardé jouer
+
+**Ce que la règle 10 d'`AGENTS.md` reprochait.** Le tri par compatibilité était prouvé par
+neuf cas d'intégration serveur et **jamais vu tourner** : le bandeau, la pastille et l'ordre
+n'existaient que dans l'attendu d'un `bun:test`. Un cas navigateur manquait, et il ne pouvait
+pas exister sans garantie de données : `global-setup.ts` gratte jusqu'à huit tickets et le
+compte de démonstration ne possédait pas toujours une région ni un département (observé :
+`["COMMUNE","RUE"]`).
+
+**Ce que la fixture ajoute, et pourquoi une contre-épreuve.** `packages/e2e/fixtures/tableau-fixture.ts`
+(`ensureComboCards`) insère `E2E-R1` → `E2E-D1` → `E2E-C-RARE-0` et l'odonyme réellement
+rattaché à cette commune, lu par `nom_normalise` (`e2e-rue-inhabituelle-0` rendu exactement
+par le seed en minuscules) et **prouvé** par une requête sur `commune_odonymes` avant
+l'insertion — un combo invalide échoue bruyamment. Deux cartes **hors-zone** l'accompagnent
+(`E2E-D2`, `e2e-rue-commune-0`) : sans elles, retirer le tri aurait pu passer par hasard,
+simplement parce que le compte ne possédait aucune carte non compatible. Elles portent
+`acquired_at` à dix minutes dans le futur, puisque `GET /cards` trie par `acquired_at desc` :
+ce sont donc elles, et non le combo, qui occupent la tête sans tri.
+
+**Ce que le cas a réellement mesuré, rouge d'abord.** En remplaçant `ranked` par `eligible`
+dans `apps/web/src/routes/tableau.tsx`, image du banc reconstruite, le cas rend :
+`Locator: getByRole('dialog').locator('button[data-index="0"]')` — `Expected substring:
+"Département E2E A"` / `Received string: "E2E-D2Département E2E BDépartement · E2E-D2R750"`.
+La contre-épreuve occupe la première ligne et **aucune pastille** n'apparaît. Code rétabli,
+`sha1sum` du fichier identique à l'octet près (`47a8190…`), le même cas passe en 1,8 s.
+
+**Ce que le cas asserte.** Sur `/tableau` : la région seule n'affiche **pas** le bandeau
+(`considered: false`, aucune extrémité de lien choisie) ; après avoir posé la région, ouvrir le
+département montre « Triées par compatibilité », `Département E2E A` en première ligne avec la
+pastille, et `Département E2E B` toujours listé plus bas — le tiroir trie, il ne filtre pas.
+La commune est choisie via la recherche (la liste des communes est longuement virtualisée),
+puis la rue : le bandeau, la pastille en première ligne, puis la recherche qui borne la liste à
+`Rue E2E INHABITUELLE 0` et confirme la pastille — c'est la preuve, dans le navigateur, que la
+jointure `commune_odonymes` fonctionne : le compte peut posséder d'autres odonymes compatibles,
+donc l'index 0 seul ne nommerait pas la bonne rue. Une capture (`tiroir-compatible`) est jointe.
+
+**Ce qui n'a pas bougé.** Aucun fichier de `packages/spec`, aucune migration, aucun contrat
+d'API, aucune dépendance nouvelle. `docker-compose.e2e.yml` ne gagne qu'un `DATABASE_URL` sur le
+service `playwright` (le conteneur est déjà sur le réseau `e2e`), et `global-setup.ts` appelle
+la fixture **après** `register` : le combo existe avant que les specs démarrent.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint  ✓ 2/4 Typecheck  ✓ 3/4 Base de données  ✓ 4/4 Spécifications
+  341 pass, 0 fail, 18 fichiers
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright   # 68 passed (2.2m)
+docker compose -f docker-compose.e2e.yml run --rm playwright   # 68 passed (2.2m)
+```
+
+**Ce que la troisième passe a trouvé — et pourquoi deux passes vertes ne prouvaient rien.**
+La troisième passe complète a rendu `67 passed, 1 failed` sur ce même cas, en
+`strict mode violation` : `getByRole('dialog').getByRole('button', { name: /Commune E2E RARE 0/ })`
+résolvait **deux** lignes, `[data-index="0"]` et `[data-index="1"]`, portant le même nom et le
+même `ref_code` mais des scores différents (200 et 750) — donc une carte venue d'un ticket et une
+venue de la fixture. Le mécanisme est une course d'ordre : `ensureComboCards` jouait **avant**
+`collectCards`, et le grattage peut redonner une carte que la fixture venait d'insérer, parce que
+`user_cards` n'a **aucune unicité sur `ref_code`** — deux tickets peuvent tirer la même commune,
+et le tiroir les liste toutes les deux. Le tirage étant aléatoire, le défaut n'apparaissait
+qu'une fois sur trois : deux passes vertes n'étaient pas une preuve, seulement une absence
+d'observation. Un `retry` ou un timeout élargi auraient masqué le symptôme en laissant la cause.
+
+**Les deux corrections.** La fixture devient le **dernier mot** : `global-setup.ts` l'appelle une
+seconde fois **après** `collectCards` et avant l'écriture de `account.json`. Puisqu'elle supprime
+puis insère par `(user_id, category, ref_code)`, ce second appel déduplique exactement ce que le
+grattage a pu ajouter. Le premier appel est conservé, et pour une raison mécanique : sans lui,
+`collectCards` chercherait une région (8 % par ticket) et un département (17 %) dans un carnet
+qui ne compte que `SCRATCH_CHARGE_CAP = 6` charges ; à zéro charge le bouton « Obtenir un ticket »
+change de nom accessible (`Obtenir un ticket — …`), donc la septième tentative attendrait 30 s et
+ferait échouer la préparation. Et côté cas, tous les locators qui **cliquent** une ligne du
+tiroir visent désormais `.first()` — région et commune —, ainsi que l'assertion « `Département
+E2E B` reste listé », qui porte sur la présence et non sur l'unicité. Ce n'est pas une assertion
+affaiblie : c'est la reconnaissance qu'un joueur peut posséder plusieurs exemplaires d'un lieu,
+ce que `user_cards` autorise explicitement. Les assertions d'identité en première ligne
+(`Département E2E A`, pastille `Compatible`) sont inchangées, elles lisent le texte de
+`button[data-index="0"]`.
+
+**Preuve de stabilité, et non espoir.** Le cas seul, rejoué six fois de suite sur la même pile
+(`--repeat-each=6`), rend **6/6 vert** en 21,5 s : c'est la répétition qui manquait, puisqu'il
+reproduisait le défaut une fois sur trois. Puis deux passes complètes consécutives après
+reformatage, sur l'arbre livré : **68 passés, 0 ignoré, 0 échec, 0 flaky** chacune.
+
+**Portée** : `packages/e2e/fixtures/tableau-fixture.ts` (nouveau),
+`packages/e2e/tests/tableau.spec.ts` (nouveau), `packages/e2e/global-setup.ts`,
+`docker-compose.e2e.yml` et ce fichier. Aucun commit.
+
+### 2026-11-21 — Les quatre cas ignorés passent enfin
+
+**L'état d'avant.** Le banc rendait `66 tests, 62 passed, 4 skipped`, 0 échec : quatre cas
+n'avaient jamais tourné, et un `skip` qui ne s'ouvre pas est un échec déguisé.
+
+**Le marché — le `skip` masquait une assertion morte.** Le cas cherchait un bouton
+« Acquérir » alors que `content/market.ts` disait `buy: 'Acheter'`. Le `skip` se déclenchait donc
+sur l'absence du bouton **et** sur l'absence d'annonce : deux causes empilées dans une seule
+garde, dont la seconde était fausse depuis le début. Livré :
+`packages/e2e/fixtures/market-fixture.ts` (vendeur `e2e-seller`, carte `E2E-C-EPIQUE-0`, annonce
+`OPEN` à 10 écus, `delete` puis `insert` idempotents), enchaînée par le service `seed` après le
+référentiel ; `MARKET.buy` passe à « Acquérir », aligné sur Le Cartel (`card-detail.ts`) et sur
+`DESIGN_SYSTEM.md` §8.5 et son tableau de vocabulaire — un seul mot pour une seule action.
+
+**Le blason du Cartel — le cas visait un tirage au sort.** « La première planche de la
+collection » pouvait être une rue, et une rue n'a jamais de blason : `resolveCardAssets` rend
+`null` pour `RUE`. Le cas ne pouvait donc pas être fiable. `blason_url` et `blason_credit` sont
+ajoutés au référentiel E2E, `packages/e2e/fixtures/blasons/**` est monté en lecture seule sur
+`/data/blasons` du service `api`, et le cas vise désormais une **commune**.
+
+**Le multiplicateur.** Les gardes sont remplacés par des assertions nommées, et `placeCards`
+parcourt les quatre emplacements — il n'en posait qu'un, donc le multiplicateur n'était jamais
+vérifié dans la configuration qu'il décrivait.
+
+**Les reliquats tombés.** `usedElsewhere` du tiroir disparaît : il était inatteignable, puisque
+`eligible` ne garde que la catégorie de l'emplacement, donc aucune autre carte de `selection` ne
+peut porter le même `id`. Le garde `scrollable` de `mobile.spec.ts` devient une assertion. Et il
+ne reste plus **aucun `test.skip`** dans `packages/e2e/tests/`.
+
+**Compteurs** : `67 passed, 0 skipped, 0 failed` à la première passe complète.
+
+### 2026-11-21 — Un flaky révèle un faux délogement, et douze routes cessent de confondre panne et déconnexion
+
+**Le fait.** `[iPhone 13] mobile — gratter au doigt révèle la case` a flanché une fois. La trace
+montre la page rendue : `/login` (Salle VI · Le Seuil), alors que le cookie de session était
+valide. Le joueur n'était pas déconnecté, il était **éjecté**.
+
+**Le mécanisme.** `useSession` est une requête TanStack. À la première tentative échouée,
+`status` passe à `'error'` avec `data === undefined` **pendant que les retries tournent** : donc
+`isPending` vaut `false`, et le garde `if (!session.data?.user) <Navigate to="/login" />` éjecte
+un joueur authentifié. Une erreur de transport n'est pas une déconnexion.
+
+**La correction.** `useSessionState()` à quatre états (`loading` / `anonymous` /
+`authenticated` / `unavailable`), `SessionUnavailable` avec « Réessayer », les **douze** routes
+converties, et la coquille alignée : `sidebar.tsx` et `bottom-tab-bar.tsx` ne déduisent plus
+l'absence de session de `!data?.user`, seule une réponse aboutie sans utilisateur vaut
+« anonyme ». `loading` et `unavailable` ne montent rien, comme avant — mais la décision est
+désormais explicite au lieu d'être un effet de bord.
+
+**Ce que le cas E2E a appris.** Le scénario littéral — une seule lecture avortée — **passe aussi
+avant le correctif**, parce que TanStack garde `status: 'pending'` pendant les retries. Le cas
+n'est discriminant qu'en avortant **les quatre tentatives**, ce qu'il fait, et il instrumente
+`history.pushState`/`replaceState` pour qu'une redirection fugace vers `/login` ne se cache pas
+derrière un retour ultérieur. Rouge avant (`expected visible`, panneau absent), vert après.
+
+**La cause réelle, mesurée et non déduite.** Le flake est revenu à la première passe de contrôle,
+et la trace l'a nommé sans ambiguïté : les **quatre** lectures de session ont été refusées en
+**`429`** (`1-trace.network` : `429` à 17:23:10, 11, 13 et 17, puis succès à la reprise). Le
+limiteur de débit de Better Auth était donc bien le coupable, et le premier relevé qui
+l'innocentait mesurait la mauvaise chose : `rateLimit.count` ne porte que la fenêtre **en cours**,
+donc il affichait `18` (puis `22`) *après* la remise à zéro, jamais le pic. Une rafale de 120
+requêtes sur la route donne `75 × 200` puis `45 × 429`, avec `count` bloqué à `100` : le plafond
+par défaut est **100 par fenêtre et par IP**, et le banc l'atteint — un navigateur seul, non.
+Autrement dit, n'importe quel joueur derrière un NAT partagé pouvait être éjecté pour une raison
+qui n'a rien à voir avec ses identifiants.
+
+**La correction du limiteur.** `apps/api/src/auth.ts` relève le plafond pour la seule route
+`/get-session` (`customRules: { '/get-session': { window: 10, max: 1000 } }`), avec la raison
+écrite sur place. Une lecture de session est un `GET` bon marché, monté à chaque chargement de
+page ; les routes qui gardent les identifiants (connexion, inscription) gardent leurs règles par
+défaut. Aucune assertion n'a été touchée, aucun délai d'attente n'a été ajouté.
+
+**Vérification** : deux passes consécutives du banc complet après correctif rendent
+`67 passed`, `0 failed`, `0 skipped`, `0 flaky` — dont `[iPhone 13] mobile — gratter au doigt
+révèle la case`, le cas qui flanchait.
+
+**Portée** : `.docs/01-architecture.md` §4.5, `apps/api/src/auth.ts`,
+`apps/web/src/lib/session.ts`, `apps/web/src/components/ui/session-unavailable.tsx`,
+`apps/web/src/content/session.ts`, les douze routes,
+`apps/web/src/components/layout/{sidebar,bottom-tab-bar}.tsx` (les deux lisent désormais
+`useSessionState()` : `loading` et `unavailable` ne montent rien, comme avant, mais par décision
+explicite et non par `!data?.user`), `packages/e2e/tests/session.spec.ts`. Aucune migration, aucun
+changement de schéma ni de contrat d'API.
+
+### 2026-11-21 — Une carte n'est plus exclusive à un tableau
+
+**La règle de jeu change, décision du titulaire du produit.** `POST /api/v1/tableaux` refusait
+un `409` d'exclusivité à toute carte déjà engagée dans un autre tableau du même joueur. Cette
+exclusivité disparaît : une carte appartient à autant de tableaux que le joueur le souhaite,
+sans aucune limite. Une carte est un objet de collection, pas un pion ; l'exclusivité obligeait
+le joueur à détruire un tableau pour en composer un autre, alors que le score est recalculé à
+la lecture et que rien ne dépend de l'unicité d'appartenance. `locked` reste réservé à la vente
+et continue d'être refusé (`403 CARD_NOT_OWNED`), avec le `SELECT … FOR UPDATE` qui protège sa
+lecture.
+
+**La spec a été réécrite parce que la règle a changé, pas pour faire passer
+l'implémentation.** Le cas « GDD §3.C — rejouer le même POST renvoyait un `409` sans
+dupliquer » encodait l'ancien contrat : il est devenu
+`Archi §2.5 — une carte peut appartenir à plusieurs tableaux : rejouer le même POST crée un
+second tableau`, et il assied deux lignes `tableaux` distinctes pointant les quatre mêmes
+`user_cards.id`, avec le même `total` dans les deux réponses. Deux cas s'y ajoutent : trois
+`POST` identiques créent trois tableaux (la limite n'existe pas au-delà de deux), et une carte
+verrouillée reste refusée `403 CARD_NOT_OWNED` même lorsqu'elle figure déjà dans un tableau. Le
+cas « des ids dupliqués renvoient 400 INVALID_CARD_SET » est **intact** : deux emplacements qui
+reçoivent le même identifiant restent une erreur, ce n'est pas la même règle. Aucun autre cas
+n'a été affaibli.
+
+**Ce qui n'a pas bougé.** Aucune migration, aucun changement de schéma : `tableaux` accepte
+déjà plusieurs lignes vers la même `user_cards.id`, et il n'existe aucun index d'unicité sur
+ces colonnes à retirer. L'invariant « une carte ne peut être dans qu'une seule annonce
+**ouverte** » de `.docs/02-database.md` §7.1 concerne le marché, pas les tableaux : il est
+laissé tel quel.
+
+**Portée** : `apps/api/src/routes/tableaux.ts`, `apps/web/src/lib/tableaux.ts`,
+`packages/spec/src/tableaux.spec.ts`, `.docs/01-architecture.md` §2.5 et ce fichier. Aucun
+commit. Vérification : suite complète de `packages/spec` (**341 pass, 0 fail, 18 fichiers,
+1988 `expect()`**), `typecheck` et `lint` verts. **Le banc E2E n'a pas été rejoué** : la
+modification ne change aucune route, aucun rendu et aucun libellé de l'interface, seulement le
+code d'erreur que l'API n'émet plus. Aucune vérification visuelle n'a donc été faite.
+
+### 2026-11-21 — Le tiroir range ses cartes, et la rue cesse d'être une devinette
+
+**Ce que la question posait, et ce qu'elle supposait de faux.** « Les premières cartes devraient
+être les départements de Mayotte » est faisable, mais **pas côté navigateur** : la liste de
+collection (`GET /api/v1/cards`) ne transporte aucun code géographique — ni `code_region`, ni
+`code_departement`, ni `code_insee`. Seule la fiche `/cards/:id` les expose, et l'aller les
+chercher carte par carte aurait fait N requêtes pour un tiroir. La question sur les rues, elle,
+avait la bonne intuition : `user_cards.ref_code` d'une rue porte l'identifiant d'**odonyme**, et
+« cette rue existe-t-elle dans cette commune » est une jointure `commune_odonymes` — une donnée
+que le client ne possède pas et ne peut pas déduire d'un nom. C'est le seul emplacement que le
+navigateur ne peut pas trancher seul, et c'est ce qui a décidé l'architecture : un endpoint
+serveur, pas un tri client.
+
+**Pourquoi un endpoint plutôt qu'enrichir `/cards`.** Enrichir la collection aurait demandé
+trois colonnes additives dans un schéma `additionalProperties: false`, un contrat modifié pour
+tous les appelants, et laissé le cas de la rue sans réponse. `GET /tableaux/candidates` répond
+uniquement des **identifiants de cartes possédées** — une centaine d'octets — et laisse
+`/cards` intact. Il réutilise `resolveGeography`, déjà propriétaire de la géographie d'une
+sélection pour `/preview` : une seule implémentation, deux lecteurs.
+
+**Le tri ne cache rien, et c'est une décision de jeu.** Une carte non compatible reste
+listée, simplement après les compatibles. Trier n'est pas filtrer : un joueur peut vouloir poser
+une carte hors-zone pour d'autres raisons que le multiplicateur, et un tiroir qui masque ce que
+le joueur possède est un tiroir qui lui ment sur sa collection. Corollaire assumé : quand la
+commune choisie ne contient aucun des odonymes possédés, le tiroir l'écrit — sinon l'absence de
+pastille se lirait comme une panne du tri.
+
+**Ce que le premier modèle a raté, et qui a été corrigé avant de coder.** La version naïve
+comptait « contraint » dès qu'une carte *d'un autre emplacement* était choisie — y compris
+l'emplacement visé lui-même, puisqu'il figure dans `selection` quand on rouvre le tiroir pour
+remplacer. Une région posée se serait donc classée par rapport à elle-même, et un remplacement
+n'aurait jamais proposé que la carte déjà posée. D'où deux garde-fous distincts : le client
+annule l'identifiant de l'emplacement visé avant d'appeler, et le serveur l'ignore de son côté —
+les deux, parce que le client peut mentir.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun test packages/spec/src/tableaux.spec.ts
+  avant la route : 15 pass, 9 fail — Expected: 200  Received: 404
+  après          : 57 pass, 0 fail (les deux fichiers de spécification du sujet)
+
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  339 pass, 0 fail, 1951 expect() calls, 18 fichiers
+
+docker compose --profile tools run --rm dev bun run build
+  ✓ built in 1.13s — chunk `tableau-4q818-42.js` 26.14 kB / 5.86 kB gzip, 66 entrées de précache
+```
+
+**Ce qui n'est pas prouvé, et qui est écrit comme tel.** Le **banc E2E n'a pas été rejoué** : la
+géographie du semis de test ne contient qu'une région, un département, une commune et un
+odonyme, donc elle ne peut pas démontrer un *tri* (il n'y a rien à trier). Les neuf cas
+d'intégration le démontrent, avec une seconde géographie et deux comptes. Aucune vérification
+visuelle du tiroir n'a été faite dans un navigateur : la pastille n'a pas été vue, seulement
+compilée et lintée.
+
+**Portée** : `packages/shared/src/tableau.ts`, `apps/api/src/routes/tableaux.ts`,
+`apps/web/src/lib/tableaux.ts`, `apps/web/src/routes/tableau.tsx`,
+`apps/web/src/content/tableau.ts`, `packages/spec/src/tableau.spec.ts`,
+`packages/spec/src/tableaux.spec.ts`, `.docs/01-architecture.md` §2.5 et ce fichier. Aucune
+migration, aucun changement de schéma, aucune dépendance nouvelle, `/cards` et son contrat
+intacts. Aucun commit.
+
+---
+
 # La planche de musée — une composition distincte pour Le Cartel
 
 ## Statut
