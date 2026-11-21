@@ -38,6 +38,76 @@ async function openCollection(page: Page): Promise<void> {
   await expect(page.getByRole('table', { name: COLLECTION_TABLE })).toBeVisible();
 }
 
+/* ── La planche de musée du Cartel ────────────────────────────────────────── */
+
+/**
+ * Le Cartel rend une composition distincte (`cards/detailed-plate.tsx`), en zones
+ * réservées : la gravure et le blason ne partagent jamais une surface. Le serveur
+ * replie `contour_url` dans `blasonUrl`, donc un « blason » est souvent un contour
+ * transparent ; superposé à la gravure il se confondrait avec elle.
+ */
+test('planche du Cartel — le blason ne recouvre jamais la gravure', async ({ page }) => {
+  await openCollection(page);
+
+  const firstPlate = page.locator('a[href^="/card/"]').first();
+  if ((await firstPlate.count()) === 0) {
+    test.skip(true, 'La collection de démonstration ne contient aucune carte ouvrable au Cartel.');
+  }
+
+  await firstPlate.click();
+  await expect(page).toHaveURL(/\/card\//);
+
+  const plate = page.locator('article.exhibit').first();
+  await expect(plate).toBeVisible();
+
+  // La gravure vit dans une bande réservée, bornée et rognée : aucun texte ni
+  // blason ne peut s'y poser.
+  const engraving = plate.locator('svg').first();
+  await expect(engraving).toBeVisible();
+  const band = engraving.locator('..');
+  const bandStyle = await band.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { overflow: style.overflow, borderStyle: style.borderStyle };
+  });
+  expect(bandStyle.overflow, 'La bande de gravure doit rogner son contenu.').toBe('hidden');
+  expect(bandStyle.borderStyle, 'La bande de gravure est une planche encadrée.').toBe('solid');
+
+  // La composition n'emploie aucun mode de fusion, y compris quand le blason est
+  // un contour transparent.
+  const blended = await plate.evaluate(
+    (node) =>
+      Array.from(node.querySelectorAll('*')).filter(
+        (child) => getComputedStyle(child).mixBlendMode !== 'normal',
+      ).length,
+  );
+  expect(blended, 'La planche de musée n’emploie aucun mode de fusion.').toBe(0);
+
+  const blason = plate.locator('img').first();
+  if ((await blason.count()) === 0) {
+    test.skip(
+      true,
+      'Le référentiel du banc ne porte aucun blason : la disjonction des boîtes ne peut pas être mesurée ici.',
+    );
+  }
+
+  const engravingBox = await engraving.boundingBox();
+  const blasonBox = await blason.boundingBox();
+  expect(engravingBox, 'La gravure doit avoir une boîte mesurable.').not.toBeNull();
+  expect(blasonBox, 'Le blason doit avoir une boîte mesurable.').not.toBeNull();
+  if (!engravingBox || !blasonBox) return;
+
+  const disjoint =
+    engravingBox.y + engravingBox.height <= blasonBox.y ||
+    blasonBox.y + blasonBox.height <= engravingBox.y ||
+    engravingBox.x + engravingBox.width <= blasonBox.x ||
+    blasonBox.x + blasonBox.width <= engravingBox.x;
+
+  expect(
+    disjoint,
+    'La gravure et le blason doivent occuper des zones distinctes, sinon un contour transparent se confond avec la gravure.',
+  ).toBe(true);
+});
+
 /* ── La prévisualisation serveur d'un tableau ─────────────────────────────── */
 
 interface PreviewSample {
