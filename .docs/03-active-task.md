@@ -5,6 +5,172 @@
 
 ---
 
+# Les planches du ticket lisibles, et la vitrine qui montre ses blasons
+
+## Statut
+
+- **Phase** : hors phase numérotée — lisibilité des planches dans la case d'un ticket,
+  copie de `/home`, blasons de `/home`, et réparation de `GET /home`
+- **État** : code terminé, `ci:check` vert (**343 specs, 18 fichiers, 0 échec**), `build` vert,
+  banc E2E rejoué **trois fois** sur cette branche (dont deux après la dernière retouche) :
+  **68 passés, 0 ignoré, 0 échec, 0 flaky**
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-21
+- **Branche** : `fix/planches-ticket-vitrine`
+- **Livraison** : trois commits atomiques sur `fix/planches-ticket-vitrine` (API, web, mémoire),
+  branche poussée sur `origin`, PR ouverte vers `main`, aucun fusionnement
+
+## Objectif
+
+Trois corrections visibles, plus une quatrième imposée par la mesure. Dans une case de ticket,
+une planche révélée perdait son pied et son sceau : le libellé de catégorie, les replis
+d'en-tête et la ligne de population mangeaient la hauteur d'une case de 71 × 118 px. La
+vitrine `/home` annonçait « Gratuit. Aucune installation. … décidés par le serveur », trois
+promesses qui ne parlaient pas au joueur, et ses quatre planches d'exemple n'avaient aucun
+blason alors que le serveur en sert pour les régions, départements et communes. Enfin, le banc
+a révélé que `GET /home` répondait **404** dans l'image de production : la vitrine était
+inatteignable par URL directe.
+
+## Ce qui a changé
+
+| Fichier | Changement |
+| :--- | :--- |
+| `apps/web/src/components/ui/cards/card-blason.tsx` | **Nouveau.** Propriétaire unique du blason d'en-tête : géométrie `clamp(18px,18cqi,44px)`, `mix-blend-multiply` conservé sur le vélin, et repli **silencieux** — `url` nulle ou image absente du volume rend le `fallback` de l'appelant à la place de l'image, jamais l'icône d'image cassée. |
+| `region-card.tsx`, `departement-card.tsx`, `commune-card.tsx` | Le blason passe par `CardBlason` ; le libellé de catégorie et les replis d'en-tête (code de référence, « Écu ») reçoivent `plate-optional`, donc s'effacent sous 110 px. |
+| `departement-card.tsx` | Le plancher de l'écu passe de **46 à 34 px** (`h-[clamp(34px,42cqi,88px)]`) : le pied et le sceau tiennent dans la case d'un ticket. |
+| `commune-card.tsx` | Le bandeau de vue perd `h-[38%]` pour `.plate-band` ; la ligne de population reçoit `plate-optional`. |
+| `rue-card.tsx` | Le libellé de catégorie et la mention « Spécimen » reçoivent `plate-optional`. La rue garde son absence de blason : `ref_odonymes` n'en porte aucun. |
+| `styles.css` | `.plate-band` porte la hauteur du bandeau de vue d'une Commune — **38 %** au repos, **30 %** sous `@container (max-width: 110px)`, les deux valeurs en `@layer components` parce qu'un `h-[38%]` d'`@layer utilities` l'emporterait. Le commentaire de `.plate-optional` énumère désormais ce qui s'efface. |
+| `revealed-cell.tsx` | `p-1.5` → `p-1` : 4 px rendus à la planche dans une case déjà étroite. |
+| `tickets.$ticketId.tsx` | Grille et `LoadingBoard` : `gap-2` → `gap-1.5`, soit 4 px de largeur de case gagnés à 390 px. |
+| `content/home.ts` | `heroCaption` devient l'astuce « Ajouter à l'écran d'accueil » (aucune occurrence de « gratuit », « installation » ni « serveur ») ; `synergyBody` ne dit plus « vérifié sur la carte » ; `synergyNote` parle de la géographie réelle ; `heroPlates` porte `blasonUrl`. |
+| `routes/home.tsx` | Le héros et le barème passent `blasonUrl` aux quatre planches (`plateFor(type)` résout la planche du héros, d'où six `<img>` sur la page : trois au héros, trois au barème). |
+| `apps/api/src/static.ts` | `home` quitte `SYSTEM_ROOTS` (voir le journal) : `GET /home` répond `200 text/html`. La garde de préfixe `resolve()` sous `root` est inchangée, et `/etc/passwd` répond toujours `404` JSON. |
+| `packages/e2e/fixtures/blasons/{regions/53,departements/29,communes/29232}.svg` | **Nouveaux.** Fixtures schématiques — un écu, deux ou trois traits, aucune armoirie officielle — pour que le banc montre de vrais blasons sur `/home`. |
+| `packages/spec/src/static.spec.ts` | Deux cas : `Archi §6.1 — /home traverse le repli SPA comme une route cliente` (rouge si `home` revient dans `SYSTEM_ROOTS`) et `Archi §6.1 — /etc/passwd reste refusé`. |
+
+## Critères d'acceptation
+
+1. [x] Sous 110 px, une planche garde le nom, le score, le sceau et le blason éventuel ; le pied
+       et le sceau restent dans la boîte de la planche (mesuré : `footerBottom` et `sealBottom`
+       à 459 px pour un `boxBottom` à 464 px dans une case de 57 × 79 px).
+2. [x] Aucun texte visible sous 10 px sous 110 px de conteneur (mesuré : `minFont` = 10 à 240 px
+       de fenêtre, cases de 95 px).
+3. [x] Les trois blasons de `/home` sont chargés (`naturalWidth > 0`) et visibles.
+4. [x] La ligne du héros contient « Ajouter à l'écran d'accueil » et aucune des trois formules
+       retirées.
+5. [x] `GET /home` répond `200 text/html`, `/collection` reste `200`, `/etc/passwd` reste `404`
+       JSON, `/api/v1/health` reste `200` JSON.
+6. [x] Le banc complet reste à **68 passés, 0 ignoré, 0 échec** ; aucun `skip` ajouté, aucune
+       assertion retirée.
+7. [x] `ci:check` vert (343 specs) et `build` vert.
+8. [x] Aucune migration, aucun changement de schéma ni de contrat d'API, aucune dépendance
+       nouvelle, `routeTree.gen.ts` jamais édité à la main. `packages/spec` gagne **deux**
+       cas : un cas de régression pour `GET /home` (rouge si `home` revient dans
+       `SYSTEM_ROOTS`), plus le refus explicite des racines système (`/etc/passwd`).
+
+## Journal
+
+### 2026-11-21 — Le pied des planches, les blasons de la vitrine, et un `404` qui n'était pas celui qu'on croyait
+
+**Le diagnostic, et l'hypothèse qui était fausse.** Le run précédent avait vu `GET /home`
+rendre un `404 ROUTE_NOT_FOUND`. L'hypothèse de départ — un spec qui interroge `request.get`
+au lieu de `page.goto`, donc sans en-tête `Accept: text/html` — a été **réfutée par la
+mesure** : `packages/e2e/tests/_capture.spec.ts` n'appelait que `page.goto('/home')`, et une
+requête portant explicitement `Accept: text/html` répondait quand même `404`. La cause est
+ailleurs : `apps/api/src/static.ts` refuse tout premier segment présent dans `SYSTEM_ROOTS`
+**avant** d'atteindre le repli SPA, et cette liste contenait `home`. `/collection` n'y figure
+pas, d'où le `200`. La vitrine était donc inatteignable par URL directe dans l'image de
+production — un vrai défaut, pas un faux positif du banc. `home` quitte la liste avec un
+commentaire qui dit pourquoi ; la garde de préfixe `resolve()` sous `root` continue de refuser
+toute sortie de l'arborescence, et `/etc/passwd` répond toujours `404` JSON. Preuve mesurée sur
+l'image du banc, par `fetch` depuis le conteneur `api` : `/home` `200` en `text/html` (avec et
+sans `Accept: text/html`), `/collection` `200`, `/etc/passwd` `404` JSON, `/api/v1/health`
+`200` JSON.
+
+**Le correctif est désormais verrouillé par un cas rouge-avant-vert.** `packages/spec/src/static.spec.ts`
+porte `Archi §6.1 — /home traverse le repli SPA comme une route cliente` — `200`, `text/html`,
+corps portant le marqueur `id="root"` de la fixture `web-dist` —, posé juste après le cas
+`/collection`. Discrimination prouvée, deux exécutions du seul fichier : avec `'home'` remis
+dans `SYSTEM_ROOTS`, **15 pass, 1 fail** sur ce cas ; fichier rétabli à l'identique (`sha1sum`
+`979a3cacd6f6a53138a72fc1d424dd42dd955b76` avant **et** après la manipulation, aucun
+commentaire ni variable laissée derrière), **16 pass, 0 fail**. Un second cas,
+`Archi §6.1 — /etc/passwd reste refusé`, assied que le retrait n'a pas ouvert la garde : `404`
+JSON `ROUTE_NOT_FOUND`. Le cas existant « refuse une évasion de répertoire encodée » reste
+intact — il n'assertait que le statut, jamais le code stable.
+
+**Ce que la case de ticket coûtait.** Le pied et le sceau d'une planche révélée sortaient de la
+boîte. Quatre classes suffisent à rendre la hauteur : le libellé de catégorie, les replis
+d'en-tête et la ligne de population passent en `plate-optional`, l'écu du Département descend
+de 46 à 34 px, `.plate-band` ramène le bandeau de vue d'une Commune de 38 % à 30 % sous 110 px,
+et la grille du ticket récupère 4 px de largeur (`gap-1.5`) comme la case en récupère 4
+(`p-1`).
+
+**Ce que `card-blason.tsx` règle, et pourquoi un composant plutôt qu'une copie.** Trois
+gabarits rendaient le même `<img>` et deux rendaient leur repli à la main. Le composant unique
+porte la géométrie et le repli : une image absente du volume tombe sur le `fallback` au lieu de
+l'icône cassée, et ce repli est rendu **à la place** de l'image, jamais dans une enveloppe de
+plus — le budget de 18 nœuds non-SVG n'a pas bougé.
+
+**La vitrine dit maintenant ce qu'elle fait.** « Gratuit. Aucune installation. … décidés par le
+serveur » parlait au développeur ; la ligne parle désormais du geste du joueur, « Ajouter à
+l'écran d'accueil ». `synergyBody` perd « sur la carte » et « par le serveur » — la note juste
+en dessous dit déjà « vérifié sur la géographie réelle », donc aucun doublon.
+
+**Vérification (Docker uniquement)**
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint  ✓ 2/4 Typecheck  ✓ 3/4 Base de données  ✓ 4/4 Spécifications
+  343 pass, 0 fail, 1973 expect() calls, Ran 343 tests across 18 files
+
+docker compose --profile tools run --rm dev bun run build
+  ✓ built in 1.14s — index-BLJcMdB-.js 465.63 kB bruts / 140.72 kB gzip, 62 entrées de précache
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  trois passes complètes, dont deux après la dernière retouche :
+  68 passed (2.2m / 2.2m / 2.1m) — 0 ignoré, 0 échec, 0 flaky
+  chromium 21 · pwa 7 · Pixel 7 20 · iPhone 13 20
+```
+
+**Ce que l'œil a vérifié.** Captures à 390 px (`ticket-390.png`, `home-390.png`) et 1280 px
+(`home-1280.png`), plus une mesure de conteneur étroit (`home-240-planches.png`), toutes dans
+`packages/e2e/.auth/captures/` (ignoré par git) :
+
+- dans la case du ticket, la planche rendue en 57 × 79 px garde son blason, son nom sur deux
+  lignes, son score et son sceau ; le pied s'arrête 5 px au-dessus du bord ;
+- à 390 px, les quatre planches du héros gardent leur pied et leur sceau, et les quatre
+  catégories sont visibles (Bretagne, Finistère, Quimper, Rue des Écoles) ; à 240 px de fenêtre
+  (cases de 95 px), `minFont` remonte à 10 ;
+- à 1280 px comme à 390 px, Bretagne, Finistère et Quimper portent un blason — dans le héros
+  **et** dans le barème —, la rue n'en a pas ;
+- la ligne du héros affiche « Astuce : depuis votre téléphone, « Ajouter à l'écran d'accueil »
+  pose le cabinet près de vos autres applications — il s'ouvre ensuite d'un seul appui, en
+  plein écran. »
+
+**Ce qui n'est pas prouvé, et qui est écrit comme tel.** À 390 px, une planche du héros rend
+encore du texte à **7 px** : ce sont les étiquettes de `plate-optional` (libellé de catégorie,
+unité `pts`, « INSEE », « Spécimen ») que `clamp(7px,…)` autorise. C'est **antérieur à cette
+session** — aucune de ces classes n'a été introduite ici — et cela contredit la phrase « aucun
+texte visible ne descend sous 10 px » de `.docs/01-architecture.md` §4.9, qui n'est donc vraie
+que sous 110 px de conteneur, où ces étiquettes s'effacent. Le défaut n'est pas corrigé : le
+corriger demanderait de relever le plancher de `clamp()` dans les quatre gabarits, ce qui
+changerait la densité de toutes les planches de l'application. Et le banc n'a pas été rejoué
+avec un ticket neuf à quatre catégories révélées : le compte du banc épuise ses grattages avant,
+donc la capture du ticket montre une commune et un panneau, pas quatre catégories. Les quatre
+sortes de planches sont prouvées sur `/home`, pas dans une case.
+
+**Portée** : `apps/web/src/components/ui/cards/card-blason.tsx` (nouveau),
+`apps/web/src/components/ui/cards/{region,departement,commune,rue}-card.tsx`,
+`apps/web/src/components/revealed-cell.tsx`, `apps/web/src/routes/{home,tickets.$ticketId}.tsx`,
+`apps/web/src/content/home.ts`, `apps/web/src/styles.css`, `apps/api/src/static.ts`,
+`packages/e2e/fixtures/blasons/**` (nouveaux), `packages/spec/src/static.spec.ts` (deux cas de
+régression), `.docs/01-architecture.md` §4.9 et ce fichier. Aucune migration, aucun changement
+de schéma ni de contrat d'API, aucune dépendance nouvelle, `apps/api/src/static.ts` rendu
+identique à son état d'entrée (le `sha1sum` le prouve). Aucun commit.
+
+---
+
 # La page de suivi d'import s'en va
 
 ## Statut
