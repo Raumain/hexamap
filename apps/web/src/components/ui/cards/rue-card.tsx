@@ -10,7 +10,6 @@ export interface RueCardProps {
   score: number;
   refCode: string;
   occurrenceCount: number | null;
-  detailed: boolean;
   locked: boolean;
   decorative: boolean;
   className?: string;

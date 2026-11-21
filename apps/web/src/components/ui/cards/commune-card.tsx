@@ -13,7 +13,6 @@ export interface CommuneCardProps {
   population: number | null;
   blasonUrl: string | null;
   blasonCredit: string | null;
-  detailed: boolean;
   locked: boolean;
   decorative: boolean;
   className?: string;
@@ -28,7 +27,6 @@ export function CommuneCard({
   population,
   blasonUrl,
   blasonCredit,
-  detailed,
   locked,
   decorative,
   className,
@@ -137,11 +135,6 @@ export function CommuneCard({
               pts
             </span>
           </span>
-          {detailed ? (
-            <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] tabular-nums tracking-[0.06em] text-ink-soft truncate">
-              {refCode}
-            </span>
-          ) : null}
           <RaritySeal rarity={rarity} />
         </footer>
       </div>
