@@ -86,6 +86,15 @@ services:
       FRONTEND_URL: ${PROD_FRONTEND_URL:?PROD_FRONTEND_URL est obligatoire (seule origine autorisée par CORS)}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire (32 caractères minimum)}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
+      # Mandataire de confiance : sans cette variable le processus reçoit une
+      # chaîne vide et `auth.ts` avertit au démarrage, parce qu'aucun
+      # `X-Forwarded-For` n'est cru — le rate limiting d'authentification tombe
+      # alors dans un unique seau partagé par chemin, où un attaquant peut
+      # épuiser la limite de connexion de tous les joueurs. Optionnelle à
+      # dessein : une pile sans bordure est un déploiement légitime. Quand elle
+      # est renseignée, c'est l'adresse ou le CIDR **de la bordure** (séparés par
+      # des virgules), et la bordure doit transmettre `X-Forwarded-For`.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
