@@ -17,7 +17,6 @@ import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as HomeRouteImport } from './routes/home'
-import { Route as ImportStatusRouteImport } from './routes/import-status'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -69,11 +68,6 @@ const FriendsRoute = FriendsRouteImport.update({
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ImportStatusRoute = ImportStatusRouteImport.update({
-  id: '/import-status',
-  path: '/import-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -146,7 +140,6 @@ export interface FileRoutesByFullPath {
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
-  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
@@ -169,7 +162,6 @@ export interface FileRoutesByTo {
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
-  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
@@ -193,7 +185,6 @@ export interface FileRoutesById {
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
-  '/import-status': typeof ImportStatusRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/register': typeof RegisterRoute
@@ -218,7 +209,6 @@ export interface FileRouteTypes {
     | '/confidentialite'
     | '/friends'
     | '/home'
-    | '/import-status'
     | '/login'
     | '/mentions-legales'
     | '/register'
@@ -241,7 +231,6 @@ export interface FileRouteTypes {
     | '/confidentialite'
     | '/friends'
     | '/home'
-    | '/import-status'
     | '/login'
     | '/mentions-legales'
     | '/register'
@@ -264,7 +253,6 @@ export interface FileRouteTypes {
     | '/confidentialite'
     | '/friends'
     | '/home'
-    | '/import-status'
     | '/login'
     | '/mentions-legales'
     | '/register'
@@ -288,7 +276,6 @@ export interface RootRouteChildren {
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
   HomeRoute: typeof HomeRoute
-  ImportStatusRoute: typeof ImportStatusRoute
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
   RegisterRoute: typeof RegisterRoute
@@ -359,13 +346,6 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/import-status': {
-      id: '/import-status'
-      path: '/import-status'
-      fullPath: '/import-status'
-      preLoaderRoute: typeof ImportStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -464,7 +444,6 @@ const rootRouteChildren: RootRouteChildren = {
   ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
   HomeRoute: HomeRoute,
-  ImportStatusRoute: ImportStatusRoute,
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
   RegisterRoute: RegisterRoute,

@@ -379,7 +379,7 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   `OverlayPortal` comme les deux overlays de route, et le cinquième onglet est un `button`,
   pas un `Link`, parce qu'il ouvre au lieu de naviguer. Chaque route rend **un seul**
   `main` ; les salles sont nommées dans l'interface (Le Relevé, Le Cadastre, La Planche, Le
-  Comptoir, Le Seuil, Les Archives).
+  Comptoir, Le Seuil).
 - **Politique d'effets.** Dégradés et ombres douces sont autorisés sur les surfaces (cônes de
   lumière, vignettage, fibre du vélin) et **interdits dans une liste virtualisée** comme
   autour du canvas de grattage : ni `filter`, ni `backdrop-filter`, ni `mix-blend-mode` par

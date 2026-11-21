@@ -24,7 +24,7 @@ export interface DetailedPlateProps {
 }
 
 /**
- * La planche de musée — la composition du Cartel (DESIGN_SYSTEM.md §7.1, §8.7).
+ * La planche de musée — la composition du Cartel (DESIGN_SYSTEM.md §7.1, §8.6).
  *
  * Quatre zones empilées, sans recouvrement : en-tête, bande de gravure réservée,
  * cartouche (sceau + lecture), pied. Le blason et la gravure ne partagent jamais
