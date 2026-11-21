@@ -469,20 +469,20 @@ jamais dans git) :
 | `POSTGRES_PASSWORD` | mot de passe unique | compose `:28` (`:?` — refus de démarrer sans) |
 | `DATABASE_URL` | `postgres://hexamap:<mdp>@db:5432/hexamap` | compose `:76`, `env.ts:7` |
 | `TRUSTED_ORIGINS` | **vide** si une seule origine | `env.ts:15` |
-| `TRUSTED_PROXIES` | CIDR de `dokploy-network` (§8.3) | `env.ts:20` → `auth.ts:133` |
+| `TRUSTED_PROXIES` | CIDR de `dokploy-network` (§8.3) — **vide** si aucune bordure | compose `:97` → `env.ts:20` → `auth.ts:133`. Doit figurer dans le fichier d'environnement de la **pile** : la poser dans le shell de l'opérateur ne l'envoie pas au conteneur |
 | `AUTH_COOKIE_SECURE` | **ne pas poser** | `auth.ts:43` : `NODE_ENV=production` suffit à forcer `Secure` |
-| `RUN_MIGRATIONS` | `1` (défaut) — voir §8.4 | compose `:91` |
+| `RUN_MIGRATIONS` | `1` (défaut) — voir §8.4 | compose `:100` |
 | `WEB_BIND_ADDRESS` | `127.0.0.1` (défaut de l'override Dokploy) | compose `:62`, `docker-compose.dokploy.yml:28` |
 | `PUBLIC_HOST` | `hexamap.example.fr` — **hôte nu**, sans schéma, sans barre oblique finale | `docker-compose.dokploy.yml` (`:?` — règle `Host()`) |
-| `BLASONS_VOLUME` | `hexamap_prod_blasons` (défaut) | compose `:145` |
-| `IMPORT_STATUS_VOLUME` | `hexamap_prod_importstatus` (défaut) | compose `:147` |
-| `PROD_PGDATA_VOLUME` | `hexamap_prod_pgdata` (défaut) | compose `:135` |
-| `STRIPE_SECRET_KEY` | `sk_live_…` (ou `sk_test_…` avant ouverture) | compose `:98` (`:?`) |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_…` de l'endpoint (§8.7) | compose `:99` (`:?`) |
-| `STRIPE_PRICE_PACK_500` | `price_…` du pack 500 | compose `:100` (`:?`) |
-| `STRIPE_PRICE_PACK_1200` | `price_…` du pack 1 200 | compose `:101` (`:?`) |
-| `STRIPE_PRICE_PACK_2500` | `price_…` du pack 2 500 | compose `:102` (`:?`) |
-| `STRIPE_PRICE_PACK_6000` | `price_…` du pack 6 000 | compose `:103` (`:?`) |
+| `BLASONS_VOLUME` | `hexamap_prod_blasons` (défaut) | compose `:154` |
+| `IMPORT_STATUS_VOLUME` | `hexamap_prod_importstatus` (défaut) | compose `:156` |
+| `PROD_PGDATA_VOLUME` | `hexamap_prod_pgdata` (défaut) | compose `:144` |
+| `STRIPE_SECRET_KEY` | `sk_live_…` (ou `sk_test_…` avant ouverture) | compose `:107` (`:?`) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` de l'endpoint (§8.7) | compose `:108` (`:?`) |
+| `STRIPE_PRICE_PACK_500` | `price_…` du pack 500 | compose `:109` (`:?`) |
+| `STRIPE_PRICE_PACK_1200` | `price_…` du pack 1 200 | compose `:110` (`:?`) |
+| `STRIPE_PRICE_PACK_2500` | `price_…` du pack 2 500 | compose `:111` (`:?`) |
+| `STRIPE_PRICE_PACK_6000` | `price_…` du pack 6 000 | compose `:112` (`:?`) |
 
 `DATABASE_URL` garde `db` comme hôte : le nom du service Compose est résolu sur `backend`.
 Contrôle immédiat, sans démarrer la pile : `docker compose -f docker-compose.prod.yml config`
@@ -511,7 +511,7 @@ appartient à `TRUSTED_PROXIES`.
 
 ### 8.4 Le contrôle des volumes
 
-Les trois volumes sont **explicitement nommés** (`:109`, `:119`, `:121`) : ils portent donc des
+Les trois volumes sont **explicitement nommés** (`:143`, `:153`, `:155`) : ils portent donc des
 noms globaux (`hexamap_prod_*`) et non des noms préfixés par le projet. C'est ce qui les rend
 stables alors que Dokploy régénère son nom de projet à chaque déploiement.
 
