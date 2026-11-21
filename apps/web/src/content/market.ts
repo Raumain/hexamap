@@ -32,7 +32,7 @@ export const MARKET = {
   categoryLabel: 'Catégorie',
   rarityLabel: 'Rareté',
   allValues: 'Toutes',
-  buy: 'Acheter',
+  buy: 'Acquérir',
   buying: 'Achat…',
   ownListing: 'Votre annonce',
   previous: 'Précédent',
