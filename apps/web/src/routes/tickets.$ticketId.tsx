@@ -207,6 +207,29 @@ function TicketPage() {
         <p className="max-w-xl text-sm leading-relaxed text-vellum/70">{TICKET.subtitle}</p>
       </header>
 
+      {ticket.status === 'EXHAUSTED' ? (
+        <div className="vellum mx-auto w-full max-w-2xl rounded-sheet p-6">
+          <h2 className="font-display text-2xl text-ink">Ce bordereau est soldé.</h2>
+          <p className="mt-2 text-sm text-ink-soft">{TICKET.exhaustedDescription}</p>
+          <FormError message={createMutation.error ? createMutation.error.message : null} />
+          <div className="mt-5 flex flex-wrap items-center gap-4">
+            <Button
+              className="border-2 border-brass bg-brass text-cabinet shadow-brass hover:bg-brass-pale"
+              isPending={createMutation.isPending}
+              onClick={() => createMutation.mutate()}
+            >
+              {TICKET.newTicket}
+            </Button>
+            <Link
+              to="/collection"
+              className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep underline decoration-brass/40 underline-offset-4 transition-colors duration-150 hover:text-ink"
+            >
+              Consulter la collection
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto flex w-full max-w-2xl items-center justify-end">
         <span className="flex items-center gap-2" role="img" aria-label={pinsLabel}>
           {[0, 1, 2, 3].map((pin) => (
@@ -333,29 +356,6 @@ function TicketPage() {
           )}
         </div>
       </div>
-
-      {ticket.status === 'EXHAUSTED' ? (
-        <div className="vellum mx-auto w-full max-w-2xl rounded-sheet p-6">
-          <h2 className="font-display text-2xl text-ink">Ce bordereau est soldé.</h2>
-          <p className="mt-2 text-sm text-ink-soft">{TICKET.exhaustedDescription}</p>
-          <FormError message={createMutation.error ? createMutation.error.message : null} />
-          <div className="mt-5 flex flex-wrap items-center gap-4">
-            <Button
-              className="border-2 border-brass bg-brass text-cabinet shadow-brass hover:bg-brass-pale"
-              isPending={createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {TICKET.newTicket}
-            </Button>
-            <Link
-              to="/collection"
-              className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep underline decoration-brass/40 underline-offset-4 transition-colors duration-150 hover:text-ink"
-            >
-              Consulter la collection
-            </Link>
-          </div>
-        </div>
-      ) : null}
 
       <div aria-live="polite" className="sr-only">
         {announcement}
