@@ -116,6 +116,18 @@ export const auth = betterAuth({
   },
   rateLimit: {
     storage: 'database',
+    // `/get-session` est une lecture bon marché, montée par chaque chargement de
+    // page. Le plafond par défaut de Better Auth (100 par fenêtre et par IP) est
+    // donc atteint par un navigateur qui enchaîne les navigations, et par tout
+    // joueur derrière un NAT partagé. Au-delà, l'API répond 429 : le client ne
+    // peut plus vérifier sa session et l'écran de panne s'affiche. Mesuré sur le
+    // banc E2E (quatre tentatives de suite refusées, toutes en 429), puis en
+    // rafale sur cette route (75 × 200, puis 45 × 429, `count` bloqué à 100).
+    // Le plafond est relevé pour cette seule route : les règles qui protègent les
+    // identifiants (connexion, inscription) restent celles par défaut.
+    customRules: {
+      '/get-session': { window: 10, max: 1000 },
+    },
   },
   advanced: {
     useSecureCookies,
