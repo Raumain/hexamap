@@ -35,8 +35,26 @@ const MORE_SHEET = 'Autres salles';
 const ROOMS: readonly string[] = ['/', '/collection', '/market', '/tableau'];
 
 /**
- * Grattage au doigt : quatre appuis puis le centre d'une case de 70 px suffisent
- * à franchir le seuil de 40 % de couverture (`SCRATCH_REVEAL_THRESHOLD`).
+ * Grattage au doigt : quatorze appuis sur une case de 71 × 118 px franchissent
+ * le seuil de 65 % de couverture (`SCRATCH_REVEAL_THRESHOLD`). Le modèle qui
+ * fixe ce nombre est calibré sur une mesure, pas sur une géométrie idéale : il
+ * estampille le vrai tampon — plateau jusqu'à 0,68 R, bordure
+ * ((1 − t)/0,32)^1,1, grain d'alpha 128 sur 255 à 254, douze encoches de bord,
+ * gigue de position ±0,06 R et d'échelle 0,94 à 1,06 —, rééchantillonne le
+ * grain bilinéairement (le tampon est tourné et remis à l'échelle à chaque
+ * appui, donc la texture est filtrée) et compte effacé tout pixel sous
+ * `alpha < 128`, un pixel sur deux comme `checkCoverage`. Rejoué contre le
+ * tampon d'avant le plateau — décroissance pure (1 − t)^1,6, grain 0,35 à 1 —
+ * avec les neuf appuis d'origine, il rend 4,06 % là où l'appareil avait mesuré
+ * 3,99 % : à 0,07 point près, ce qui autorise à s'en servir.
+ *
+ * Avec le tampon actuel, les onze appuis de la passe précédente ne donnaient
+ * que 68,4 % ± 1,2 (écart type mesuré sur 2 000 tirages) — trois points de
+ * marge, donc un banc qui flanche. Treize appuis plafonnent à 75,9 % quel que
+ * soit l'emplacement du treizième (six candidats essayés) ; les trois derniers
+ * complètent donc la rangée basse à l'image de la rangée haute (0,2 / 0,5 /
+ * 0,8), la case étant haute : 80,1 % ± 1,2, soit 15 points de marge. Les trous
+ * verticaux coûtent plus que les horizontaux, d'où cet appui au centre.
  *
  * Les appuis sont employés plutôt qu'un glissement : le contrôleur ne peint
  * qu'un échantillon par image (`requestAnimationFrame`), si bien qu'un
@@ -53,6 +71,11 @@ const SCRATCH_TAPS: ReadonlyArray<readonly [number, number]> = [
   [0.2, 0.5],
   [0.5, 0.8],
   [0.8, 0.5],
+  [0.2, 0.1],
+  [0.8, 0.1],
+  [0.2, 0.9],
+  [0.5, 0.9],
+  [0.8, 0.9],
 ];
 
 interface Box {

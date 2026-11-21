@@ -31,6 +31,9 @@
   --color-oxide: #8e3b2e;
   --color-verdigris: #4e7c6a;
   --color-indigo: #2b3a63;
+  --color-foil: #3a423d;
+  --color-foil-deep: #232926;
+  --color-foil-hi: #7b8a80;
 
   /* ── Métaux de rareté ─────────────────────────────────────────────────── */
   --color-metal-etain: #8f979a;

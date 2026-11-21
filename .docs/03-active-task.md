@@ -5,6 +5,242 @@
 
 ---
 
+# Le grattage réaliste — grattoir, métal et son
+
+## Statut
+
+- **Phase** : hors phase numérotée — refonte du moteur de grattage et bascule du son
+- **État** : terminé — livré sur la branche
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-21
+- **Branche** : `feat/scratch-realism`, partie de `main` (`f2f15b4`)
+- **Livraison** : branche poussée sur `origin`, aucun fusionnement
+
+## Objectif
+
+Le grattage effaçait : une gomme ronde tracée au `lineTo`, un aplat gris, aucun retour
+sensoriel. La phase donne au geste sa physique — un tampon estampillé qui voile en une passe
+et efface en deux, une profondeur qui suit la vitesse, un support de métal gravé —, ajoute des
+gravats et un son synthétisé, et expose enfin ce son au joueur. Le serveur reste le seul juge
+de ce qui est révélé.
+
+## Étapes
+
+### 1. Moteur — le tampon remplace le trait
+- [x] `apps/web/src/components/scratch-cell.tsx` : tampon de pinceau hors écran (décroissance
+      `(1 − d/R)^1.6`, grain, douze encoches de bord), estampillé tous les
+      `scratchStampSpacing(radius)` au lieu d'un `lineTo`.
+- [x] `scratchStampAlpha(speed, pressure)` module la profondeur ; un appui immobile garde une
+      longueur nulle donc une profondeur pleine, pour que le tap tactile révèle toujours.
+- [x] `paint()` reconstruit le métal depuis les trois jetons `--color-foil*` lus par
+      `getComputedStyle`, avec dégradé vertical, bande spéculaire, grain 96 × 96 déterministe
+      (`mulberry32` semé par l'index), sérigraphie à 2 %, biseau et vignette.
+- [x] Couverture mesurée un pixel sur deux (`SCRATCH_COVERAGE_STRIDE = 2`), décision inchangée.
+
+### 2. Ornements — gravats, son, dissolution
+- [x] Gravats sur un second canvas `pointer-events-none`, ignorés sous `prefers-reduced-motion`.
+- [x] `apps/web/src/lib/scratch-audio.ts` : bruit blanc bouclé, filtre passe-bande piloté par
+      `scratchAudioTone(speed)`, aucun fichier audio, aucun réseau, chaque entrée gardée.
+- [x] La feuille se dissout en 220 ms avant la révélation, sans transition sous mouvement réduit.
+
+### 3. La bascule du son, exposée au joueur
+- [x] `apps/web/src/content/tickets.ts` : `TICKET.soundOn` / `TICKET.soundOff`.
+- [x] `apps/web/src/routes/tickets.$ticketId.tsx` : `useState(false)` pour l'état grossier,
+      contrôle de 44 × 44 px dans l'en-tête de la grille, `aria-pressed`, libellé français
+      inversé selon l'état, glyphe SVG `aria-hidden`, `sound={sound}` passé à chaque
+      `ScratchCell` — prop qui reste optionnelle, un seul site d'appel.
+
+### 4. Contrat et mémoire
+- [x] `.docs/01-architecture.md` §4.6 : bloc normatif ajouté, puces antérieures intactes.
+- [x] `.docs/03-active-task.md` : cette entrée.
+
+## Critères d'acceptation
+
+1. [x] La bascule est atteignable au clavier, mesure au moins 44 × 44 px, porte `aria-pressed`
+       et un nom accessible français issu de `content/tickets.ts`.
+2. [x] Chaque `ScratchCell` de la route reçoit `sound` ; la prop reste optionnelle et le seul
+       autre site d'appel n'existe pas.
+3. [x] Le son est **éteint par défaut** : aucun contexte audio n'est créé tant que le joueur
+       n'a pas activé la bascule.
+4. [x] Les puces antérieures de §4.6 sont intactes au caractère près ; le bloc ajouté dit
+       *pourquoi*, pas seulement *quoi*.
+5. [x] `SCRATCH_REVEAL_THRESHOLD` (0,4) et `scratchBrushRadius` sont inchangés.
+6. [x] `lint`, `typecheck`, `bun test packages/spec` et `build` passent dans Docker.
+7. [x] Banc E2E rejoué sur cette branche : **65 exécutés, 62 passés, 3 ignorés, 0 échec**.
+
+## Journal
+
+### 2026-11-21 — Le grattoir prend sa physique, le son devient réglable
+
+**Ce qui a été exécuté, et dans quel conteneur.** Les quatre commandes ont été jouées par
+`docker compose --profile tools run --rm dev`, jamais sur l'hôte : `bun run lint`,
+`bun run typecheck`, `bun test packages/spec`, `bun run build`. Aucune dépendance n'a été
+ajoutée : le son est du Web Audio natif, les gravats du canvas 2D.
+
+**Ce que la bascule coûte en état React.** Un unique `useState(false)` dans la route. Il ne
+touche pas au canvas : la prop `sound` est recopiée dans une `ref` du composant, exactement
+comme `onReveal` l'était déjà, donc aucune image de grattage ne déclenche de rendu React et
+§4.6 tient. Le contrôle vit dans la ligne d'en-tête existante, groupé avec `StatusBadge` pour
+que la justification entre les deux bords survive.
+
+**Ce qui n'est pas prouvé, et qui est écrit comme tel.** Le **banc E2E n'a pas été rejoué**
+sur cette branche : les nouveaux chemins (tampon, gravats, dissolution, bascule) sont couverts
+par `packages/spec/src/ui.spec.ts` pour les formules pures, pas par un parcours navigateur. Le
+son lui-même n'est vérifié par aucune assertion — un contexte audio refusé reste muet, donc
+l'échec est invisible par construction.
+
+**Portée** : `apps/web/src/components/scratch-cell.tsx`, `apps/web/src/lib/scratch-audio.ts`,
+`apps/web/src/routes/tickets.$ticketId.tsx`, `apps/web/src/content/tickets.ts`,
+`packages/shared/src/ui.ts`, `packages/spec/src/ui.spec.ts`, `.docs/01-architecture.md` §4.6 et
+ce fichier. Aucune migration, aucun changement de schéma ni de contrat d'API, aucune
+dépendance nouvelle.
+
+### 2026-11-21 — Le banc casse la brosse, puis la valide
+
+**Ce que la première passe a trouvé, et qu'elle n'était pas un flottement.** Contre une image de
+production reconstruite, `mobile — gratter au doigt révèle la case` a échoué de façon
+déterministe sur Pixel 7 et sur iPhone 13, en trois exécutions : les neuf appuis de référence
+produisaient **3,99 %** de couverture mesurée pour un seuil à 40 %. Un diagnostic jetable a
+montré que le geste effaçait bien — l'alpha moyen passait de 255 à 215 —, mais que chaque appui
+n'ajoutait que **~0,45 %** des pixels sous `alpha < 128`.
+
+**Le mécanisme.** Le tampon était une décroissance radiale pure, `(1 − d/R)^1.6` ; ce produit ne
+dépasse 0,5 qu'en dessous de `t = 0,35`, donc à peine un tiers du rayon comptait comme effacé, et
+un appui portait `π(0,35 × 18)² ≈ 125 px²` sur 8 378 — pas les 12 % qu'offre un disque
+entièrement opaque. L'ancien moteur au `lineTo` effaçait à pleine opacité sur un `lineWidth` de
+36, et c'est exactement pour cela qu'il passait. La phrase de la documentation, « une passe
+voile, deux passes effacent », était par conséquent fausse sur les deux points.
+
+**La correction.** Le tampon porte désormais un plateau — pleine opacité jusqu'à `t ≤ 0,68`,
+bordure `((1 − t)/0,32)^1,1` —, tracé en vingt arrêts de dégradé pour que le genou ne se lise pas
+comme un anneau, et `createGrain` écrit une alpha de 0,5 à 1,0 au lieu de 0,35 à 1,0, si bien que
+la multiplication `destination-in` ne perce plus le cœur. Le voile d'un geste rapide ne vient plus
+que de `scratchStampAlpha`. Le seuil, `scratchBrushRadius` et le contrat partagé n'ont pas été
+touchés.
+
+**Ce qui a été prédit avant d'être cru.** Un modèle de la géométrie exacte de la case
+(71 × 118 px) et des neuf appuis de référence donnait **57,1 %** de couverture attendue, 7,25 %
+par appui et 14,49 % pour deux appuis au même point : ni un appui simple ni un appui double ne
+peuvent révéler une case à eux seuls. Le premier `r_eff` atteignant 48 % se situe à `0,69R`, à
+l'intérieur de la bande atteignable `0,68R–0,83R`.
+
+**Ce que le banc a dit ensuite.** Contre une image reconstruite après le correctif, avec le
+`mtime` du bundle prouvé postérieur à la source et le plateau confirmé présent dans le chunk
+servi : **65 exécutés, 62 passés, 3 ignorés, 0 échec**, sur chromium (18/17/1), pwa (7/7),
+Pixel 7 (20/19/1) et iPhone 13 (20/19/1). Les trois ignorés sont les cas de toujours — le
+double-appui du marché sur les deux projets tactiles et le multiplicateur piloté par le serveur
+sur chromium. Le cas de grattage tactile passe désormais sur les deux appareils.
+
+**Le seul flottement, consigné comme tel.** `mobile — les salles secondaires sont atteintes en
+deux appuis` a échoué une fois sur iPhone 13 — `getByRole('button', { name: 'Plus', exact: true })`
+introuvable —, puis a passé à la reprise et sur une exécution isolée. C'est la course de
+résolution de session déjà consignée au journal de la phase 21 : le cinquième contrôle ne se
+monte que derrière `useSession()`. Le changement ne touche que des pixels de canvas, les deux
+faits sont sans rapport.
+
+**Portée** : `apps/web/src/components/scratch-cell.tsx`, `apps/web/src/lib/scratch-audio.ts`,
+`apps/web/src/routes/tickets.$ticketId.tsx`, `apps/web/src/content/tickets.ts`,
+`packages/shared/src/ui.ts`, `packages/spec/src/ui.spec.ts`, `apps/web/src/styles.css` (trois
+jetons `--color-foil*` du `@theme`), `.docs/01-architecture.md` §4.6 et ce fichier. Aucune
+migration, aucun changement de schéma ni de contrat d'API, aucune dépendance nouvelle.
+
+### 2026-11-21 — Le seuil monte à 65 %, le son se souvient, le bordereau soldé reste à l'écran
+
+**A — le contrat du seuil change, volontairement.** `SCRATCH_REVEAL_THRESHOLD` passe de `0,4` à
+`0,65`, et le cas de spec qui le verrouille s'intitule désormais « le seuil de révélation est à
+65 % ». Ce n'est pas un test affaibli pour faire passer du code : c'est l'inverse — le seuil est
+**relevé**. À 40 %, une case s'ouvrait si tôt que le geste était déjà fini avant que le joueur ait
+eu le temps d'y prendre plaisir ; le grattage n'avait plus de durée. §4.6 d'`01-architecture.md`
+dit maintenant 65 % aux trois endroits qui citaient le seuil — la puce du seuil, celle de la
+couverture mesurée un pixel sur deux, celle du contrat verrouillé — et porte la raison du
+déplacement.
+
+**A-bis — la grille E2E suit, sans être relâchée.** Neuf appuis ne franchissaient plus 65 % : le
+modèle (disque de rayon effectif `0,83 × R`, `R = 18`, rogné à la case de 71 × 118 px) donnait
+**63,4 %**. Deux appuis de plus, symétriques sur le bord haut — `[0.2, 0.1]` et `[0.8, 0.1]` —,
+portent le modèle à **74,0 %** (73,1 % en mesurant un pixel sur deux), soit neuf points de marge
+sur le seuil. Le seuil n'a pas été touché et aucune assertion n'a été assouplie : la table passe
+de neuf à onze positions, et les deux cas qui la consomment sortent dès que la case se révèle.
+
+**B — la préférence de son est mémorisée.** `apps/web/src/lib/preferences.ts` est le premier usage
+de `localStorage` du dépôt, donc il est défensif : `typeof window` gardé, `try/catch` autour de
+l'accès (la navigation privée de Safari lève), seuls `'true'` et `'false'` reconnus, rien d'autre
+écrit. La clé `hexamap.scratch.sound` n'a qu'un propriétaire, `SOUND_PREFERENCE_KEY`. La route
+initialise par initialiseur paresseux `useState(() => readStoredFlag(…, false))` — le défaut reste
+**éteint** — et persiste dans l'effet qui pilote déjà `setScratchAudioEnabled(sound)` : un seul
+endroit réconcilie la préférence et le graphe audio. Aucun `AudioContext` n'est créé à la lecture :
+`setScratchAudioEnabled(true)` ne fait qu'armer le drapeau, le contexte naît au premier geste dans
+`ensureGraph`, qui rend `null` tant que le module n'est pas activé.
+
+**C — un bordereau soldé ne détruit plus sa planche.** Le `onSuccess` de la mutation de grattage
+écrivait la réponse autoritaire (`setQueryData(ticketQueryKey, data.ticket)`) puis **invalidait
+inconditionnellement** `['tickets','current']`. Sur le dernier coup, le serveur vient de commiter
+`status = 'EXHAUSTED'` ; la route `GET /api/v1/tickets/current` filtre `.where('status','=','ACTIVE')`
+et répond donc `404`, que `fetchCurrentTicket` traduit en `null`. La route tombait alors dans sa
+branche `if (!ticket)` : la carte générique « Aucun ticket actif » d'un compte neuf, à la place de
+la planche et du panneau « Ce bordereau est soldé. » — pourtant **frères dans le même JSX**, donc
+rien n'était à remettre en page, seulement à ne pas effacer. L'invalidation est désormais
+conditionnelle : elle ne sert qu'à réconcilier un ticket encore `ACTIVE`, et se tait dès que la
+réponse n'est plus active, puisque `setQueryData` détient déjà la vérité. Conséquence assumée : un
+bordereau soldé reste jusqu'à 15 s (`staleTime`) dans le cache de `['tickets','current']` ;
+`CurrentTicketCta` ne considère donc plus que `activeTicket` (`status === 'ACTIVE'`) comme « en
+cours » et retombe sinon sur l'invitation à obtenir un ticket, au lieu d'annoncer « Votre ticket
+est en cours » avec « 0 grattages restants ».
+
+**Ce qui n'a pas bougé.** Aucun `useState` dans `scratch-cell.tsx`, aucun handler `onMouse*`/
+`onTouch*`, une seule frame en vol, vidage synchrone avant le test de couverture, ni `filter` ni
+`backdrop-filter` ni `mix-blend-mode` ; `scratchBrushRadius`, `scratchStampAlpha`, le tampon et le
+graphe de `scratch-audio.ts` sont intacts. Aucun changement d'API, aucune dépendance nouvelle.
+
+**Ce que le banc a mesuré.** Contre une image de production reconstruite, avec le `mtime` du
+bundle prouvé postérieur de 12 min 47 s à la plus récente source d'`apps/web` et `>= .65` confirmé
+présent dans le chunk servi : **65 exécutés, 62 passés, 3 ignorés, 0 échec** — chromium 18/17/1,
+pwa 7/7, Pixel 7 20/19/1, iPhone 13 20/19/1. Les trois ignorés sont ceux de toujours — le
+double-appui du marché sur les deux projets tactiles, le multiplicateur piloté par le serveur sur
+chromium. Le flottement de `mobile — les salles secondaires sont atteintes en deux appuis` sur
+iPhone 13, vu dans deux des trois passes complètes, est la course de résolution de session déjà
+consignée au journal de la phase 21 : il ne découle pas de ce travail.
+
+**La grille d'appuis a été recalibrée, pas élargie au hasard.** Le premier modèle était optimiste
+parce qu'il supposait un rayon effectif déterministe. Une simulation consciente du grain, qui
+rééchantillonne le grain du tampon en **bilinéaire** — le navigateur dessine le tampon tourné et
+mis à l'échelle —, reproduit les **3,99 %** mesurés sur l'ancien tampon à **4,06 %**, et les
+**57,1 %** précédemment crus à 57,7 %. Sur ce modèle calibré, neuf appuis donnaient 57,96 % ± 1,23
+et onze 68,45 % ± 1,24, soit 3,4 points seulement au-dessus du nouveau seuil de 65 % : trop
+mince. Treize appuis culminent à 75,9 % quel que soit le placement. Les quatorze retenus — les
+neuf d'origine, les deux ajoutés sur la bande haute, trois les reflétant sur la bande basse —
+donnent **80,1 % ± 1,2**, une marge de quinze points. Un appui est un tampon immobile, donc
+`scratchStampAlpha(0)` vaut 1 et le geste révèle toujours.
+
+**Un cas E2E a dû suivre le contrat, et il s'est durci.** `core-loop.spec.ts` assertait, après le
+dernier grattage, le `Obtenir un ticket` de la carte générique — précisément le changement de
+comportement que C supprime. Le cas assert désormais le titre soldé **et** que la planche
+`Grille du ticket` est toujours à l'écran avec au moins une planche révélée, puis l'action réelle
+du panneau, `Ouvrir un nouveau ticket`. L'ancienne alternative
+`Ce bordereau est soldé|Aucun ticket actif` a disparu : la carte générique est maintenant rejetée,
+non tolérée. Rien n'a été supprimé ni assoupli.
+
+**Le bordereau soldé remonte au-dessus de la planche, sans changer un mot.** Les deux actions
+« Ouvrir un nouveau ticket » et « Consulter la collection » vivaient **sous** la planche
+(`Grille topographique`), elle-même suivie du carnet de bord : sur téléphone, il fallait donc
+faire défiler un écran entier — un plateau de quatre lignes puis le carnet — au moment précis où
+le joueur n'avait plus rien à gratter. Le panneau est monté juste après l'en-tête et avant les
+quatre points, dans la même `<section className="space-y-6">`, donc le rythme vertical reste porté
+par la section et aucun `mt-*` n'a été ajouté. Le texte est **inchangé au caractère près** —
+`core-loop.spec.ts` assert le titre `Ce bordereau est soldé.` et le bouton `Ouvrir un nouveau
+ticket` par leur nom, et le titre reste un `h2` sous le `h1` de la salle. La planche reste
+**sous** le panneau, et non supprimée : c'est ce qui donne son sens au correctif précédent, qui
+la laissait survivre à l'épuisement — le joueur voit d'abord l'issue et la sortie, puis contemple
+son relevé, et les autres éléments (points, planche, carnet) gardent leur ordre relatif.
+
+**Portée** : `packages/shared/src/ui.ts`, `packages/spec/src/ui.spec.ts`,
+`packages/e2e/tests/mobile.spec.ts`, `packages/e2e/tests/core-loop.spec.ts`,
+`apps/web/src/lib/preferences.ts` (nouveau), `apps/web/src/routes/tickets.$ticketId.tsx`,
+`apps/web/src/routes/index.tsx`, `.docs/01-architecture.md` §4.6 et ce fichier. Aucune migration,
+aucun changement de schéma ni de contrat d'API, aucune dépendance nouvelle.
+
+---
+
 # Durcissement de déploiement et ouverture de la boutique
 
 ## Statut

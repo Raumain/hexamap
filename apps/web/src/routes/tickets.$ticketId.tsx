@@ -15,6 +15,8 @@ import {
   STATUS_LABELS,
   TICKET,
 } from '../content/tickets';
+import { readStoredFlag, SOUND_PREFERENCE_KEY, writeStoredFlag } from '../lib/preferences';
+import { setScratchAudioEnabled } from '../lib/scratch-audio';
 import { useSession } from '../lib/session';
 import {
   collectionStatsQueryKey,
@@ -46,7 +48,17 @@ function TicketPage() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<TicketCell | null>(null);
+  const [sound, setSound] = useState(() => readStoredFlag(SOUND_PREFERENCE_KEY, false));
   const celebrationOpen = celebration !== null;
+
+  // Le commutateur du son n'a qu'un propriétaire : cette route. Une case qui se
+  // démonte ne doit jamais l'éteindre pour tout le ticket. C'est aussi le seul
+  // endroit qui réconcilie la préférence stockée avec le graphe audio.
+  useEffect(() => {
+    setScratchAudioEnabled(sound);
+    writeStoredFlag(SOUND_PREFERENCE_KEY, sound);
+    return () => setScratchAudioEnabled(false);
+  }, [sound]);
 
   useEffect(() => {
     if (!celebrationOpen) return;
@@ -67,7 +79,13 @@ function TicketPage() {
     onSuccess: (data, variables) => {
       queryClient.setQueryData(ticketQueryKey, data.ticket);
       void queryClient.invalidateQueries({ queryKey: collectionStatsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: ticketQueryKey });
+      // Un bordereau soldé vient d'être commité par le serveur : la réponse fait
+      // foi. Revalider `current` ne rendrait rien — la route filtre sur `ACTIVE`
+      // et répond 404, donc `null` — et remplacerait la planche par la carte
+      // vide d'un compte neuf.
+      if (data.ticket.status === 'ACTIVE') {
+        void queryClient.invalidateQueries({ queryKey: ticketQueryKey });
+      }
       const primary = data.revealed.find((cell) => cell.index === variables.cellIndex);
       if (primary) {
         setAnnouncement(revealAnnouncement(variables.cellIndex, cellDisplayName(primary)));
@@ -189,6 +207,29 @@ function TicketPage() {
         <p className="max-w-xl text-sm leading-relaxed text-vellum/70">{TICKET.subtitle}</p>
       </header>
 
+      {ticket.status === 'EXHAUSTED' ? (
+        <div className="vellum mx-auto w-full max-w-2xl rounded-sheet p-6">
+          <h2 className="font-display text-2xl text-ink">Ce bordereau est soldé.</h2>
+          <p className="mt-2 text-sm text-ink-soft">{TICKET.exhaustedDescription}</p>
+          <FormError message={createMutation.error ? createMutation.error.message : null} />
+          <div className="mt-5 flex flex-wrap items-center gap-4">
+            <Button
+              className="border-2 border-brass bg-brass text-cabinet shadow-brass hover:bg-brass-pale"
+              isPending={createMutation.isPending}
+              onClick={() => createMutation.mutate()}
+            >
+              {TICKET.newTicket}
+            </Button>
+            <Link
+              to="/collection"
+              className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep underline decoration-brass/40 underline-offset-4 transition-colors duration-150 hover:text-ink"
+            >
+              Consulter la collection
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto flex w-full max-w-2xl items-center justify-end">
         <span className="flex items-center gap-2" role="img" aria-label={pinsLabel}>
           {[0, 1, 2, 3].map((pin) => (
@@ -212,7 +253,34 @@ function TicketPage() {
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
               Grille topographique
             </p>
-            <StatusBadge status={ticket.status} />
+            <div className="flex items-center gap-2">
+              <StatusBadge status={ticket.status} />
+              <button
+                type="button"
+                aria-pressed={sound}
+                aria-label={sound ? TICKET.soundOff : TICKET.soundOn}
+                onClick={() => setSound((value) => !value)}
+                className={[
+                  'inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-sm border transition-colors duration-150',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-vellum',
+                  sound
+                    ? 'border-brass text-brass'
+                    : 'border-brass/35 text-ink-faint hover:border-brass/70',
+                ].join(' ')}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                >
+                  <path d="M4 9.5h3l4-3.5v12l-4-3.5H4z" />
+                  {sound ? <path d="M15.5 9.2a3.6 3.6 0 0 1 0 5.6" /> : <path d="M18 6 6 18" />}
+                </svg>
+              </button>
+            </div>
           </div>
 
           <fieldset
@@ -230,6 +298,7 @@ function TicketPage() {
                   <ScratchCell
                     key={cell.index}
                     index={cell.index}
+                    sound={sound}
                     pending={mutation.isPending && mutation.variables?.cellIndex === cell.index}
                     onReveal={handleReveal}
                   />
@@ -287,29 +356,6 @@ function TicketPage() {
           )}
         </div>
       </div>
-
-      {ticket.status === 'EXHAUSTED' ? (
-        <div className="vellum mx-auto w-full max-w-2xl rounded-sheet p-6">
-          <h2 className="font-display text-2xl text-ink">Ce bordereau est soldé.</h2>
-          <p className="mt-2 text-sm text-ink-soft">{TICKET.exhaustedDescription}</p>
-          <FormError message={createMutation.error ? createMutation.error.message : null} />
-          <div className="mt-5 flex flex-wrap items-center gap-4">
-            <Button
-              className="border-2 border-brass bg-brass text-cabinet shadow-brass hover:bg-brass-pale"
-              isPending={createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {TICKET.newTicket}
-            </Button>
-            <Link
-              to="/collection"
-              className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep underline decoration-brass/40 underline-offset-4 transition-colors duration-150 hover:text-ink"
-            >
-              Consulter la collection
-            </Link>
-          </div>
-        </div>
-      ) : null}
 
       <div aria-live="polite" className="sr-only">
         {announcement}

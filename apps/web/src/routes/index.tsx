@@ -195,19 +195,22 @@ function CurrentTicketCta() {
   }
 
   const ticket = ticketQuery.data ?? null;
+  // Un bordereau soldé reste en cache quelques secondes après la dernière case :
+  // il n'est plus « en cours », et annoncer « 0 grattages restants » mentirait.
+  const activeTicket = ticket && ticket.status === 'ACTIVE' ? ticket : null;
 
-  if (ticket) {
+  if (activeTicket) {
     return (
       <div className="flex flex-col gap-4">
         <div>
           <p className="text-[15px] leading-relaxed text-vellum/75">Votre ticket est en cours.</p>
           <p className="mt-1 font-mono text-[11px] tabular-nums text-vellum/65">
-            {scrapesLabel(ticket.scrapesRemaining)}
+            {scrapesLabel(activeTicket.scrapesRemaining)}
           </p>
         </div>
         <Link
           to="/tickets/$ticketId"
-          params={{ ticketId: ticket.id }}
+          params={{ ticketId: activeTicket.id }}
           className={`${plateLinkClass} w-full sm:w-auto sm:self-start`}
         >
           Reprendre mon ticket
