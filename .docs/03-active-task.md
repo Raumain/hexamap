@@ -5,6 +5,124 @@
 
 ---
 
+# La planche de musée — une composition distincte pour Le Cartel
+
+## Statut
+
+- **Phase** : hors phase numérotée — composition `detailed` du Cartel
+- **État** : code terminé, `lint`/`typecheck`/`spec`/`build` verts ; banc E2E **non rejoué**
+- **Priorité** : P2
+- **Mis à jour** : 2026-11-21
+- **Branche** : à créer, `feat/planche-musee`, depuis `main`
+
+## Objectif
+
+Le Cartel ne rend plus une planche de liste agrandie mais une **composition distincte** :
+`apps/web/src/components/ui/cards/detailed-plate.tsx`, quatre zones empilées et réservées.
+Le blason et la gravure n'occupent plus jamais la même surface, et aucun mode de fusion n'est
+employé : un contour transparent se confondait avec la gravure. **Les listes ne changent pas
+d'un nœud** — les quatre gabarits redeviennent exactement ce qu'ils étaient, sans prop
+`detailed`.
+
+## Étapes
+
+### 1. Le châssis accepte une seconde géométrie
+- [x] `cards/card-shell.ts` : `CardShellOptions` gagne `ratio?: 'card' | 'plate'` (défaut
+      `'card'`). `decorative` garde `aspect-[4/5]`, `plate` reçoit `min-h-[19rem]` **sans**
+      classe de ratio — la planche de musée est pilotée par son contenu, donc un nom long ou
+      une ligne de données de plus ne déborde jamais. Comportement inchangé pour tous les
+      appelants existants, qui omettent `ratio`.
+
+### 2. La nouvelle composition
+- [x] `cards/detailed-plate.tsx` : en-tête (catégorie à gauche, référence à droite) ; bande de
+      gravure `h-[clamp(96px,42cqi,190px)]` qui ne porte **que** la gravure de la catégorie,
+      en `preserveAspectRatio="xMidYMid slice"` et `opacity` de 0,16 à 0,26 ; cartouche à deux
+      colonnes (sceau de largeur fixe `clamp(56px,26cqi,140px)`, puis lecture : nom en
+      20–34 px, filet de laiton, lignes de données, nom de planche) ; pied (score + « pts »,
+      `RaritySeal` et le libellé de rareté en toutes lettres).
+- [x] Sceau par catégorie : socle circulaire pour la Région et la Commune, écu `SHIELD` pour le
+      Département, simple mot « rue » en italique pour la Rue (aucun blason n'existe).
+- [x] Gravures recopiées **à l'identique** des quatre gabarits ; `communeVignette` reste le seul
+      générateur de la silhouette communale.
+
+### 3. L'aiguillage
+- [x] `Card.tsx` : `variant === 'detailed'` retourne `DetailedPlate` **avant** les quatre
+      branches ; `CardProps` inchangé et transmis tel quel. `detailed` disparaît de l'objet
+      `shared`.
+- [x] Les quatre gabarits perdent la prop `detailed` ; `DepartementCard` reperd `population` et
+      `regionName`, `CommuneCard` reperd `departementName` et `regionName` et garde
+      `population`, qui précède ce travail.
+
+### 4. Mémoire
+- [x] `DESIGN_SYSTEM.md` §7.1 : la puce « deux densités » devient « deux compositions ».
+- [x] `.docs/01-architecture.md` §4.9 : la puce « Une planche, deux densités » devient « Deux
+      compositions, un seul vocabulaire ».
+- [x] Ce fichier.
+
+## Critères d'acceptation
+
+1. [x] `detailed-plate.tsx` rend quatre zones distinctes, sans recouvrement entre la gravure
+       `<svg>` et le blason `<img>`, et ne contient **aucun** `mix-blend-mode`.
+2. [x] `Card.tsx` aiguille `variant === 'detailed'` vers `DetailedPlate` et ne passe plus
+       `detailed` aux quatre gabarits.
+3. [x] Les quatre gabarits sont revenus à leur balisage d'origine, sans prop `detailed`.
+4. [x] `card-shell.ts` expose `ratio` optionnel, défaut identique au comportement antérieur.
+5. [x] Aucun fichier de `packages/spec`, `packages/db`, `apps/api` ni aucune migration touché.
+6. [x] Aucune dépendance nouvelle ; jetons uniquement ; aucun texte visible sous 10 px ;
+       aucun `filter`, `backdrop-filter` ni `mix-blend-mode` dans la nouvelle composition.
+7. [x] `lint`, `typecheck`, `bun test packages/spec` et `build` passent dans Docker.
+8. [ ] Banc E2E rejoué sur cette branche.
+
+## Journal
+
+### 2026-11-21 — La planche du Cartel change de nature
+
+**Ce que la première tentative a raté, et pourquoi le refus est juste.** La densité `detailed`
+existait depuis la phase 14 et ne faisait que grossir la planche des listes en y ajoutant un
+médaillon. Le joueur l'a rejetée : « c'est trop similaire, le contour et le blason semblent se
+superposer au dessin ». La cause n'est pas une question de goût. Le serveur replie
+`contour_url` dans `blasonUrl` par `blasonOf` : pour beaucoup de communes, et pour la plupart
+des entités sans armoiries, ce que l'on appelle « blason » est en réalité un **contour
+transparent**, une line-art. Posé sur la gravure de catégorie avec `mix-blend-multiply`, deux
+dessins se mélangent et l'on ne lit plus ni l'un ni l'autre. Aucun réglage d'opacité ne répare
+cela : le défaut est structurel, deux gravures sur la même surface.
+
+**La réponse : des zones réservées.** `detailed-plate.tsx` est une composition neuve, en quatre
+bandes empilées. La gravure vit dans une bande à hauteur fixe, sans un caractère au-dessus
+d'elle. Le blason descend dans le cartouche, dans une colonne de largeur fixe, à côté du nom —
+donc à côté du texte, jamais dessus. Et le fichier n'emploie **aucun** mode de fusion : c'est
+la règle qui rend le défaut impossible à réintroduire, pas seulement absent aujourd'hui.
+
+**Ce que la réversion a coûté.** Les quatre gabarits portaient des branches `detailed` mortes
+une fois l'aiguillage déplacé ; elles sont supprimées, la prop `detailed` avec elles, et
+`DepartementCard` reperd `population` et `regionName`, `CommuneCard` reperd `departementName`
+et `regionName`. `population` reste sur `CommuneCard` : elle y était avant ce travail. Le
+`git diff` de ces quatre fichiers ne montre donc que des suppressions par rapport au commit
+précédent.
+
+**Le plancher de lisibilité.** La spécification autorisait deux étiquettes à
+`clamp(8px,…)`. Le plancher de 10 px a été préféré : les quatre étiquettes concernées (nom de
+planche, libellé de rareté, `pts`, en-tête et lignes de données) sont écrites
+`clamp(10px,…,11px)` ou `clamp(10px,…,12px)`. Aucun texte visible ne descend sous 10 px.
+
+**Ce qui n'est pas prouvé, et qui est écrit comme tel.** Le budget de **26 nœuds non-SVG** est
+compté à la main sur le balisage — 22 nœuds avec un blason et deux lignes de données, 20 pour
+une Région —, pas mesuré dans un navigateur. Un cas E2E
+(`planche du Cartel — le blason ne recouvre jamais la gravure`) vérifie la disjonction des
+boîtes et l'absence de mode de fusion, mais le **banc n'a pas été rejoué** sur cette branche.
+
+**Vérification (Docker uniquement)** — `bun run lint`, `bun run typecheck`,
+`bun test packages/spec`, `bun run build`.
+
+**Portée** : `apps/web/src/components/ui/cards/detailed-plate.tsx` (nouveau),
+`apps/web/src/components/ui/Card.tsx`, `apps/web/src/components/ui/cards/card-shell.ts`,
+`apps/web/src/components/ui/cards/{region,departement,commune,rue}-card.tsx`,
+`packages/e2e/tests/design-system.spec.ts`, `DESIGN_SYSTEM.md` §7.1,
+`.docs/01-architecture.md` §4.9 et ce fichier. Aucune migration, aucun changement de schéma ni
+de contrat d'API, aucune dépendance nouvelle, `packages/spec` intact. Aucun commit.
+
+---
+
 # Le grattage réaliste — grattoir, métal et son
 
 ## Statut

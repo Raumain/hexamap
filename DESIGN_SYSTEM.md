@@ -267,6 +267,16 @@ article.exhibit                 ← le carton de montage (métal de rareté)
   La même planche reste lisible de **56 px** (tiroir de La Planche) à **320 px** (bureau large).
   On ne duplique donc pas un « petit » et un « grand » gabarit : la collection, le marché,
   les emplacements et le chapiteau du Relevé rendent exactement le même objet.
+- **Deux compositions, un seul vocabulaire.** Les listes rendent la planche fluide décrite
+  ci-dessus. Le Cartel (§8.7) rend une **composition distincte**,
+  `apps/web/src/components/ui/cards/detailed-plate.tsx` — et non une planche agrandie : quatre
+  zones réservées (en-tête, bande de gravure, cartouche blason + lecture, pied). La raison est
+  mécanique : le blason et la gravure ne doivent **jamais** partager la même surface. Le
+  serveur replie `contour_url` dans `blasonUrl` (`blasonOf`), donc un blason est souvent un
+  contour transparent ; posé sur la gravure en `mix-blend-multiply`, les deux dessins se
+  confondent en une bouillie. `DetailedPlate` n'emploie donc **aucun mode de fusion** et porte
+  son propre budget de **26 nœuds non-SVG**. La collection, le marché, les emplacements et le
+  chapiteau du Relevé gardent l'unique planche fluide.
 - Tailles de référence : registre **96 px**, lot du Comptoir **132 px**, emplacement de La
   Planche **132 px**, chapiteau du Relevé **240 px**, tiroir **56 px**.
 - Carton : `bg-cabinet-raised`, bord `1px` du métal de rareté, `p-[3px]`, rayon `2px`.
