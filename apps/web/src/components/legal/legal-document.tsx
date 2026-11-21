@@ -1,19 +1,21 @@
-import { LEGAL_BANNER, type LegalDocument } from '../../content/legal';
+import type { LegalDocument } from '../../content/legal';
 
 /**
- * Rend un document légal provisoire : bandeau visible, puis une section par
- * repère. Aucun texte juridique n'est inventé ici — chaque paragraphe est un
- * espace réservé que le titulaire du site remplace.
+ * Rend un document légal : bandeau facultatif, puis une section par entrée.
+ * Le bandeau n'est porté que par les documents dont les mentions d'identité
+ * restent à compléter.
  */
 export function LegalDocumentPage({ document }: { document: LegalDocument }) {
   return (
     <section>
-      <p
-        role="note"
-        className="inline-flex max-w-full rounded-[2px] border border-danger/40 bg-cabinet-sunk px-3 py-2 font-mono text-[10px] leading-relaxed tracking-[0.12em] uppercase text-danger"
-      >
-        {LEGAL_BANNER}
-      </p>
+      {document.banner ? (
+        <p
+          role="note"
+          className="inline-flex max-w-full rounded-[2px] border border-danger/40 bg-cabinet-sunk px-3 py-2 font-mono text-[10px] leading-relaxed tracking-[0.12em] uppercase text-danger"
+        >
+          {document.banner}
+        </p>
+      ) : null}
 
       <header className="mt-6">
         <p className="salon-eyebrow">{document.eyebrow}</p>
@@ -33,9 +35,14 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
             className="rounded-sheet border border-veil bg-cabinet-raised px-4 py-5"
           >
             <h2 className="font-display text-lg font-semibold text-vellum">{segment.heading}</h2>
-            <p className="mt-2 font-mono text-[11px] leading-relaxed break-words text-vellum/60">
-              {segment.placeholder}
-            </p>
+            {segment.paragraphs.map((paragraph) => (
+              <p
+                key={paragraph}
+                className="mt-2 font-mono text-[11px] leading-relaxed break-words text-vellum/60"
+              >
+                {paragraph}
+              </p>
+            ))}
           </article>
         ))}
       </div>
