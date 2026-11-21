@@ -60,9 +60,23 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
       await expect.poll(() => scratchable.count(), { timeout: 15_000 }).toBeLessThan(before);
     }
 
-    // Ticket consommé : l'écran propose immédiatement un nouveau ticket.
-    await expect(page.getByText(/Ce bordereau est soldé|Aucun ticket actif/)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Obtenir un ticket' })).toBeVisible();
+    // Ticket consommé : le bordereau soldé s'affiche **et la planche reste à
+    // l'écran**. La mutation de grattage n'invalide `['tickets','current']` que
+    // tant que le ticket est encore `ACTIVE` ; une fois `EXHAUSTED`, la réponse
+    // autoritaire reste au cache, donc la route ne retombe pas sur la carte
+    // générique « Aucun ticket actif ». Le panneau de soldé et la grille 4 × 4
+    // sont frères dans le même JSX : ne vérifier que le panneau laisserait
+    // passer exactement la régression qu'on veut interdire — un bordereau qui
+    // détruit ses cases au moment où le joueur veut les regarder.
+    await expect(page.getByRole('heading', { name: 'Ce bordereau est soldé.' })).toBeVisible();
+
+    const board = page.getByRole('group', { name: 'Grille du ticket' });
+    await expect(board).toBeVisible();
+    await expect.poll(() => board.getByRole('article').count()).toBeGreaterThan(0);
+    await expect(board.getByRole('article').first()).toBeVisible();
+
+    // L'action du panneau de soldé, et non plus celle de la carte générique.
+    await expect(page.getByRole('button', { name: 'Ouvrir un nouveau ticket' })).toBeVisible();
   });
 
   await test.step('inventaire : la collection contient les cartes révélées', async () => {

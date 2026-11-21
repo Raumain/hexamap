@@ -79,7 +79,13 @@ function TicketPage() {
     onSuccess: (data, variables) => {
       queryClient.setQueryData(ticketQueryKey, data.ticket);
       void queryClient.invalidateQueries({ queryKey: collectionStatsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: ticketQueryKey });
+      // Un bordereau soldé vient d'être commité par le serveur : la réponse fait
+      // foi. Revalider `current` ne rendrait rien — la route filtre sur `ACTIVE`
+      // et répond 404, donc `null` — et remplacerait la planche par la carte
+      // vide d'un compte neuf.
+      if (data.ticket.status === 'ACTIVE') {
+        void queryClient.invalidateQueries({ queryKey: ticketQueryKey });
+      }
       const primary = data.revealed.find((cell) => cell.index === variables.cellIndex);
       if (primary) {
         setAnnouncement(revealAnnouncement(variables.cellIndex, cellDisplayName(primary)));
