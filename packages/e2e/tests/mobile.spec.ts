@@ -348,10 +348,9 @@ test('mobile — gratter ne fait pas défiler la page', async ({ page }) => {
   const scrollable = await page.evaluate(
     () => document.documentElement.scrollHeight > window.innerHeight,
   );
-  if (!scrollable) {
-    test.skip(true, 'Le bordereau tient dans la fenêtre : le défilement ne peut pas être observé.');
-    return;
-  }
+  expect(scrollable, 'La page du bordereau doit être défilable, sinon le cas ne prouve rien').toBe(
+    true,
+  );
 
   await page.evaluate(() => window.scrollTo(0, 0));
   const before = await page.evaluate(() => window.scrollY);
@@ -594,14 +593,14 @@ test('market — un double-appui n’achète qu’une fois', async ({ page }) =>
   await openRoom(page, '/market');
 
   const buy = page.getByRole('button', { name: 'Acquérir' });
-  if ((await buy.count()) === 0) {
-    // Limitation du banc : `global-setup.ts` n'inscrit qu'un compte, donc
-    // aucune annonce d'un autre joueur n'est ouverte de façon déterministe.
-    // La route reste armée pour que les invariants soient vérifiés dès qu'une
-    // annonce étrangère existe ; aucune fixture backend n'est inventée ici.
-    test.skip(true, 'Aucune annonce d’un autre compte : rien à acquérir de façon déterministe.');
-    return;
-  }
+  // Le référentiel de jeu du banc porte une annonce OPEN d'un second compte
+  // (`packages/e2e/fixtures/market-fixture.ts`), insérée avant le démarrage des
+  // specs. Sans elle, le cas ne prouverait rien : l'assertion remplace le
+  // `test.skip` qui masquait cette absence de données.
+  await expect(
+    buy.first(),
+    'Le marché doit proposer au moins une annonce d’un autre compte',
+  ).toBeVisible();
 
   const first = buy.first();
   await first.click();

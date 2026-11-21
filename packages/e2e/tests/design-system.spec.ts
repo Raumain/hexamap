@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import { multiplierLabel } from '../../../apps/web/src/content/tableau';
 import { communeVignette } from '../../../apps/web/src/lib/commune-vignette';
+import { TABLEAU_SLOT_LABELS } from '../../../packages/shared/src/tableau';
+import { CATEGORY_LABELS } from './fixtures/auth';
 
 // Contrat visuel et structurel du design system v4 — « Le Cabinet de
 // cartographie » (DESIGN_SYSTEM.md, révision 4).
@@ -49,10 +51,18 @@ async function openCollection(page: Page): Promise<void> {
 test('planche du Cartel — le blason ne recouvre jamais la gravure', async ({ page }) => {
   await openCollection(page);
 
+  // Le Cartel ne rend un blason que pour les catégories qui en portent : une rue
+  // n'en a jamais (`resolveCardAssets` rend `null` pour `RUE`). Ouvrir « la
+  // première planche de la collection » serait donc un tirage au sort ; le
+  // filtre « Commune » rend le cas déterministe, puisque `global-setup.ts`
+  // gratte jusqu'à posséder cette catégorie.
+  await page.getByRole('button', { name: CATEGORY_LABELS.COMMUNE, exact: true }).click();
+
   const firstPlate = page.locator('a[href^="/card/"]').first();
-  if ((await firstPlate.count()) === 0) {
-    test.skip(true, 'La collection de démonstration ne contient aucune carte ouvrable au Cartel.');
-  }
+  await expect(
+    firstPlate,
+    'La collection doit contenir au moins une commune ouvrable au Cartel.',
+  ).toBeVisible();
 
   await firstPlate.click();
   await expect(page).toHaveURL(/\/card\//);
@@ -83,12 +93,12 @@ test('planche du Cartel — le blason ne recouvre jamais la gravure', async ({ p
   expect(blended, 'La planche de musée n’emploie aucun mode de fusion.').toBe(0);
 
   const blason = plate.locator('img').first();
-  if ((await blason.count()) === 0) {
-    test.skip(
-      true,
-      'Le référentiel du banc ne porte aucun blason : la disjonction des boîtes ne peut pas être mesurée ici.',
-    );
-  }
+  // Le référentiel du banc porte désormais un blason par commune, servi depuis
+  // le dossier `packages/e2e/fixtures/blasons` monté sur `/data/blasons`.
+  await expect(
+    blason,
+    'La commune du référentiel E2E doit porter un blason servi sous /blasons.',
+  ).toBeVisible();
 
   const engravingBox = await engraving.boundingBox();
   const blasonBox = await blason.boundingBox();
@@ -183,16 +193,25 @@ async function pickFirstEligibleCard(page: Page): Promise<boolean> {
  * Remplit les emplacements libres de La Planche avec les premières cartes
  * éligibles de la collection de démonstration. Retourne le nombre de planches
  * posées : `0` signifie que le compte ne peut pas exercer la composition.
+ *
+ * Le compte de démonstration ne possède pas toujours les quatre catégories :
+ * `global-setup.ts` gratte jusqu'à huit bordereaux, et seule une case « Pépite »
+ * peut rendre une région ou un département. Un emplacement dont la catégorie
+ * manque ouvre donc un tiroir vide — la boucle passe à l'emplacement suivant au
+ * lieu de s'arrêter au premier vide, sinon une collection partielle ferait
+ * croire que rien n'est plaçable.
  */
 async function placeCards(page: Page): Promise<number> {
   let placed = 0;
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const slot = page.getByRole('button', { name: /Emplacement libre/ }).first();
-    if ((await slot.count()) === 0) break;
+  for (const slotLabel of Object.values(TABLEAU_SLOT_LABELS)) {
+    const slot = page
+      .getByRole('button', { name: new RegExp(`Emplacement libre\\s*${slotLabel}`) })
+      .first();
+    if ((await slot.count()) === 0) continue;
 
     await slot.click();
-    if (!(await pickFirstEligibleCard(page))) break;
+    if (!(await pickFirstEligibleCard(page))) continue;
 
     placed += 1;
     await waitForPreview(page);
@@ -389,34 +408,28 @@ test('la planche — le multiplicateur de la plaque vient du serveur', async ({ 
   await expect(page.getByRole('heading', { name: /La planche d.alignement/ })).toBeVisible();
 
   const plate = page.locator('section.vellum[aria-live="polite"]');
-  if ((await plate.count()) === 0) {
-    test.skip(
-      true,
-      'Aucune plaque de calcul en vélin n’est montée sur La Planche : le multiplicateur ne peut pas être comparé.',
-    );
-  }
+  await expect(
+    plate,
+    'La plaque de calcul en vélin doit être montée sur La Planche.',
+  ).toBeVisible();
 
   const drainPreviews = trackPreviews(page);
 
-  if ((await placeCards(page)) === 0) {
-    test.skip(
-      true,
-      'La collection de démonstration ne contient aucune carte plaçable : la prévisualisation serveur ne peut pas être exercée.',
-    );
-  }
+  const placedCount = await placeCards(page);
+  expect(
+    placedCount,
+    'Le compte de démonstration doit posséder au moins une carte plaçable dans un emplacement.',
+  ).toBeGreaterThan(0);
 
   await waitForPreview(page);
 
   const samples = await drainPreviews();
   const last = samples[samples.length - 1];
-
-  if (last === undefined) {
-    test.skip(
-      true,
-      'Aucune réponse GET /tableaux/preview captée : la route n’a pas été sollicitée par cette pile.',
-    );
-    return;
-  }
+  expect(
+    last,
+    'Au moins une réponse GET /tableaux/preview doit être captée pendant le placement.',
+  ).toBeDefined();
+  if (last === undefined) return;
 
   // Le sceau de cire de la plaque : c'est le seul `bg-oxide` circulaire monté
   // dans la plaque de calcul (§8.3).

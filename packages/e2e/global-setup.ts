@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { type Browser, chromium, type Page } from '@playwright/test';
+import { ensureComboCards } from './fixtures/tableau-fixture';
 import {
   type AccountFixture,
   accountPath,
@@ -40,7 +41,27 @@ export default async function globalSetup(): Promise<void> {
   try {
     await openRegistration(page, baseURL);
     await register(page, { pseudo, email });
+
+    const userId = await sessionUserId(page);
+
+    // Premier appel, avant le grattage : il donne à `collectCards` la géographie
+    // qu'il chercherait sinon dans les tickets — une région tombe à 8 % et un
+    // département à 17 % —, et le compte ne dispose que de six charges. Sans ce
+    // raccourci, la boucle épuiserait le carnet et la septième tentative
+    // d'« Obtenir un ticket » attendrait un bouton dont le nom accessible a
+    // changé.
+    await ensureComboCards(userId);
+
     const { categories, tickets } = await collectCards(page);
+
+    // Second appel, **après** le grattage, et c'est celui qui fait autorité : un
+    // ticket peut redonner une carte déjà présente dans le combo (`user_cards`
+    // n'a aucune unicité sur `ref_code`), donc une fixture jouée seulement avant
+    // laisserait deux exemplaires du même lieu — et le tiroir, qui les liste tous
+    // les deux, ferait échouer un locator strict. Puisqu'elle supprime puis
+    // insère, la fixture est le **dernier mot** sur les `ref_code` qu'elle
+    // garantit : un seul exemplaire par lieu du combo.
+    await ensureComboCards(userId);
 
     await mkdir(authDirectory, { recursive: true });
     await context.storageState({ path: storageStatePath });
@@ -118,6 +139,42 @@ async function register(page: Page, { pseudo, email }: Credentials): Promise<voi
 interface CollectedCards {
   categories: Category[];
   tickets: number;
+}
+
+/**
+ * Identifiant du joueur inscrit, lu sur la session Better Auth. La fixture a
+ * besoin de `user_id` pour rattacher le combo, et le compte est créé à chaque
+ * exécution : l'identifiant ne peut pas être deviné.
+ */
+async function sessionUserId(page: Page): Promise<string> {
+  const response = await page.request.get('/api/auth/get-session', { timeout: STACK_TIMEOUT });
+
+  if (!response.ok()) {
+    throw new Error(
+      `Lecture de session impossible pour la fixture de La Planche (statut ${response.status()}).`,
+    );
+  }
+
+  const userId = userIdOf(await response.json());
+
+  if (userId === null) {
+    throw new Error(
+      'Session E2E sans identifiant utilisateur : le combo de La Planche ne peut pas être semé.',
+    );
+  }
+
+  return userId;
+}
+
+/** Extraction défensive : `get-session` rend `null` ou `{ user: { id } }`. */
+function userIdOf(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+
+  const user: unknown = Reflect.get(payload, 'user');
+  if (typeof user !== 'object' || user === null) return null;
+
+  const id: unknown = Reflect.get(user, 'id');
+  return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
 /** Gratte des tickets jusqu'à couvrir les quatre catégories, dans une borne fixe. */
