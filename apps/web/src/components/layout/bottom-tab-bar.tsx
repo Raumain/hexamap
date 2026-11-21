@@ -1,6 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
-import { useSession } from '../../lib/session';
+import { useSessionState } from '../../lib/session';
 import { MoreSheet } from './more-sheet';
 import { isNavItemActive, isSecondaryRoom, MORE_SHEET, PRIMARY_NAV } from './nav-items';
 
@@ -25,7 +25,7 @@ function TabGlyph({ path, strokeWidth = 1.3 }: { path: string; strokeWidth?: num
 /** Les quatre onglets de la barre basse et la feuille des salles secondaires (DESIGN_SYSTEM.md §9.2). */
 export function BottomTabBar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const session = useSession();
+  const sessionState = useSessionState();
   const [open, setOpen] = useState(false);
   const plusRef = useRef<HTMLButtonElement>(null);
 
@@ -34,7 +34,8 @@ export function BottomTabBar() {
     plusRef.current?.focus();
   }
 
-  const signedIn = Boolean(session.data?.user);
+  // Une session non vérifiée n'est pas une session absente : `loading` et `unavailable` ne montent rien.
+  const signedIn = sessionState.status === 'authenticated';
   const secondaryActive = isSecondaryRoom(pathname);
 
   return (

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Navigate, useRouter } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { outlineButtonClass } from '../components/ui/button-classes';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { PLAYER_PROFILE } from '../content/player-profile';
 import { CATEGORY_LABELS } from '../content/tickets';
 import {
@@ -9,7 +10,7 @@ import {
   playerProfileErrorMessage,
   playerProfileQueryOptions,
 } from '../lib/player-profile';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
 const multiplierFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
@@ -25,9 +26,9 @@ export const Route = createFileRoute('/players/$playerId')({
 
 function PlayerProfilePage() {
   const { playerId } = Route.useParams();
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return (
       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/70">
         {PLAYER_PROFILE.loadingSession}
@@ -35,7 +36,11 @@ function PlayerProfilePage() {
     );
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 

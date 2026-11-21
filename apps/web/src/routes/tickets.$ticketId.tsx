@@ -7,6 +7,7 @@ import { RevealedCell } from '../components/revealed-cell';
 import { ScratchCell } from '../components/scratch-cell';
 import { Card } from '../components/ui/Card';
 import { OverlayPortal } from '../components/ui/overlay-portal';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import {
   CATEGORY_LABELS,
   lockedCellLabel,
@@ -17,7 +18,7 @@ import {
 } from '../content/tickets';
 import { readStoredFlag, SOUND_PREFERENCE_KEY, writeStoredFlag } from '../lib/preferences';
 import { setScratchAudioEnabled } from '../lib/scratch-audio';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 import {
   collectionStatsQueryKey,
   createTicket,
@@ -41,7 +42,7 @@ function TicketPage() {
   const { ticketId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const session = useSession();
+  const session = useSessionState();
   const ticketQuery = useQuery(currentTicketQueryOptions);
   const firedCells = useRef(new Set<number>());
   const gridRef = useRef<HTMLFieldSetElement>(null);
@@ -113,10 +114,13 @@ function TicketPage() {
     },
   });
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return <p className="text-vellum/70">{TICKET.loadingSession}</p>;
   }
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 

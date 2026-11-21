@@ -7,6 +7,7 @@ import { TextField } from '../components/text-field';
 import { outlineButtonClass, primaryButtonClass } from '../components/ui/button-classes';
 import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { CARD_DETAIL, CARD_SOURCE_LABELS, stateLabel } from '../content/card-detail';
 import { CURRENCY } from '../content/market';
 import { CATEGORY_LABELS } from '../content/tickets';
@@ -24,7 +25,7 @@ import {
   marketListingsQueryKey,
   myListingsQueryKey,
 } from '../lib/market';
-import { sessionQueryKey, useSession } from '../lib/session';
+import { sessionQueryKey, useSessionState, useSessionUser } from '../lib/session';
 import { tableauxListQueryKey } from '../lib/tableaux';
 import { collectionStatsQueryKey } from '../lib/tickets';
 
@@ -47,9 +48,9 @@ export const Route = createFileRoute('/card/$cardId')({
 
 function CardDetailPage() {
   const { cardId } = Route.useParams();
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return (
       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/70">
         {CARD_DETAIL.loadingSession}
@@ -57,11 +58,15 @@ function CardDetailPage() {
     );
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 
-  return <CardDetailView cardId={cardId} viewerId={session.data.user.id} />;
+  return <CardDetailView cardId={cardId} viewerId={session.user.id} />;
 }
 
 interface CardDetailViewProps {
@@ -494,8 +499,7 @@ function BuyPanel({
   card: CardDetail;
   listing: NonNullable<CardDetail['listing']>;
 }) {
-  const viewer = useSession();
-  const viewerId = viewer.data?.user?.id ?? null;
+  const viewerId = useSessionUser()?.id ?? null;
   const queryClient = useQueryClient();
 
   const buyMutation = useMutation({

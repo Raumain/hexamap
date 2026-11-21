@@ -23,6 +23,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { COLLECTION, cardsShownLabel, collectionTotalLabel } from '../content/collection';
 import { CATEGORY_LABELS } from '../content/tickets';
 import {
@@ -30,7 +31,7 @@ import {
   collectionErrorMessage,
   collectionQueryOptions,
 } from '../lib/collection';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
 const dateFormatter = new Intl.DateTimeFormat('fr-FR');
@@ -151,13 +152,17 @@ export const Route = createFileRoute('/collection')({
 });
 
 function CollectionPage() {
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return <p className="text-sm text-vellum/70">{COLLECTION.loadingSession}</p>;
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 

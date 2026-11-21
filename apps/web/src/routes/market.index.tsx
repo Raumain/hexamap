@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { CURRENCY, listingsCountLabel, MARKET } from '../content/market';
 import { CATEGORY_LABELS } from '../content/tickets';
 import { collectionQueryKey } from '../lib/collection';
@@ -17,7 +18,7 @@ import {
   marketListingsQueryOptions,
   myListingsQueryKey,
 } from '../lib/market';
-import { sessionQueryKey, useSession } from '../lib/session';
+import { sessionQueryKey, useSessionState } from '../lib/session';
 import { tableauxListQueryKey } from '../lib/tableaux';
 import { collectionStatsQueryKey } from '../lib/tickets';
 
@@ -37,13 +38,17 @@ export const Route = createFileRoute('/market/')({
 });
 
 function MarketPage() {
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return <p className="text-sm text-vellum/70">{MARKET.loadingSession}</p>;
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 
@@ -65,7 +70,7 @@ function MarketPage() {
         </Link>
       </header>
       <div className="mt-8">
-        <MarketBody userId={session.data.user.id} />
+        <MarketBody userId={session.user.id} />
       </div>
     </section>
   );
