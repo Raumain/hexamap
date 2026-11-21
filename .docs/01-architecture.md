@@ -416,10 +416,20 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   (`index = ligne * 4 + colonne`) dont dépend la pastille de distance de Manhattan, donc jamais
   une décision responsive ; `packages/e2e` assert quatre colonnes distinctes et quatre lignes
   distinctes. Aucun texte visible ne descend sous **10 px**. Sous
-  `@container (max-width: 110px)`, la classe `.plate-optional` retire la densité seconde — l'unité
-  `pts`, le code de référence d'une région ou d'une commune, les occurrences d'une rue —, de sorte
-  que le nom, le score et le sceau tiennent toujours dans la planche ; le pied d'une rue porte
-  désormais son score, et son nom a un plancher de 10 px. Le budget de ≤ 18 nœuds non-SVG
+  `@container (max-width: 110px)`, la classe `.plate-optional` efface tout ce qui n'est pas la
+  lecture d'identité : le libellé de catégorie, les replis d'en-tête — code de référence d'une
+  région ou d'un département, « Écu », « Spécimen » —, la ligne de population d'une Commune et la
+  densité seconde (unités `pts`, occurrences d'une rue, code de pied). Restent le nom, le score,
+  le sceau de rareté, et le blason quand il existe. `.plate-band` porte la hauteur du bandeau de
+  vue d'une Commune — 38 % au repos, **30 %** sous 110 px, les deux valeurs dans `styles.css` et
+  non en utilitaire, parce qu'un `h-[38%]` d'`@layer utilities` l'emporterait sur toute déclaration
+  de `@layer components` — et le plancher de l'écu du Département descend de **46 à 34 px** pour
+  que le pied et le sceau tiennent dans la case d'un ticket. `components/ui/cards/card-blason.tsx`
+  est le propriétaire unique du blason d'en-tête : une géométrie `clamp(18px,18cqi,44px)`, un
+  `<img>` qui ne se mêle jamais à la gravure, et un repli **silencieux** — image absente du
+  volume, ou `url` nulle, rend le `fallback` de l'appelant à la place de l'image, jamais l'icône
+  d'image cassée. Le pied d'une rue porte désormais son score, et son nom a un plancher de 10 px.
+  Le budget de ≤ 18 nœuds non-SVG
   s'applique à une planche qui rend sa structure complète : aucune légende n'a été ajoutée, donc
   le budget est inchangé. La charge utile de révélation porte `blasonUrl` et
   `blasonCredit`, remplis par les deux constructeurs — `routes/tickets.ts` pour la réponse de

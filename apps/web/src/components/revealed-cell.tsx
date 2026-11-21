@@ -49,7 +49,7 @@ export function RevealedCell({ cell }: RevealedCellProps) {
   return (
     <div
       className={[
-        'relative flex aspect-[3/5] flex-col gap-1 overflow-hidden rounded-[2px] border border-ink/15 bg-vellum-2/40 p-1.5',
+        'relative flex aspect-[3/5] flex-col gap-1 overflow-hidden rounded-[2px] border border-ink/15 bg-vellum-2/40 p-1',
         isTreasure ? 'border-brass shadow-brass' : '',
       ].join(' ')}
     >

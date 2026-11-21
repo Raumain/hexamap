@@ -265,12 +265,24 @@
     background: radial-gradient(120% 70% at 50% -10%, rgb(255 246 214 / 0.12), transparent 62%);
   }
 
-  /* Sous 110 px, une planche ne garde que ce qui se lit : la densité seconde
-     (occurrences, mentions de spécimen) s'efface au profit du nom, du score et
-     du sceau. Le conteneur est `.exhibit` lui-même. */
+  /* Le bandeau de vue d'une Commune. Les deux hauteurs vivent ici et non en
+     utilitaire : une déclaration de `@layer components` perdrait contre
+     `h-[38%]`, quelle que soit sa place dans le fichier. */
+  .plate-band {
+    height: 38%;
+  }
+
+  /* Sous 110 px, une planche ne garde que ce qui se lit : le nom, le score et
+     le sceau — et le blason quand il existe. S'effacent le libellé de
+     catégorie, les replis d'en-tête (code de référence, « Écu », « Spécimen »),
+     la ligne de population d'une Commune et la densité seconde (occurrences, `pts`, code de pied). Le conteneur est `.exhibit` lui-même. */
   @container (max-width: 110px) {
     .plate-optional {
       display: none;
+    }
+
+    .plate-band {
+      height: 30%;
     }
   }
 

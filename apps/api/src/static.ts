@@ -52,7 +52,8 @@ const SYSTEM_ROOTS = new Set([
   'boot',
   'dev',
   'etc',
-  'home',
+  // `home` n'y figure pas : `/home` est une route cliente (la vitrine publique),
+  // et la garde plus bas vérifie déjà que le chemin résolu reste sous `root`.
   'media',
   'mnt',
   'opt',

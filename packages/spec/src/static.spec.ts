@@ -31,6 +31,19 @@ describe('Archi §6.1 — service du front construit par l’API', () => {
     expect(body).toContain('id="root"');
   });
 
+  // `/home` est une route cliente — la vitrine publique — et traverse donc le
+  // repli SPA comme `/collection`. Tant que `home` figurait dans `SYSTEM_ROOTS`,
+  // l'API servant le SPA répondait `404 ROUTE_NOT_FOUND` et la page était
+  // inatteignable par URL directe : ce cas interdit la régression.
+  it('Archi §6.1 — /home traverse le repli SPA comme une route cliente', async () => {
+    const response = await request('/home');
+    const body = await response.text();
+
+    expect(response.status, 'La vitrine publique doit répondre 200, jamais 404').toBe(200);
+    expect(response.headers.get('content-type')).toStartWith('text/html');
+    expect(body, 'Le repli SPA doit rendre index.html').toContain('id="root"');
+  });
+
   it('sert les assets avec un cache immuable', async () => {
     const response = await request('/assets/app-fixture.js');
     const cacheControl = response.headers.get('cache-control') ?? '';
@@ -117,6 +130,20 @@ describe('Archi §6.1 — service du front construit par l’API', () => {
     const response = await request('/assets/%2e%2e/%2e%2e/etc/passwd');
 
     expect(response.status).toBe(404);
+  });
+
+  // La garde des racines système reste utile : `home` a quitté la liste pour
+  // redevenir une route cliente, les autres racines ne sont jamais des salles.
+  it('Archi §6.1 — /etc/passwd reste refusé', async () => {
+    const response = await request('/etc/passwd');
+    const contentType = response.headers.get('content-type') ?? '';
+    const body = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(contentType, 'Le refus doit être du JSON, jamais index.html').toContain(
+      'application/json',
+    );
+    expect((JSON.parse(body) as { code?: string }).code).toBe('ROUTE_NOT_FOUND');
   });
 
   it('ne masque pas la documentation OpenAPI', async () => {

@@ -290,7 +290,7 @@ function TicketPage() {
           <fieldset
             ref={gridRef}
             tabIndex={-1}
-            className="grid grid-cols-4 gap-2 overscroll-none outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass md:gap-3"
+            className="grid grid-cols-4 gap-1.5 overscroll-none outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass md:gap-3"
             aria-label={TICKET.gridAriaLabel}
           >
             {ticket.cells.map((cell) => {
@@ -484,7 +484,7 @@ function LoadingBoard() {
       </div>
       <div className="mx-auto w-full max-w-2xl rounded-sheet border border-veil bg-cabinet-raised p-4 shadow-lifted md:p-6">
         <div className="vellum rounded-sheet p-4 md:p-5">
-          <div className="grid grid-cols-4 gap-2 md:gap-3">
+          <div className="grid grid-cols-4 gap-1.5 md:gap-3">
             {[...Array(16).keys()].map((index) => (
               <div key={index} className="aspect-[3/5] rounded-[2px] bg-ink/[0.06]" />
             ))}

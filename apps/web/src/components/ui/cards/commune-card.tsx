@@ -3,6 +3,7 @@ import { CATEGORY_META } from '../../../lib/category-theme';
 import { communeVignette } from '../../../lib/commune-vignette';
 import { RARITY_THEME } from '../../../lib/rarity-theme';
 import { RaritySeal } from '../rarity-seal';
+import { CardBlason } from './card-blason';
 import { cardShellProps, formatNumber, formatPopulation } from './card-shell';
 
 export interface CommuneCardProps {
@@ -100,20 +101,13 @@ export function CommuneCard({
     <article {...shell} title={blasonCredit ?? undefined}>
       <div className="relative flex h-full flex-col overflow-hidden rounded-[1px] bg-vellum px-[4.5%] pb-[3.5%] pt-[3.5%] text-ink">
         <header className="relative flex items-start justify-between gap-[3%]">
-          <span className="font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
+          <span className="plate-optional font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
             {CATEGORY_META.COMMUNE.label}
           </span>
-          {blasonUrl ? (
-            <img
-              src={blasonUrl}
-              alt=""
-              title={blasonCredit ?? undefined}
-              className="h-[clamp(18px,18cqi,44px)] w-[clamp(18px,18cqi,44px)] object-contain opacity-90 mix-blend-multiply"
-            />
-          ) : null}
+          <CardBlason url={blasonUrl} credit={blasonCredit} />
         </header>
 
-        <div className="relative my-[4%] h-[38%] overflow-hidden border-y border-ink/15 bg-vellum-2/40">
+        <div className="plate-band relative my-[4%] overflow-hidden border-y border-ink/15 bg-vellum-2/40">
           {view}
         </div>
 
@@ -121,7 +115,7 @@ export function CommuneCard({
           <h3 className="font-display text-[clamp(10px,6.8cqi,17px)] font-semibold leading-[1.05] tracking-tight text-ink break-words line-clamp-2">
             {name}
           </h3>
-          <p className="mt-[2.5%] font-mono text-[clamp(7px,3.1cqi,9px)] tabular-nums tracking-[0.06em] text-ink-soft truncate">
+          <p className="plate-optional mt-[2.5%] font-mono text-[clamp(7px,3.1cqi,9px)] tabular-nums tracking-[0.06em] text-ink-soft truncate">
             {population === null || population === undefined
               ? `INSEE ${refCode}`
               : `${formatPopulation(population)} hab.`}

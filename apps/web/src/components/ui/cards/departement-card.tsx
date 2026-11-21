@@ -2,6 +2,7 @@ import type { Rarity } from '@hexamap/shared';
 import { CATEGORY_META } from '../../../lib/category-theme';
 import { RARITY_THEME } from '../../../lib/rarity-theme';
 import { RaritySeal } from '../rarity-seal';
+import { CardBlason } from './card-blason';
 import { cardShellProps, formatNumber } from './card-shell';
 
 export interface DepartementCardProps {
@@ -10,6 +11,7 @@ export interface DepartementCardProps {
   score: number;
   refCode: string;
   blasonUrl: string | null;
+  blasonCredit: string | null;
   locked: boolean;
   decorative: boolean;
   className?: string;
@@ -24,6 +26,7 @@ export function DepartementCard({
   score,
   refCode,
   blasonUrl,
+  blasonCredit,
   locked,
   decorative,
   className,
@@ -71,25 +74,23 @@ export function DepartementCard({
         </svg>
 
         <header className="relative flex items-start justify-between gap-[3%]">
-          <span className="font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
+          <span className="plate-optional font-mono text-[clamp(7px,3.1cqi,9px)] uppercase tracking-[0.16em] text-ink-faint">
             {CATEGORY_META.DEPARTEMENT.label}
           </span>
-          {blasonUrl ? (
-            <img
-              src={blasonUrl}
-              alt=""
-              className="h-[clamp(18px,18cqi,44px)] w-[clamp(18px,18cqi,44px)] object-contain opacity-90 mix-blend-multiply"
-            />
-          ) : (
-            <span className="font-mono text-[clamp(7px,3cqi,9px)] uppercase tracking-[0.1em] text-ink-faint">
-              Écu
-            </span>
-          )}
+          <CardBlason
+            url={blasonUrl}
+            credit={blasonCredit}
+            fallback={
+              <span className="plate-optional font-mono text-[clamp(7px,3cqi,9px)] uppercase tracking-[0.1em] text-ink-faint">
+                Écu
+              </span>
+            }
+          />
         </header>
 
         <div className="relative my-auto flex justify-center">
           <div
-            className="flex h-[clamp(46px,42cqi,88px)] w-[clamp(40px,37cqi,76px)] items-center justify-center border border-ink/80 bg-vellum-2"
+            className="flex h-[clamp(34px,42cqi,88px)] w-[clamp(40px,37cqi,76px)] items-center justify-center border border-ink/80 bg-vellum-2"
             style={{ clipPath: SHIELD }}
           >
             <span className="font-display text-[clamp(14px,10cqi,24px)] font-semibold leading-none tabular-nums text-ink">
