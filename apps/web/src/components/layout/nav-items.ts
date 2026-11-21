@@ -7,7 +7,6 @@ export type SalonPath =
   | '/market'
   | '/market/mine'
   | '/achievements'
-  | '/import-status'
   | '/assemblage'
   | '/boutique';
 
@@ -78,12 +77,6 @@ export const SECONDARY_NAV: readonly NavItem[] = [
       'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z',
   },
   {
-    to: '/import-status',
-    label: 'Les Archives',
-    short: 'Archives',
-    glyph: 'M4 5h16v4H4zM6 9v10h12V9M10 13h4',
-  },
-  {
     to: '/assemblage',
     label: "L'Assemblage",
     short: 'Assemblage',
@@ -109,7 +102,6 @@ const SALON_TITLES: Record<string, string> = {
   '/market': 'Le Comptoir',
   '/market/mine': 'Mes Offres',
   '/achievements': 'Les Médailles',
-  '/import-status': 'Les Archives',
   '/assemblage': "L'Assemblage",
   '/boutique': 'La Boutique',
   '/boutique/succes': 'La Boutique',

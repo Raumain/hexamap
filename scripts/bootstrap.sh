@@ -24,8 +24,6 @@ docker compose up -d --build db api web
 echo "[hexamap] Réinitialisation du statut d'import..."
 docker compose --profile tools run --rm dev rm -f /data/import-status/status.json
 
-echo "[hexamap] Suivi en direct : http://localhost:5174/import-status"
-
 echo "[hexamap] Import du référentiel géographique complet (régions, départements, communes, voies)."
 echo "[hexamap] Les tables de référence sont vidées puis rechargées : l'étape est rejouable."
 echo "[hexamap] Étape BAN incluse : plusieurs heures possibles (téléchargements Open Data + BAN)."
@@ -62,4 +60,3 @@ echo "[hexamap] Conteneurs à jour (migrations déjà appliquées) : pas de seco
 docker compose up -d api web
 
 echo "[hexamap] Prêt : web http://localhost:5174 — API http://localhost:3000"
-echo "[hexamap] Suivi de l'import : http://localhost:5174/import-status"

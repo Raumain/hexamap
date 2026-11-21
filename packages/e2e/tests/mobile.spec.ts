@@ -766,16 +766,15 @@ test.describe('mobile — les lignes du tiroir contiennent leur planche', () => 
 /* ── 9. Salles secondaires (BUG-005) ─────────────────────────────────────── */
 
 /**
- * Les deux salles secondaires que le roadmap nomme. « Les Archives » est listée
- * par la feuille mais n'est pas suivie : `DESIGN_SYSTEM.md` §9.1 la déclare
- * conditionnelle, et le cas se contente de constater sa présence.
+ * Les salles secondaires suivies par le parcours mobile : chacune doit être
+ * atteignable depuis Le Relevé, en deux appuis (le contrôle, puis le lien).
  */
 const SECONDARY_ROOMS: ReadonlyArray<readonly [string, string]> = [
   ['Les Planches', '/tableaux'],
   ['Mes Offres', '/market/mine'],
 ];
 
-const SECONDARY_LABELS: readonly string[] = ['Les Planches', 'Mes Offres', 'Les Archives'];
+const SECONDARY_LABELS: readonly string[] = ['Les Planches', 'Mes Offres'];
 
 test('mobile — les salles secondaires sont atteintes en deux appuis', async ({ page }) => {
   for (const [label, path] of SECONDARY_ROOMS) {
@@ -791,8 +790,7 @@ test('mobile — les salles secondaires sont atteintes en deux appuis', async ({
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   }
 
-  // Depuis « Le Relevé », les trois salles secondaires sont offertes, « Les
-  // Archives » incluse — sans que le cas la suive.
+  // Depuis « Le Relevé », les salles suivies sont offertes par la feuille.
   await page.goto('/');
   await openMoreSheet(page);
   const sheet = page.getByRole('dialog', { name: MORE_SHEET });
