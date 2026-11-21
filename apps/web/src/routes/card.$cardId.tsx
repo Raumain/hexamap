@@ -163,6 +163,8 @@ function CardMount({ card }: { card: CardDetail }) {
           refCode={card.refCode}
           population={card.detail.population}
           occurrenceCount={card.detail.nbCommunes}
+          departementName={card.detail.nomDepartement}
+          regionName={card.detail.nomRegion}
           blasonUrl={card.blasonUrl}
           blasonCredit={card.blasonCredit}
           locked={card.locked}

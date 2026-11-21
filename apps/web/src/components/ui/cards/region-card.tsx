@@ -11,7 +11,6 @@ export interface RegionCardProps {
   refCode: string;
   blasonUrl: string | null;
   blasonCredit: string | null;
-  detailed: boolean;
   locked: boolean;
   decorative: boolean;
   className?: string;
@@ -25,7 +24,6 @@ export function RegionCard({
   refCode,
   blasonUrl,
   blasonCredit,
-  detailed,
   locked,
   decorative,
   className,
@@ -93,11 +91,6 @@ export function RegionCard({
             {name}
           </h3>
           <div className="mt-[3%] h-px w-[30%] bg-ink/30" />
-          {detailed ? (
-            <p className="mt-[3%] font-mono text-[clamp(7px,2.9cqi,8px)] uppercase tracking-[0.14em] text-ink-faint">
-              {CATEGORY_META.REGION.plate}
-            </p>
-          ) : null}
         </div>
 
         <footer className="relative mt-[3.5%] flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">

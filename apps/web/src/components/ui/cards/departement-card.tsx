@@ -10,7 +10,6 @@ export interface DepartementCardProps {
   score: number;
   refCode: string;
   blasonUrl: string | null;
-  detailed: boolean;
   locked: boolean;
   decorative: boolean;
   className?: string;
@@ -25,7 +24,6 @@ export function DepartementCard({
   score,
   refCode,
   blasonUrl,
-  detailed,
   locked,
   decorative,
   className,
@@ -104,11 +102,6 @@ export function DepartementCard({
           <h3 className="font-display text-[clamp(10px,6.6cqi,16px)] font-semibold leading-[1.1] tracking-tight text-ink break-words line-clamp-2">
             {name}
           </h3>
-          {detailed ? (
-            <p className="mt-[3%] font-mono text-[clamp(7px,2.9cqi,8px)] uppercase tracking-[0.14em] text-ink-faint">
-              {CATEGORY_META.DEPARTEMENT.plate}
-            </p>
-          ) : null}
         </div>
 
         <footer className="relative mt-[3.5%] flex items-end justify-between gap-1 border-t border-ink/20 pt-[3%]">

@@ -8,6 +8,8 @@ export interface CardShellOptions {
   rarity: Rarity;
   locked?: boolean;
   decorative?: boolean;
+  /** `plate` désigne la planche de musée : sa hauteur vient de son contenu, jamais d'un ratio. */
+  ratio?: 'card' | 'plate';
   className?: string;
 }
 
@@ -25,6 +27,7 @@ export function cardShellProps({
   rarity,
   locked = false,
   decorative = false,
+  ratio = 'card',
   className = '',
 }: CardShellOptions): CardShellProps {
   const theme = RARITY_THEME[rarity];
@@ -39,9 +42,11 @@ export function cardShellProps({
           ? `0 0 0 2px ${theme.metal}24`
           : undefined;
 
+  const frame = decorative ? 'aspect-[4/5]' : ratio === 'plate' ? 'min-h-[19rem]' : 'aspect-[5/7]';
+
   const classes = [
     'exhibit group/card relative flex select-none flex-col overflow-hidden rounded-[2px] p-[3px]',
-    decorative ? 'aspect-[4/5]' : 'aspect-[5/7]',
+    frame,
     locked ? 'opacity-60 saturate-[0.35]' : '',
     theme.treatment === 'electrum' ? 'sheen' : '',
     className,

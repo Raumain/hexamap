@@ -331,6 +331,15 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   `cards/card-shell.ts`. `apps/web/src/lib/commune-vignette.ts` génère la silhouette de village
   de façon **déterministe depuis le code INSEE** : aucun aléatoire au rendu, aucun état React.
   Deux communes différentes ne produisent jamais la même vue.
+- **Deux compositions, un seul vocabulaire.** Les listes rendent la planche fluide de
+  `Card.tsx` — quatre gabarits, budget de ≤ 18 nœuds non-SVG, `variant="compact"` par défaut.
+  Le Cartel (`routes/card.$cardId.tsx`, unique site d'appel de `variant="detailed"`) rend
+  `components/ui/cards/detailed-plate.tsx`, une composition en quatre zones : en-tête
+  (catégorie + référence), bande de gravure **réservée**, cartouche (sceau + lecture), pied.
+  La gravure et le blason ne partagent **jamais** une surface, et **aucun `mix-blend-mode`
+  n'est employé** : le serveur replie `contour_url` dans `blasonUrl` (`blasonOf`), donc un
+  blason est souvent un contour transparent, qui posé sur la gravure se confondrait avec elle.
+  Budget propre ≤ 26 nœuds non-SVG ; mêmes jetons, même rareté, même domaine.
 - **Budget DOM : ≤ 18 nœuds non-SVG par planche**, racine incluse, les enfants internes d'un
   `<svg>` exclus. Les gravures ajoutent de la richesse sans coûter de nœuds ; les ornements
   passent par `::before`/`::after`. `packages/e2e/tests/design-system.spec.ts` applique ce
