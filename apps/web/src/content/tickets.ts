@@ -65,6 +65,8 @@ export const TICKET = {
   treasureModalLink: 'Ranger dans le cadastre',
   closeModal: 'Fermer',
   retry: 'Réessayer',
+  soundOn: 'Activer le son du grattoir',
+  soundOff: 'Couper le son du grattoir',
 };
 
 export function scrapesLabel(count: number): string {

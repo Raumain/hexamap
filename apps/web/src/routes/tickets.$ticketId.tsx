@@ -15,6 +15,8 @@ import {
   STATUS_LABELS,
   TICKET,
 } from '../content/tickets';
+import { readStoredFlag, SOUND_PREFERENCE_KEY, writeStoredFlag } from '../lib/preferences';
+import { setScratchAudioEnabled } from '../lib/scratch-audio';
 import { useSession } from '../lib/session';
 import {
   collectionStatsQueryKey,
@@ -46,7 +48,17 @@ function TicketPage() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<TicketCell | null>(null);
+  const [sound, setSound] = useState(() => readStoredFlag(SOUND_PREFERENCE_KEY, false));
   const celebrationOpen = celebration !== null;
+
+  // Le commutateur du son n'a qu'un propriétaire : cette route. Une case qui se
+  // démonte ne doit jamais l'éteindre pour tout le ticket. C'est aussi le seul
+  // endroit qui réconcilie la préférence stockée avec le graphe audio.
+  useEffect(() => {
+    setScratchAudioEnabled(sound);
+    writeStoredFlag(SOUND_PREFERENCE_KEY, sound);
+    return () => setScratchAudioEnabled(false);
+  }, [sound]);
 
   useEffect(() => {
     if (!celebrationOpen) return;
@@ -212,7 +224,34 @@ function TicketPage() {
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
               Grille topographique
             </p>
-            <StatusBadge status={ticket.status} />
+            <div className="flex items-center gap-2">
+              <StatusBadge status={ticket.status} />
+              <button
+                type="button"
+                aria-pressed={sound}
+                aria-label={sound ? TICKET.soundOff : TICKET.soundOn}
+                onClick={() => setSound((value) => !value)}
+                className={[
+                  'inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-sm border transition-colors duration-150',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-vellum',
+                  sound
+                    ? 'border-brass text-brass'
+                    : 'border-brass/35 text-ink-faint hover:border-brass/70',
+                ].join(' ')}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                >
+                  <path d="M4 9.5h3l4-3.5v12l-4-3.5H4z" />
+                  {sound ? <path d="M15.5 9.2a3.6 3.6 0 0 1 0 5.6" /> : <path d="M18 6 6 18" />}
+                </svg>
+              </button>
+            </div>
           </div>
 
           <fieldset
@@ -230,6 +269,7 @@ function TicketPage() {
                   <ScratchCell
                     key={cell.index}
                     index={cell.index}
+                    sound={sound}
                     pending={mutation.isPending && mutation.variables?.cellIndex === cell.index}
                     onReveal={handleReveal}
                   />
