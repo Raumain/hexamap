@@ -2,9 +2,10 @@ import { PACKS } from '@hexamap/shared';
 import { useMutation } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { PackCard } from '../components/shop/pack-card';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { BOUTIQUE } from '../content/boutique';
 import { priceLabel } from '../content/market';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 import { checkoutErrorMessage, createCheckout } from '../lib/shop';
 
 export const Route = createFileRoute('/boutique/')({
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/boutique/')({
 
 function BoutiquePage() {
   const { session_id: sessionId } = Route.useSearch();
-  const session = useSession();
+  const session = useSessionState();
 
   const checkout = useMutation({
     mutationFn: createCheckout,
@@ -28,11 +29,15 @@ function BoutiquePage() {
     },
   });
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return <p className="text-sm text-vellum/70">{BOUTIQUE.loadingSession}</p>;
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 
@@ -40,7 +45,7 @@ function BoutiquePage() {
     return <Navigate to="/boutique/succes" search={{ session_id: sessionId }} replace />;
   }
 
-  const balance = session.data.user.currency ?? 0;
+  const balance = session.user.currency ?? 0;
   const pendingKey = checkout.isPending ? checkout.variables : undefined;
 
   return (

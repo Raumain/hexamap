@@ -5,9 +5,10 @@ import { Button } from '../components/button';
 import { ChargesMeter } from '../components/charges-meter';
 import { FormError } from '../components/form-error';
 import { Card } from '../components/ui/Card';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { CHARGES, scrapesLabel, TICKET } from '../content/tickets';
 import { chargesQueryKey, chargesQueryOptions } from '../lib/charges';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 import {
   createTicket,
   currentTicketQueryOptions,
@@ -75,9 +76,9 @@ const CABINET_FACTS: { label: string; value: string }[] = [
 ];
 
 function DashboardPage() {
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return (
       <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-vellum/65">
         Chargement de votre session…
@@ -85,10 +86,15 @@ function DashboardPage() {
     );
   }
 
-  const user = session.data?.user ?? undefined;
-  if (!user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
+
+  const user = session.user;
 
   return (
     <section className="space-y-12">

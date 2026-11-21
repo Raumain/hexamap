@@ -1,7 +1,7 @@
 import { Link, useRouter, useRouterState } from '@tanstack/react-router';
 import { CURRENCY, priceLabel } from '../../content/market';
 import { signOut } from '../../lib/auth';
-import { useInvalidateSession, useSession } from '../../lib/session';
+import { useInvalidateSession, useSessionState } from '../../lib/session';
 import { HexSeal } from './hex-seal';
 import { isNavItemActive, PRIMARY_NAV, SECONDARY_NAV } from './nav-items';
 
@@ -28,9 +28,10 @@ function NavGlyph({ path }: { path: string }) {
 export function Sidebar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const router = useRouter();
-  const session = useSession();
+  const sessionState = useSessionState();
   const invalidateSession = useInvalidateSession();
-  const user = session.data?.user ?? undefined;
+  // Une session non vérifiée n'est pas une session absente : seul `authenticated` rend un utilisateur.
+  const user = sessionState.status === 'authenticated' ? sessionState.user : undefined;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-veil bg-cabinet-raised pl-[env(safe-area-inset-left)] md:flex">

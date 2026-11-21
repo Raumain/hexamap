@@ -5,6 +5,7 @@ import type {
   TableauGeography,
   TableauSlot,
 } from '@hexamap/shared';
+import { hasConstrainingSelection, TABLEAU_SLOTS } from '@hexamap/shared';
 import { keepPreviousData, queryOptions } from '@tanstack/react-query';
 import { api } from './api';
 import type { CollectionCard } from './collection';
@@ -144,6 +145,84 @@ export function tableauPreviewQueryOptions(
   });
 }
 
+export interface TableauCandidates {
+  slot: TableauSlot;
+  considered: boolean;
+  cardIds: string[];
+}
+
+/** Emplacement → champ d'identifiant correspondant dans `TableauPreviewIds`. */
+export const SLOT_CARD_ID_KEYS: Record<TableauSlot, keyof TableauPreviewIds> = {
+  REGION: 'regionCardId',
+  DEPARTEMENT: 'departementCardId',
+  COMMUNE: 'communeCardId',
+  RUE: 'rueCardId',
+};
+
+export function tableauCandidatesQueryKey(slot: TableauSlot | null, ids: TableauPreviewIds) {
+  return [
+    'tableaux',
+    'candidates',
+    slot,
+    ids.regionCardId ?? null,
+    ids.departementCardId ?? null,
+    ids.communeCardId ?? null,
+    ids.rueCardId ?? null,
+  ] as const;
+}
+
+export async function fetchTableauCandidates(
+  slot: TableauSlot,
+  ids: TableauPreviewIds,
+): Promise<TableauCandidates> {
+  const { data, error } = await api.api.v1.tableaux.candidates.get({
+    query: {
+      slot,
+      regionCardId: ids.regionCardId ?? undefined,
+      departementCardId: ids.departementCardId ?? undefined,
+      communeCardId: ids.communeCardId ?? undefined,
+      rueCardId: ids.rueCardId ?? undefined,
+    },
+  });
+  if (error) throwTableauError(error);
+  if (data && typeof data === 'object' && 'cardIds' in data) {
+    return data;
+  }
+  throwTableauError(data);
+}
+
+/**
+ * Candidats compatibles pour l'emplacement visé. L'identifiant de cet emplacement
+ * est annulé avant l'appel : le tiroir sert aussi à remplacer une carte déjà
+ * choisie, donc sa propre carte doit être comparée aux autres, pas à elle-même.
+ * Aucun `placeholderData` : un `considered: false` doit être indiscutable.
+ */
+export function tableauCandidatesQueryOptions(
+  slot: TableauSlot | null,
+  selection: Partial<Record<TableauSlot, CollectionCard>>,
+) {
+  const ids = selectionToPreviewIds(selection);
+  const target = slot;
+  if (target !== null) {
+    ids[SLOT_CARD_ID_KEYS[target]] = null;
+  }
+  const filled = new Set<TableauSlot>(
+    TABLEAU_SLOTS.filter((entry) => ids[SLOT_CARD_ID_KEYS[entry]] !== null),
+  );
+  return queryOptions({
+    queryKey: tableauCandidatesQueryKey(target, ids),
+    queryFn: () => {
+      if (target === null) {
+        throw new Error('Aucun emplacement ouvert : les candidats ne sont pas calculables.');
+      }
+      return fetchTableauCandidates(target, ids);
+    },
+    enabled: target !== null && hasConstrainingSelection(target, filled),
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
 export async function createTableau(input: CreateTableauInput): Promise<CreatedTableau> {
   const { data, error } = await api.api.v1.tableaux.post(input);
   if (error) throwTableauError(error);
@@ -158,8 +237,6 @@ export function tableauErrorMessage(error: unknown): string {
     switch (error.code) {
       case 'CARD_NOT_OWNED':
         return 'Vous ne possédez plus ces cartes ou elles sont verrouillées.';
-      case 'CARD_IN_USE':
-        return 'Une de ces cartes est déjà utilisée dans un autre tableau.';
       case 'INVALID_CARD_SET':
         return 'Cette combinaison de cartes est invalide.';
       default:

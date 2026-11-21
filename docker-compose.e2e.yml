@@ -56,6 +56,12 @@ services:
       TRUSTED_ORIGINS: ""
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
+    volumes:
+      # Les blasons de référence du banc : le seed remplit `blason_url` sur les
+      # communes, régions et départements E2E, et l'API les sert depuis ce
+      # dossier monté en lecture seule. Sans lui, le Cartel n'a aucun blason à
+      # mesurer.
+      - ./packages/e2e/fixtures/blasons:/data/blasons:ro
     depends_on:
       db:
         condition: service_healthy
@@ -88,7 +94,12 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
-    command: ["bun", "run", "--cwd", "scripts/import", "e2e:seed"]
+    command:
+      [
+        "sh",
+        "-c",
+        "bun run --cwd scripts/import e2e:seed && bun packages/e2e/fixtures/market-fixture.ts",
+      ]
     environment:
       DATABASE_URL: postgres://hexamap:hexamap@db:5432/hexamap_e2e
     depends_on:
@@ -110,6 +121,10 @@ services:
       E2E_BASE_URL: https://hexamap.test
       E2E_API_URL: http://api:3000
       E2E_FRONTEND_URL: https://hexamap.test
+      # `global-setup.ts` sème le combo de La Planche pour le compte qu'il vient
+      # d'inscrire : la fixture écrit quatre `user_cards` dans la base du banc,
+      # sur le réseau `e2e`, jamais dans la base de développement.
+      DATABASE_URL: postgres://hexamap:hexamap@db:5432/hexamap_e2e
     volumes:
       # Dépendances installées dans le conteneur de dev (`bun install`) : la
       # version de @playwright/test et celle des navigateurs de l'image sont

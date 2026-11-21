@@ -22,6 +22,13 @@ Ne pas commencer à coder avant d'avoir lu ces trois fichiers.
 6. **Pas d'état React pour le Canvas.** Le grattage est piloté par un contrôleur impératif (`ref`, `requestAnimationFrame`). React ne gère que les états grossiers.
 7. **Pas d'appel externe au runtime.** Les API Open Data sont réservées au pipeline d'import.
 8. **Ne pas commiter** sauf demande explicite.
+9. **Aucun test ignoré, aucun échec laissé derrière.** La suite **complète** est jouée à chaque
+   session : `packages/spec` **et** le banc E2E. Un échec, même ancien et sans rapport avec la
+   tâche, se corrige dans la session : ni `skip`, ni exemption, ni « préexistant » accepté.
+10. **Vérifier dans un navigateur dès que c'est possible.** Un comportement visible se regarde
+    jouer (Playwright, ou la pile de dev pour une capture) : un contrôle qui compile n'est pas un
+    contrôle qui marche. Quand la vérification visuelle n'est pas possible ou n'a pas de sens, le
+    journal de `.docs/03-active-task.md` doit le dire explicitement, avec la raison.
 
 ## Stack et conventions
 

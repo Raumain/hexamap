@@ -31,6 +31,55 @@ export function slotMatchesCategory(slot: TableauSlot, category: Category): bool
   return slot === category;
 }
 
+/** Les deux emplacements que relie chaque lien géographique. */
+export const TABLEAU_LINK_SLOTS: Record<TableauLinkKey, readonly [TableauSlot, TableauSlot]> = {
+  'region-departement': ['REGION', 'DEPARTEMENT'],
+  'departement-commune': ['DEPARTEMENT', 'COMMUNE'],
+  'commune-rue': ['COMMUNE', 'RUE'],
+};
+
+/** Liens qu'une carte candidate peut valider, selon l'emplacement qu'elle vise.
+ *  Le tiroir de sélection s'en sert pour trier : une carte n'a d'intérêt qu'à
+ *  côté de l'extrémité géographique immédiate de son emplacement. */
+export const TABLEAU_CANDIDATE_LINKS: Record<TableauSlot, readonly TableauLinkKey[]> = {
+  REGION: ['region-departement'],
+  DEPARTEMENT: ['region-departement', 'departement-commune'],
+  COMMUNE: ['departement-commune', 'commune-rue'],
+  RUE: ['commune-rue'],
+};
+
+/** Le tri par compatibilité n'a de sens que si l'autre extrémité d'un lien est
+ *  déjà choisie. L'emplacement visé est exclu de la comparaison : sinon REGION
+ *  serait toujours « contraint » par sa propre carte. */
+export function hasConstrainingSelection(
+  slot: TableauSlot,
+  filled: ReadonlySet<TableauSlot>,
+): boolean {
+  return TABLEAU_CANDIDATE_LINKS[slot].some((key) => {
+    const [first, second] = TABLEAU_LINK_SLOTS[key];
+    const other = first === slot ? second : first;
+    return other !== slot && filled.has(other);
+  });
+}
+
+/** Compatibles d'abord, ordre d'origine conservé dans chaque groupe (tri stable).
+ *  Deux passes et aucune mutation : l'entrée peut être la liste d'un état React. */
+export function rankCardsByCompatibility<T extends { id: string }>(
+  cards: readonly T[],
+  compatibleIds: ReadonlySet<string>,
+): T[] {
+  const compatible: T[] = [];
+  const others: T[] = [];
+  for (const card of cards) {
+    if (compatibleIds.has(card.id)) {
+      compatible.push(card);
+    } else {
+      others.push(card);
+    }
+  }
+  return [...compatible, ...others];
+}
+
 /** Faits de référence nécessaires aux 3 liens ; null si la carte ou la donnée manque. */
 export interface TableauGeography {
   regionCode: string | null;

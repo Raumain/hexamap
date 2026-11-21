@@ -1,7 +1,9 @@
 import {
   type CommuneOdonymeRef,
   evaluateTableau,
+  hasConstrainingSelection,
   slotMatchesCategory,
+  TABLEAU_SLOTS,
   type TableauSlot,
 } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
@@ -218,6 +220,211 @@ export const tableauRoutes = new Elysia({ name: 'routes.tableaux', prefix: '/tab
             total: t.Union([t.Integer(), t.Null()]),
             complete: t.Boolean(),
           },
+          { additionalProperties: false },
+        ),
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+      },
+    },
+  )
+  .get(
+    '/candidates',
+    async ({ user, query, set }) => {
+      if (!user) {
+        set.status = 401;
+        return unauthorized;
+      }
+
+      const slot = query.slot;
+
+      // L'identifiant fourni pour l'emplacement visé est ignoré : le tiroir sert
+      // aussi à remplacer une carte déjà posée, qui ne doit pas se contraindre
+      // elle-même.
+      const requestedBySlot: Record<TableauSlot, string | undefined> = {
+        REGION: query.regionCardId,
+        DEPARTEMENT: query.departementCardId,
+        COMMUNE: query.communeCardId,
+        RUE: query.rueCardId,
+      };
+      requestedBySlot[slot] = undefined;
+
+      const ids = TABLEAU_SLOTS.flatMap((target) => {
+        const id = requestedBySlot[target];
+        return id === undefined ? [] : [id];
+      });
+
+      const rows =
+        ids.length === 0
+          ? []
+          : await db
+              .selectFrom('user_cards')
+              .select(['id', 'category', 'ref_code', 'score', 'rarity', 'locked'])
+              .where('id', 'in', ids)
+              .where('user_id', '=', user.id)
+              .execute();
+
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      for (const id of ids) {
+        if (!byId.has(id)) {
+          set.status = 403;
+          return { code: 'CARD_NOT_OWNED', message: 'Carte introuvable dans votre collection.' };
+        }
+      }
+
+      const pick = (target: TableauSlot): CardRow | null => {
+        const id = requestedBySlot[target];
+        return id === undefined ? null : (byId.get(id) ?? null);
+      };
+      const bySlot: Record<TableauSlot, CardRow | null> = {
+        REGION: pick('REGION'),
+        DEPARTEMENT: pick('DEPARTEMENT'),
+        COMMUNE: pick('COMMUNE'),
+        RUE: pick('RUE'),
+      };
+      const cards: SelectedCards = {
+        region: bySlot.REGION,
+        departement: bySlot.DEPARTEMENT,
+        commune: bySlot.COMMUNE,
+        rue: bySlot.RUE,
+      };
+
+      try {
+        assertSlotsMatch(cards);
+      } catch (error) {
+        if (error instanceof HttpError) {
+          set.status = error.status;
+          return { code: error.code, message: error.message };
+        }
+        throw error;
+      }
+
+      const filled = new Set<TableauSlot>(
+        TABLEAU_SLOTS.filter((target) => bySlot[target] !== null),
+      );
+      const considered = hasConstrainingSelection(slot, filled);
+      if (!considered) {
+        return { slot, considered: false, cardIds: [] };
+      }
+
+      const geography = await resolveGeography(db, cards);
+
+      // Chaque contrainte réduit l'ensemble des `ref_code` acceptés ; deux
+      // contraintes simultanées (DEPARTEMENT, COMMUNE) se cumulent.
+      const constraints: Set<string>[] = [];
+      const only = (value: string | null): Set<string> =>
+        value === null ? new Set<string>() : new Set<string>([value]);
+
+      if (slot === 'REGION' && filled.has('DEPARTEMENT')) {
+        constraints.push(only(geography.departementRegionCode));
+      }
+
+      if (slot === 'DEPARTEMENT') {
+        if (filled.has('REGION')) {
+          const codes =
+            geography.regionCode === null
+              ? []
+              : (
+                  await db
+                    .selectFrom('ref_departements')
+                    .select('code')
+                    .where('code_region', '=', geography.regionCode)
+                    .execute()
+                ).map((row) => row.code);
+          constraints.push(new Set(codes));
+        }
+        if (filled.has('COMMUNE')) {
+          constraints.push(only(geography.communeDepartementCode));
+        }
+      }
+
+      if (slot === 'COMMUNE') {
+        if (filled.has('DEPARTEMENT')) {
+          const codes =
+            geography.departementCode === null
+              ? []
+              : (
+                  await db
+                    .selectFrom('ref_communes')
+                    .select('code_insee')
+                    .where('code_departement', '=', geography.departementCode)
+                    .execute()
+                ).map((row) => row.code_insee);
+          constraints.push(new Set(codes));
+        }
+        if (filled.has('RUE')) {
+          const codes =
+            geography.rueOdonymeId === null
+              ? []
+              : (
+                  await db
+                    .selectFrom('commune_odonymes')
+                    .select('code_insee')
+                    .where('odonyme_id', '=', geography.rueOdonymeId)
+                    .execute()
+                ).map((row) => row.code_insee);
+          constraints.push(new Set(codes));
+        }
+      }
+
+      if (slot === 'RUE' && filled.has('COMMUNE')) {
+        const odonymeIds =
+          geography.communeInsee === null
+            ? []
+            : (
+                await db
+                  .selectFrom('commune_odonymes')
+                  .select('odonyme_id')
+                  .where('code_insee', '=', geography.communeInsee)
+                  .execute()
+              ).map((row) => String(row.odonyme_id));
+        constraints.push(new Set(odonymeIds));
+      }
+
+      let allowed: Set<string> | null = null;
+      for (const constraint of constraints) {
+        if (allowed === null) {
+          allowed = new Set(constraint);
+          continue;
+        }
+        const narrowed = new Set<string>();
+        for (const code of allowed) {
+          if (constraint.has(code)) {
+            narrowed.add(code);
+          }
+        }
+        allowed = narrowed;
+      }
+
+      // Une valeur géographique absente (ligne de référence manquante) rend la
+      // comparaison impossible : l'ensemble est vide, mais `considered` reste vrai.
+      if (allowed === null || allowed.size === 0) {
+        return { slot, considered: true, cardIds: [] };
+      }
+
+      // Aucun filtre sur `locked` : cet endpoint décrit la compatibilité,
+      // l'éligibilité (verrou, emplacement) reste au client.
+      const candidates = await db
+        .selectFrom('user_cards')
+        .select('id')
+        .where('user_id', '=', user.id)
+        .where('category', '=', slot)
+        .where('ref_code', 'in', [...allowed])
+        .execute();
+
+      return { slot, considered: true, cardIds: candidates.map((row) => row.id) };
+    },
+    {
+      query: t.Object({
+        slot: slotSchema,
+        regionCardId: t.Optional(t.String({ format: 'uuid' })),
+        departementCardId: t.Optional(t.String({ format: 'uuid' })),
+        communeCardId: t.Optional(t.String({ format: 'uuid' })),
+        rueCardId: t.Optional(t.String({ format: 'uuid' })),
+      }),
+      response: {
+        200: t.Object(
+          { slot: slotSchema, considered: t.Boolean(), cardIds: t.Array(t.String()) },
           { additionalProperties: false },
         ),
         400: errorSchema,
@@ -474,28 +681,6 @@ export const tableauRoutes = new Elysia({ name: 'routes.tableaux', prefix: '/tab
 
           assertSlotsMatch(cards);
 
-          const inUse = await trx
-            .selectFrom('tableaux')
-            .select('id')
-            .where('user_id', '=', user.id)
-            .where((eb) =>
-              eb.or([
-                eb('region_card_id', 'in', cardIds),
-                eb('departement_card_id', 'in', cardIds),
-                eb('commune_card_id', 'in', cardIds),
-                eb('rue_card_id', 'in', cardIds),
-              ]),
-            )
-            .executeTakeFirst();
-
-          if (inUse) {
-            throw new HttpError(
-              409,
-              'CARD_IN_USE',
-              'Une carte est déjà utilisée dans un autre tableau.',
-            );
-          }
-
           const geography = await resolveGeography(trx, cards);
           const scores = {
             region: cards.region?.score ?? 0,
@@ -581,7 +766,6 @@ export const tableauRoutes = new Elysia({ name: 'routes.tableaux', prefix: '/tab
         400: errorSchema,
         401: errorSchema,
         403: errorSchema,
-        409: errorSchema,
       },
     },
   );

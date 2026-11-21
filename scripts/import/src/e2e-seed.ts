@@ -36,29 +36,62 @@ try {
   await db
     .insertInto('ref_regions')
     .values([
-      { code: regionA, nom: 'Région E2E A' },
-      { code: regionB, nom: 'Région E2E B' },
+      {
+        code: regionA,
+        nom: 'Région E2E A',
+        blason_url: `/blasons/regions/${regionA}.svg`,
+        blason_credit: 'CC0 · Fixture E2E · Hexamap',
+      },
+      {
+        code: regionB,
+        nom: 'Région E2E B',
+        blason_url: `/blasons/regions/${regionB}.svg`,
+        blason_credit: 'CC0 · Fixture E2E · Hexamap',
+      },
     ])
     .execute();
 
   await db
     .insertInto('ref_departements')
     .values([
-      { code: deptA, nom: 'Département E2E A', code_region: regionA, population: 1_000_000 },
-      { code: deptB, nom: 'Département E2E B', code_region: regionB, population: 500_000 },
+      {
+        code: deptA,
+        nom: 'Département E2E A',
+        code_region: regionA,
+        population: 1_000_000,
+        blason_url: `/blasons/departements/${deptA}.svg`,
+        blason_credit: 'CC0 · Fixture E2E · Hexamap',
+      },
+      {
+        code: deptB,
+        nom: 'Département E2E B',
+        code_region: regionB,
+        population: 500_000,
+        blason_url: `/blasons/departements/${deptB}.svg`,
+        blason_credit: 'CC0 · Fixture E2E · Hexamap',
+      },
     ])
     .execute();
 
   const communes = RARITY.flatMap((rarete: Rarity, rarityIndex: number) =>
-    [0, 1].map((district) => ({
-      code_insee: `${PREFIX}-C-${rarete}-${district}`,
-      nom: `Commune E2E ${rarete} ${district}`,
-      code_departement: district === 0 ? deptA : deptB,
-      code_region: district === 0 ? regionA : regionB,
-      population: 1_000_000 - rarityIndex * 100_000 - district * 50_000,
-      rarete,
-      score_base: 100 + rarityIndex * 50,
-    })),
+    [0, 1].map((district) => {
+      const codeInsee = `${PREFIX}-C-${rarete}-${district}`;
+      return {
+        code_insee: codeInsee,
+        nom: `Commune E2E ${rarete} ${district}`,
+        code_departement: district === 0 ? deptA : deptB,
+        code_region: district === 0 ? regionA : regionB,
+        population: 1_000_000 - rarityIndex * 100_000 - district * 50_000,
+        rarete,
+        score_base: 100 + rarityIndex * 50,
+        // Chaque commune du banc porte un blason réellement servi par l'API :
+        // les fichiers vivent dans `packages/e2e/fixtures/blasons`, monté en
+        // lecture seule sur `/data/blasons`. Sans eux, le Cartel ne peut pas
+        // être mesuré (le blason est une zone réservée de la composition).
+        blason_url: `/blasons/communes/${codeInsee}.svg`,
+        blason_credit: 'CC0 · Fixture E2E · Hexamap',
+      };
+    }),
   );
   await db.insertInto('ref_communes').values(communes).execute();
 

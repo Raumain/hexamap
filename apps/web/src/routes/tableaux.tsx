@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { FormError } from '../components/form-error';
 import { AlignmentLinkList } from '../components/tableau/alignment-connector';
 import { RarityBadge } from '../components/ui/rarity-badge';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import {
   linksLabel,
   MULTIPLIER_TIERS,
@@ -16,7 +17,7 @@ import {
 } from '../content/tableau';
 import { CATEGORY_LABELS } from '../content/tickets';
 import { CATEGORY_META, type CategoryMeta } from '../lib/category-theme';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 import { type TableauListItem, tableauErrorMessage, tableauxQueryOptions } from '../lib/tableaux';
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
@@ -49,7 +50,7 @@ export const Route = createFileRoute('/tableaux')({
 });
 
 function TableauxPage() {
-  const session = useSession();
+  const session = useSessionState();
 
   return (
     <section className="space-y-10">
@@ -70,11 +71,13 @@ function TableauxPage() {
         </Link>
       </header>
 
-      {session.isPending ? (
+      {session.status === 'loading' ? (
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
           {TABLEAUX_LIST.loadingSession}
         </p>
-      ) : !session.data?.user ? (
+      ) : session.status === 'unavailable' ? (
+        <SessionUnavailable onRetry={session.retry} />
+      ) : session.status === 'anonymous' ? (
         <Navigate to="/login" />
       ) : (
         <TableauxBody />

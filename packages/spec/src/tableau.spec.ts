@@ -2,10 +2,15 @@ import { describe, expect, it } from 'bun:test';
 import {
   evaluateTableau,
   evaluateTableauAlignment,
+  hasConstrainingSelection,
+  rankCardsByCompatibility,
   rueExistsInCommune,
   slotMatchesCategory,
+  TABLEAU_CANDIDATE_LINKS,
   TABLEAU_LINK_KEYS,
+  TABLEAU_LINK_SLOTS,
   type TableauGeography,
+  type TableauSlot,
 } from '@hexamap/shared';
 
 function geography(overrides: Partial<TableauGeography> = {}): TableauGeography {
@@ -180,5 +185,87 @@ describe('GDD §3.C — score total d’un tableau', () => {
         }),
       ).total,
     ).toBe(2_500);
+  });
+});
+
+describe('Archi §2.5 — liens qu’une carte candidate peut valider', () => {
+  it('chaque emplacement ne considère que ses liens adjacents', () => {
+    expect(TABLEAU_CANDIDATE_LINKS).toEqual({
+      REGION: ['region-departement'],
+      DEPARTEMENT: ['region-departement', 'departement-commune'],
+      COMMUNE: ['departement-commune', 'commune-rue'],
+      RUE: ['commune-rue'],
+    });
+  });
+
+  it('chaque lien relie deux emplacements distincts et connus', () => {
+    expect(TABLEAU_LINK_SLOTS).toEqual({
+      'region-departement': ['REGION', 'DEPARTEMENT'],
+      'departement-commune': ['DEPARTEMENT', 'COMMUNE'],
+      'commune-rue': ['COMMUNE', 'RUE'],
+    });
+  });
+});
+
+describe('Archi §2.5 — un tri par compatibilité n’a de sens qu’avec une extrémité choisie', () => {
+  function filled(...slots: TableauSlot[]): Set<TableauSlot> {
+    return new Set(slots);
+  }
+
+  it('REGION seule remplie ne contraint pas REGION elle-même', () => {
+    expect(hasConstrainingSelection('REGION', filled('REGION'))).toBe(false);
+  });
+
+  it('REGION + DEPARTEMENT contraignent les deux extrémités', () => {
+    expect(hasConstrainingSelection('DEPARTEMENT', filled('REGION', 'DEPARTEMENT'))).toBe(true);
+    expect(hasConstrainingSelection('REGION', filled('REGION', 'DEPARTEMENT'))).toBe(true);
+  });
+
+  it('COMMUNE seule remplie ne contraint pas COMMUNE elle-même', () => {
+    expect(hasConstrainingSelection('COMMUNE', filled('COMMUNE'))).toBe(false);
+  });
+
+  it('COMMUNE + RUE contraignent les deux extrémités', () => {
+    expect(hasConstrainingSelection('COMMUNE', filled('COMMUNE', 'RUE'))).toBe(true);
+    expect(hasConstrainingSelection('RUE', filled('COMMUNE', 'RUE'))).toBe(true);
+  });
+
+  it('REGION seule ne contraint ni RUE ni COMMUNE (aucun lien direct)', () => {
+    expect(hasConstrainingSelection('RUE', filled('REGION'))).toBe(false);
+    expect(hasConstrainingSelection('COMMUNE', filled('REGION'))).toBe(false);
+  });
+});
+
+describe('Archi §2.5 — compatibles d’abord, ordre d’origine conservé', () => {
+  const cards = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+
+  it('ensemble vide → ordre inchangé', () => {
+    expect(rankCardsByCompatibility(cards, new Set()).map((card) => card.id)).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('sous-ensemble → compatibles en tête, le reste ensuite', () => {
+    expect(rankCardsByCompatibility(cards, new Set(['c', 'a'])).map((card) => card.id)).toEqual([
+      'a',
+      'c',
+      'b',
+      'd',
+    ]);
+  });
+
+  it('tout compatible → ordre inchangé', () => {
+    expect(
+      rankCardsByCompatibility(cards, new Set(['a', 'b', 'c', 'd'])).map((card) => card.id),
+    ).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('ne mute jamais l’entrée', () => {
+    const input = [...cards];
+    rankCardsByCompatibility(input, new Set(['d', 'b']));
+    expect(input.map((card) => card.id)).toEqual(['a', 'b', 'c', 'd']);
   });
 });

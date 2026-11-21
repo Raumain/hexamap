@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { FRIENDS } from '../content/friends';
 import {
   acceptRequest,
@@ -14,7 +15,7 @@ import {
   removeFriend,
   sendRequest,
 } from '../lib/friends';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 
 const PRIMARY_ACTION =
   'inline-flex min-h-[44px] items-center justify-center rounded-[2px] border border-brass-deep bg-brass px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 disabled:cursor-not-allowed disabled:opacity-60';
@@ -35,7 +36,7 @@ export const Route = createFileRoute('/friends')({
 });
 
 function FriendsPage() {
-  const session = useSession();
+  const session = useSessionState();
 
   return (
     <section className="space-y-10">
@@ -48,11 +49,13 @@ function FriendsPage() {
         <div className="brass-rule mt-5 w-24" />
       </header>
 
-      {session.isPending ? (
+      {session.status === 'loading' ? (
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
           {FRIENDS.loadingSession}
         </p>
-      ) : !session.data?.user ? (
+      ) : session.status === 'unavailable' ? (
+        <SessionUnavailable onRetry={session.retry} />
+      ) : session.status === 'anonymous' ? (
         <Navigate to="/login" />
       ) : (
         <FriendsBody />

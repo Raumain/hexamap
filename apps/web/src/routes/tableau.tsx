@@ -1,5 +1,10 @@
 import type { TableauAlignment, TableauSlot } from '@hexamap/shared';
-import { slotMatchesCategory, TABLEAU_SLOT_LABELS, TABLEAU_SLOTS } from '@hexamap/shared';
+import {
+  rankCardsByCompatibility,
+  slotMatchesCategory,
+  TABLEAU_SLOT_LABELS,
+  TABLEAU_SLOTS,
+} from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -12,7 +17,9 @@ import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { OverlayPortal } from '../components/ui/overlay-portal';
 import { RaritySeal } from '../components/ui/rarity-seal';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import {
+  compatibilityReason,
   drawerTitleLabel,
   multiplierLabel,
   removeCardAria,
@@ -27,10 +34,11 @@ import {
   collectionErrorMessage,
   collectionQueryOptions,
 } from '../lib/collection';
-import { useSession } from '../lib/session';
+import { useSessionState } from '../lib/session';
 import {
   type CreatedTableau,
   createTableau,
+  tableauCandidatesQueryOptions,
   tableauErrorMessage,
   tableauPreviewQueryOptions,
   tableauxListQueryKey,
@@ -56,12 +64,18 @@ const SLOT_META: Record<TableauSlot, CategoryMeta> = {
   RUE: CATEGORY_META.RUE,
 };
 
+/**
+ * Référence stable pour « aucun candidat » : un `[]` littéral changerait d'identité
+ * à chaque rendu et relancerait les `useMemo` du tiroir sans raison.
+ */
+const NO_COMPATIBLE_IDS: readonly string[] = [];
+
 export const Route = createFileRoute('/tableau')({
   component: TableauPage,
 });
 
 function TableauPage() {
-  const session = useSession();
+  const session = useSessionState();
 
   return (
     <section className="space-y-10">
@@ -74,11 +88,13 @@ function TableauPage() {
         <div className="brass-rule mt-5 w-24" />
       </header>
 
-      {session.isPending ? (
+      {session.status === 'loading' ? (
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
           {TABLEAU.loadingSession}
         </p>
-      ) : !session.data?.user ? (
+      ) : session.status === 'unavailable' ? (
+        <SessionUnavailable onRetry={session.retry} />
+      ) : session.status === 'anonymous' ? (
         <Navigate to="/login" />
       ) : (
         <TableauBody />
@@ -128,6 +144,8 @@ function TableauBuilder({ items }: { items: CollectionCard[] }) {
   const [created, setCreated] = useState<CreatedTableau | null>(null);
 
   const preview = useQuery(tableauPreviewQueryOptions(selection));
+  const candidatesQuery = useQuery(tableauCandidatesQueryOptions(openSlot, selection));
+  const compatibleIds = candidatesQuery.data?.cardIds ?? NO_COMPATIBLE_IDS;
 
   // L'alignement, le nombre de liens et le total viennent du serveur
   // (`GET /tableaux/preview`) : aucune règle géographique n'est réévaluée ici.
@@ -266,6 +284,8 @@ function TableauBuilder({ items }: { items: CollectionCard[] }) {
           slot={openSlot}
           items={items}
           selection={selection}
+          compatibleIds={compatibleIds}
+          considered={candidatesQuery.data?.considered === true}
           onSelect={selectCard}
           onClose={() => setOpenSlot(null)}
         />
@@ -435,6 +455,8 @@ interface CardDrawerProps {
   slot: TableauSlot;
   items: CollectionCard[];
   selection: Selection;
+  compatibleIds: readonly string[];
+  considered: boolean;
   onSelect: (slot: TableauSlot, card: CollectionCard) => void;
   onClose: () => void;
 }
@@ -448,7 +470,15 @@ interface CardDrawerProps {
  */
 const DRAWER_ROW_ESTIMATE = 86;
 
-function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerProps) {
+function CardDrawer({
+  slot,
+  items,
+  selection,
+  compatibleIds,
+  considered,
+  onSelect,
+  onClose,
+}: CardDrawerProps) {
   const [search, setSearch] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -463,11 +493,35 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
     });
   }, [items, slot, search]);
 
+  const compatibleSet = useMemo(() => new Set(compatibleIds), [compatibleIds]);
+  const ranked = useMemo(
+    () => rankCardsByCompatibility(eligible, compatibleSet),
+    [eligible, compatibleSet],
+  );
+  const compatibleCount = useMemo(
+    () => ranked.filter((card) => compatibleSet.has(card.id)).length,
+    [ranked, compatibleSet],
+  );
+  // Seuls les liens dont l'autre extrémité est choisie expliquent réellement la
+  // pastille : les autres ne contraignent rien et ne sont donc pas nommés.
+  const reason = useMemo(
+    () =>
+      compatibilityReason(
+        slot,
+        new Set(
+          Object.entries(selection)
+            .filter(([entrySlot, card]) => entrySlot !== slot && card != null)
+            .map(([entrySlot]) => entrySlot as TableauSlot),
+        ),
+      ),
+    [slot, selection],
+  );
+
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLButtonElement>({
-    count: eligible.length,
+    count: ranked.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => DRAWER_ROW_ESTIMATE,
-    getItemKey: (index) => eligible[index]?.id ?? index,
+    getItemKey: (index) => ranked[index]?.id ?? index,
     overscan: 8,
   });
 
@@ -516,11 +570,16 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
               tone="dark"
             />
             <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-vellum/55">
-              {resultsLabel(eligible.length)}
+              {resultsLabel(ranked.length)}
             </p>
+            {considered ? (
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-brass/80">
+                {compatibleCount === 0 ? TABLEAU.compatibilityNone : TABLEAU.compatibilitySort}
+              </p>
+            ) : null}
           </div>
 
-          {eligible.length === 0 ? (
+          {ranked.length === 0 ? (
             <div className="flex flex-1 items-center justify-center p-6 text-center">
               <p className="font-display text-base italic text-vellum/60">{TABLEAU.noResults}</p>
             </div>
@@ -528,20 +587,16 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto pt-3">
               <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
                 {virtualItems.map((virtualItem) => {
-                  const card = eligible[virtualItem.index];
+                  const card = ranked[virtualItem.index];
                   if (!card) return null;
-                  const usedElsewhere = Object.entries(selection).some(
-                    ([usedSlot, usedCard]) => usedSlot !== slot && usedCard?.id === card.id,
-                  );
                   return (
                     <button
                       key={card.id}
                       ref={rowVirtualizer.measureElement}
                       data-index={virtualItem.index}
                       type="button"
-                      disabled={usedElsewhere}
                       onClick={() => onSelect(slot, card)}
-                      className="absolute top-0 left-0 flex w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 py-2 text-left transition-colors duration-150 hover:border-brass/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="absolute top-0 left-0 flex w-full items-center gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 px-3 py-2 text-left transition-colors duration-150 hover:border-brass/40"
                       style={{ transform: `translateY(${virtualItem.start}px)` }}
                     >
                       <Card
@@ -559,9 +614,19 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                       />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-display text-[15px] text-vellum">{card.nom}</p>
-                        <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
-                          {CATEGORY_LABELS[card.category]} · {card.refCode}
-                        </p>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <p className="min-w-0 truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
+                            {CATEGORY_LABELS[card.category]} · {card.refCode}
+                          </p>
+                          {compatibleSet.has(card.id) ? (
+                            <span
+                              title={reason}
+                              className="shrink-0 rounded-[2px] border border-brass/40 bg-brass/10 px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.12em] text-brass"
+                            >
+                              {TABLEAU.compatible}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="shrink-0 text-right">
                         <RaritySeal rarity={card.rarity} size={18} />
@@ -569,11 +634,6 @@ function CardDrawer({ slot, items, selection, onSelect, onClose }: CardDrawerPro
                           {scoreFormatter.format(card.score)}
                         </p>
                       </div>
-                      {usedElsewhere ? (
-                        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-warn">
-                          {TABLEAU.usedElsewhere}
-                        </span>
-                      ) : null}
                     </button>
                   );
                 })}

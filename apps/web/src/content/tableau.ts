@@ -1,3 +1,6 @@
+import type { TableauSlot } from '@hexamap/shared';
+import { TABLEAU_CANDIDATE_LINKS, TABLEAU_LINK_LABELS, TABLEAU_LINK_SLOTS } from '@hexamap/shared';
+
 const multiplierFormatter = new Intl.NumberFormat('fr-FR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
@@ -21,7 +24,9 @@ export const TABLEAU = {
   searchLabel: 'Recherche',
   searchPlaceholder: 'Rechercher une carte…',
   noResults: 'Aucune carte éligible pour cet emplacement.',
-  usedElsewhere: 'Déjà placée',
+  compatible: 'Compatible',
+  compatibilitySort: 'Triées par compatibilité',
+  compatibilityNone: 'Aucune carte compatible avec votre sélection',
   multiplierTitle: 'Multiplicateur',
   linksTitle: 'Liens géographiques',
   scoreTitle: 'Détail du score',
@@ -102,6 +107,19 @@ export function drawerTitleLabel(slotLabel: string): string {
 
 export function resultsLabel(count: number): string {
   return count === 1 ? '1 carte éligible' : `${count} cartes éligibles`;
+}
+
+/** Justification lisible d'une pastille « Compatible » : seuls les liens réellement contraignants. */
+export function compatibilityReason(slot: TableauSlot, filled: ReadonlySet<TableauSlot>): string {
+  const reasons: string[] = [];
+  for (const key of TABLEAU_CANDIDATE_LINKS[slot]) {
+    const [first, second] = TABLEAU_LINK_SLOTS[key];
+    const other = first === slot ? second : first;
+    if (other !== slot && filled.has(other)) {
+      reasons.push(TABLEAU_LINK_LABELS[key]);
+    }
+  }
+  return reasons.join(' · ');
 }
 
 export function removeCardAria(cardName: string): string {

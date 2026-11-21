@@ -6,6 +6,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
+import { SessionUnavailable } from '../components/ui/session-unavailable';
 import {
   ACHIEVEMENT_STATE_LABELS,
   ACHIEVEMENTS_ROOM,
@@ -18,7 +19,7 @@ import {
 } from '../content/achievements';
 import type { AchievementView } from '../lib/achievements';
 import { achievementsErrorMessage, achievementsQueryOptions } from '../lib/achievements';
-import { sessionQueryKey, useSession } from '../lib/session';
+import { sessionQueryKey, useSessionState } from '../lib/session';
 
 const dateFormatter = new Intl.DateTimeFormat('fr-FR');
 
@@ -36,13 +37,17 @@ export const Route = createFileRoute('/achievements')({
 });
 
 function AchievementsPage() {
-  const session = useSession();
+  const session = useSessionState();
 
-  if (session.isPending) {
+  if (session.status === 'loading') {
     return <p className="text-sm text-vellum/70">{ACHIEVEMENTS_ROOM.loadingSession}</p>;
   }
 
-  if (!session.data?.user) {
+  if (session.status === 'unavailable') {
+    return <SessionUnavailable onRetry={session.retry} />;
+  }
+
+  if (session.status === 'anonymous') {
     return <Navigate to="/login" />;
   }
 
