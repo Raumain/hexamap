@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { BOUTIQUE_SUCCESS } from '../content/boutique';
+import { BOUTIQUE_SUCCESS, SHOP_ENABLED } from '../content/boutique';
 import { priceLabel } from '../content/market';
 import { sessionQueryOptions } from '../lib/session';
 import { checkoutErrorMessage, shopOrderQueryOptions } from '../lib/shop';
@@ -19,6 +19,8 @@ export const Route = createFileRoute('/boutique/succes')({
 });
 
 function BoutiqueSuccessPage() {
+  if (!SHOP_ENABLED) throw notFound();
+
   const { session_id: sessionId } = Route.useSearch();
   const navigate = useNavigate();
 

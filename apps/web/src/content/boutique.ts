@@ -1,5 +1,10 @@
 import type { PackKey } from '@hexamap/shared';
 
+// La boutique dépend d'une immatriculation (SIREN) et d'un compte Stripe qui
+// n'existent pas encore : l'interrupteur la retire du site sans effacer ni les
+// packs, ni les libellés, ni le client de paiement. Le repasser à `true` suffit.
+export const SHOP_ENABLED = false;
+
 // Le prix TTC est un montant en centimes : le formateur est construit une seule
 // fois, au module, et la division par 100 n'est jamais laissée à l'appelant.
 const euroFormatter = new Intl.NumberFormat('fr-FR', {

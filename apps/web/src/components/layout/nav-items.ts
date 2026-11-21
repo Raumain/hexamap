@@ -1,3 +1,5 @@
+import { SHOP_ENABLED } from '../../content/boutique';
+
 export type SalonPath =
   | '/'
   | '/collection'
@@ -48,8 +50,8 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   },
 ];
 
-/** Les salles secondaires. */
-export const SECONDARY_NAV: readonly NavItem[] = [
+/** Les salles secondaires, avant l'interrupteur de la boutique. */
+const SECONDARY_NAV_BASE: readonly NavItem[] = [
   {
     to: '/tableaux',
     label: 'Les Planches',
@@ -89,6 +91,15 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     glyph: 'M4 8h16l-1 12H5zM9 8V6a3 3 0 0 1 6 0v2M12 12v4M10 14h4',
   },
 ];
+
+/**
+ * Les salles secondaires réellement servies. La boutique se filtre ici, à la
+ * source : le rail, la feuille mobile et `isSecondaryRoom` lisent tous cette
+ * liste, donc aucun d'eux ne peut rendre une salle que les routes refusent.
+ */
+export const SECONDARY_NAV: readonly NavItem[] = SHOP_ENABLED
+  ? SECONDARY_NAV_BASE
+  : SECONDARY_NAV_BASE.filter((item) => item.to !== '/boutique');
 
 /** La copie de la feuille mobile des salles secondaires. */
 export const MORE_SHEET = { control: 'Plus', title: 'Autres salles', close: 'Fermer' } as const;

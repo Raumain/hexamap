@@ -5,7 +5,7 @@ import { HexSeal } from '../components/layout/hex-seal';
 import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import { HOME_PAGE } from '../content/home';
-import { LEGAL_LINKS } from '../content/legal';
+import { LEGAL_LINKS, LEGAL_PAGES_ENABLED } from '../content/legal';
 
 export const Route = createFileRoute('/home')({
   component: HomePage,
@@ -25,12 +25,6 @@ const CATEGORY_RARITY: Record<Category, Rarity> = {
 
 const PRIMARY_CTA =
   'inline-flex min-h-11 items-center justify-center rounded-[2px] bg-brass px-5 font-mono text-[11px] uppercase tracking-[0.14em] text-cabinet shadow-brass transition-colors duration-150 hover:bg-brass-pale';
-
-const SECONDARY_CTA =
-  'inline-flex min-h-11 items-center justify-center rounded-[2px] border border-brass/45 px-5 font-mono text-[11px] uppercase tracking-[0.14em] text-brass transition-colors duration-150 hover:bg-brass/10';
-
-const HEADER_LINK =
-  'hidden min-h-11 items-center font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/65 transition-colors duration-150 hover:text-brass md:inline-flex';
 
 /** La planche d'exemple d'une catégorie : aucune donnée inventée deux fois. */
 function plateFor(type: Category) {
@@ -59,12 +53,6 @@ function HomeHeader() {
           </Link>
           <span className="salon-eyebrow hidden truncate sm:inline">{HOME_PAGE.brandTagline}</span>
         </div>
-
-        <nav className="flex shrink-0 items-center gap-3">
-          <Link to="/boutique" search={{ session_id: undefined }} className={HEADER_LINK}>
-            {HOME_PAGE.secondaryCta}
-          </Link>
-        </nav>
       </div>
     </header>
   );
@@ -89,9 +77,6 @@ function Hero() {
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link to="/" className={PRIMARY_CTA}>
               {HOME_PAGE.primaryCta}
-            </Link>
-            <Link to="/boutique" search={{ session_id: undefined }} className={SECONDARY_CTA}>
-              {HOME_PAGE.secondaryCta}
             </Link>
           </div>
 
@@ -264,28 +249,6 @@ function Metals() {
   );
 }
 
-function Shop() {
-  return (
-    <section className="gutter-safe mx-auto w-full max-w-6xl pb-16 md:pb-20">
-      <div className="flex flex-col gap-4 rounded-panel border border-brass/25 bg-cabinet-raised p-6 md:flex-row md:items-center md:justify-between md:p-8">
-        <div>
-          <h2 className="font-display text-2xl font-semibold text-vellum">{HOME_PAGE.shopTitle}</h2>
-          <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed text-vellum/65">
-            {HOME_PAGE.shopBody}
-          </p>
-        </div>
-        <Link
-          to="/boutique"
-          search={{ session_id: undefined }}
-          className={`${SECONDARY_CTA} shrink-0`}
-        >
-          {HOME_PAGE.shopCta}
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 function HomeFooter() {
   return (
     <footer className="border-t border-veil">
@@ -295,20 +258,22 @@ function HomeFooter() {
           {HOME_PAGE.brand} · {HOME_PAGE.footerTagline}
         </p>
 
-        <nav
-          className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1"
-          aria-label={HOME_PAGE.footerLegalLabel}
-        >
-          {LEGAL_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="inline-flex min-h-11 items-center font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/60 transition-colors duration-150 hover:text-brass"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        {LEGAL_PAGES_ENABLED ? (
+          <nav
+            className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1"
+            aria-label={HOME_PAGE.footerLegalLabel}
+          >
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="inline-flex min-h-11 items-center font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/60 transition-colors duration-150 hover:text-brass"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
 
         <p className="mt-3 max-w-2xl font-mono text-[9px] leading-relaxed tracking-[0.14em] text-vellum/35">
           {HOME_PAGE.footerSources}
@@ -335,7 +300,6 @@ function HomePage() {
         <Categories />
         <Synergy />
         <Metals />
-        <Shop />
       </main>
       <HomeFooter />
     </>

@@ -5,6 +5,121 @@
 
 ---
 
+# Le cadre juridique écrit, et les surfaces commerciales éteintes
+
+## Statut
+
+- **Phase** : hors phase numérotée — cadre juridique, rédaction des trois documents légaux,
+  retrait de la boutique et des pages légales tant que l'éditeur n'est pas immatriculé
+- **État** : code terminé, `lint` (**253 fichiers**), `typecheck` (**6 workspaces**), `build`
+  et `bun test packages/spec` (**343 pass, 0 fail, 1989 `expect()`, 18 fichiers**) verts dans
+  Docker ; **banc E2E non rejoué**
+- **Priorité** : P1 — la boutique ne peut pas encaisser avant l'immatriculation
+- **Mis à jour** : 2026-11-22
+- **Branche** : `chore/retrait-boutique-et-pages-legales`
+- **Livraison** : deux commits, branche poussée, PR ouverte vers `main`
+
+## Objectif
+
+Le titulaire du produit n'a ni société ni SIREN. Or deux constats rendent la situation
+incohérente dès qu'un euro entre : l'article 1-1 de la LCEN impose à un éditeur **professionnel**
+— et une contrepartie économique, même modeste, suffit à le devenir — de publier nom, prénoms,
+domicile, téléphone et numéro d'immatriculation ; et Stripe n'ouvre pas de compte encaissement à
+une personne physique sans SIRET. La session écrit donc le cadre juridique, rédige les trois
+documents, puis **éteint** les surfaces qui supposent une activité commerciale, sans rien
+supprimer.
+
+## Ce qui a changé
+
+| Fichier | Changement |
+| :--- | :--- |
+| `.docs/06-cadre-juridique.md` | **Nouveau.** Note de cadrage : LCEN art. 1-1 / 1-2 issus de l'article 48 de la loi SREN, RGPD, CGV et rétractation, TVA, DSA, jeu d'argent, accessibilité, attributions Open Data. En-tête « État de vérification » séparant **quatre points vérifiés à la source** de **cinq points non vérifiés**. |
+| `apps/web/src/content/legal.ts` | Les trois documents sont **rédigés** : confidentialité (11 sections, cookies inclus), CGV (12 sections), mentions légales (9 sections, OVH SAS / 2 rue Kellermann / 59100 Roubaix / 1007, art. 1-1, I, 4° et 5°). `PUBLISHER` regroupe les **six** repères d'identité en un seul point d'édition ; `CONSUMER_MEDIATOR` est le septième. `LEGAL_PAGES_ENABLED = false` et `SHOP_ENABLED = false`. |
+| `apps/web/src/components/legal/legal-document.tsx` | `LegalSegment` porte `paragraphs: string[]` (plusieurs `<p>` par section) et `LegalDocument` gagne `banner?`, pour que le bandeau « Texte provisoire » ne s'affiche que là où il est vrai. |
+| `routes/{cgv,mentions-legales,confidentialite}.tsx` | `throw notFound()` quand `LEGAL_PAGES_ENABLED` est faux — un **404**, pas une redirection : rediriger vers l'accueil laisserait croire que la page vit ailleurs. |
+| `routes/{boutique.index,boutique.succes}.tsx` | `throw notFound()` quand `SHOP_ENABLED` est faux. La mention de consentement de la boutique, qui renvoyait aux CGV, est retirée avec ses liens. |
+| `components/layout/nav-items.ts` | `SECONDARY_NAV_BASE` privée, `SECONDARY_NAV` filtrée à la source : `PRIMARY_NAV` est intact, donc les quatre onglets, leur ordre et le cinquième contrôle « Plus » ne bougent pas. |
+| `components/layout/app-shell.tsx`, `routes/home.tsx` | Le bloc de liens légaux du pied de page et le lien « Découvrir la Boutique » deviennent conditionnels ; la section boutique de la vitrine et le CTA secondaire du héros disparaissent. |
+| `content/boutique.ts`, `content/home.ts` | Libellés, packs et messages d'erreur **conservés** : repasser les deux bascules à `true` restitue tout. |
+
+## Ce qui reste intact
+
+`components/shop/**`, `lib/shop.ts`, `packages/shared/src/{packs,payments}.ts`,
+`apps/api/**`, `packages/spec`, `packages/db` : aucun changement. La route serveur de la
+boutique continue de répondre `503 SHOP_DISABLED` sans clés Stripe : c'est la protection qui
+subsiste tant que le statut n'existe pas. `routeTree.gen.ts` n'a jamais été édité à la main ;
+les trois routes légales et les deux routes de boutique restent déclarées, l'inhabilitation se
+fait au rendu.
+
+## Ce qui reste à faire, par ordre de dépendance
+
+1. **Immatriculation** — micro-entrepreneur, guichet unique INPI. Sans SIREN, rien d'autre.
+2. **Les sept repères** de `content/legal.ts` : nom, prénoms, domicile, téléphone, courriel,
+   SIREN, médiateur de la consommation.
+3. **Deux bascules à `true`** et le `banner: LEGAL_BANNER` retiré des CGV et des mentions.
+4. **Trois promesses du texte que le code ne tient pas** : la purge à 6 mois avec courriel
+   d'avertissement à 30 jours (ni script, ni SMTP — le point A9 n'est pas tranché), les journaux
+   à 90 jours (Docker tourne en rotation par taille), et **l'achat réservé aux majeurs** (aucun
+   champ d'âge, aucune case de déclaration).
+5. **Enregistrer l'URL des CGV dans le Dashboard Stripe** puis activer
+   `SHOP_REQUIRE_TOS_CONSENT`, avant la première vente.
+
+## Vérification (Docker uniquement)
+
+```
+bun run lint                                 253 fichiers, aucune correction
+bun run typecheck                            6 workspaces, propre
+bun run build                                index-CvGIS3vT.js 478.09 kB / 145.61 kB gzip,
+                                             63 entrées de précache
+bun test packages/spec                       343 pass, 0 fail, 18 fichiers
+```
+
+Greps de contrôle : aucun `to="/boutique"` hors fichiers de route ; aucun `to="/cgv"`,
+`to="/mentions-legales"` ni `to="/confidentialite"` ; `git diff --stat packages/spec
+packages/db apps/api` vide.
+
+## Journal
+
+### 2026-11-22 — La loi dit non, alors on éteint la caisse
+
+**La décision, qui n'est pas technique.** Le titulaire veut vendre des packs d'écus tout en
+restant un particulier. Ce n'est pas possible : la qualification d'éditeur non professionnel
+(art. 1-1, II LCEN) se perd dès la moindre contrepartie économique, et Stripe exige un numéro
+d'identification d'entreprise. Plutôt que de publier des mentions légales fausses ou de laisser
+une boutique qui échoue en `503`, les deux surfaces sont **éteintes derrière une bascule** —
+réversibles en une ligne, sans perte de code.
+
+**Ce qui a été vérifié à la source, et ce qui ne l'a pas été.** Les seuils de TVA 2026
+(85 000 € / 37 500 €, majorés 93 500 € / 41 250 €) et la loi n° 2025-1044 du 3 novembre 2025 qui
+abroge le seuil unique à 25 000 € sont confirmés sur Legifrance et service-public ; les articles
+1-1 et 1-2 de la LCEN aussi. En revanche l'ordonnance n° 2026-2, le décret n° 2026-3, la portée
+générale du bouton de rétractation et l'abrogation différée de l'article 293 B restent marqués
+**non vérifiés** dans la note : ils sont repris d'une recherche secondaire, pas d'une lecture
+du texte.
+
+**Ce que le texte promet et que le code ne fait pas encore.** Trois écarts sont consignés tels
+quels plutôt que lissés : la purge à 6 mois n'a ni script ni file d'envoi, les journaux ne sont
+pas bornés dans le temps, et l'achat réservé aux majeurs n'est vérifié nulle part. Publier la
+politique de confidentialité en l'état décrirait un service qui n'est pas celui qui tourne.
+
+**Le choix du 404 plutôt que de la redirection.** `/cgv` renvoie « introuvable », pas
+l'accueil : une redirection silencieuse vers Le Seuil serait un comportement incompréhensible
+pour un joueur qui a gardé le lien.
+
+**Ce qui n'est pas prouvé.** Le banc E2E n'a pas été rejoué : aucune assertion existante ne
+couvre `/cgv`, `/mentions-legales`, `/confidentialite` ni `/boutique`, et les pages ne sont donc
+prouvées que par la compilation. Aucune vérification visuelle dans un navigateur n'a été faite —
+ni le 404, ni le pied de page à 390 px après retrait des liens.
+
+**Portée** : `.docs/06-cadre-juridique.md` (nouveau), `apps/web/src/content/{legal,boutique,home}.ts`,
+`apps/web/src/components/legal/legal-document.tsx`,
+`apps/web/src/components/layout/{app-shell,nav-items}.tsx`,
+`apps/web/src/routes/{cgv,mentions-legales,confidentialite,boutique.index,boutique.succes,home}.tsx`
+et ce fichier. Aucune migration, aucun changement de schéma ni de contrat d'API, aucune
+dépendance nouvelle.
+
+---
+
 # Les planches du ticket lisibles, et la vitrine qui montre ses blasons
 
 ## Statut
