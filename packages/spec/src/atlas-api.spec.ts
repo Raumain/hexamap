@@ -420,8 +420,13 @@ describe('Archi §4.2 — une instruction par service', () => {
 });
 
 describe('Roadmap v2 §4 — tenue en charge', () => {
-  it('sert le résumé avec 2 000 cartes possédées sous un p95 de 200 ms', async () => {
+  let perfCookie = '';
+
+  // Le semis est hors mesure : 5 s ne suffisaient pas à semis + 20 appels sous contention,
+  // `packages/spec` étant parallèle (`.docs/03-active-task.md`, « Ce qui reste » §5).
+  beforeAll(async () => {
     const { cookie, userId } = await signUp();
+    perfCookie = cookie;
     await sql`
       insert into user_cards (user_id, category, ref_code, rarity, score)
       select
@@ -437,11 +442,14 @@ describe('Roadmap v2 §4 — tenue en charge', () => {
         where code_departement = ${seeded.departementPerfCode}
       ) d
     `.execute(db);
+  }, 60_000);
 
+  // Le délai couvre l'amorçage et la variance de charge machine, pas la latence : le p95 reste juge.
+  it('sert le résumé avec 2 000 cartes possédées sous un p95 de 200 ms', async () => {
     const samples: number[] = [];
     for (let index = 0; index < 20; index += 1) {
       const started = performance.now();
-      const res = await authFetch('/api/v1/atlas/summary', {}, cookie);
+      const res = await authFetch('/api/v1/atlas/summary', {}, perfCookie);
       expect(res.status).toBe(200);
       await res.text();
       samples.push(performance.now() - started);
@@ -451,14 +459,13 @@ describe('Roadmap v2 §4 — tenue en charge', () => {
     const p95 = samples[Math.max(0, Math.ceil(samples.length * 0.95) - 1)] ?? 0;
     console.log(`[atlas] p95 du résumé sur 2 000 cartes = ${p95.toFixed(1)} ms`);
     expect(p95).toBeLessThanOrEqual(200);
-  });
+  }, 30_000);
 
   it('sert un département de 900 communes sans dépasser le garde-fou de 512 Kio', async () => {
-    const { cookie } = await signUp();
     const res = await authFetch(
       `/api/v1/atlas/departements/${seeded.departementDenseCode}`,
       {},
-      cookie,
+      perfCookie,
     );
     expect(res.status).toBe(200);
     const text = await res.text();
