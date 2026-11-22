@@ -58,3 +58,27 @@ export const COLLECTION_FILTERED_EMPTY = {
 export function filteredCardsLabel(shown: number, total: number): string {
   return cardsShownLabel(shown, total);
 }
+
+export const ATELIER = {
+  title: "L'Atelier",
+  intro:
+    'Fondez trois exemplaires identiques en une carte du palier supérieur. Le résultat est toujours le palier suivant : aucun hasard.',
+  action: 'Fondre',
+  confirmTitle: 'Confirmer la fusion',
+  confirm: 'Confirmer la fusion',
+  cancel: 'Annuler',
+} as const;
+
+export function atelierResultLabel(
+  nom: string,
+  targetRarityLabel: string,
+  score: number,
+  count: number,
+): string {
+  const points = new Intl.NumberFormat('fr-FR').format(score);
+  return `${count} × ${nom} → 1 carte ${targetRarityLabel} · ${points} pts`;
+}
+
+export function atelierSuccessMessage(nom: string, rarityLabel: string): string {
+  return `Fusion réussie : une carte ${rarityLabel} de ${nom}.`;
+}

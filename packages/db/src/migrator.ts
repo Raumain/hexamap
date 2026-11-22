@@ -17,6 +17,7 @@ import * as refIntegrity from '../migrations/0014_ref_integrity';
 import * as atlasPaths from '../migrations/0015_atlas_paths';
 import * as notifications from '../migrations/0016_notifications';
 import * as tradeOffers from '../migrations/0017_trade_offers';
+import * as cardSource from '../migrations/0018_card_source';
 import type { Database } from './index';
 
 /**
@@ -43,6 +44,7 @@ const migrations: Record<string, Migration> = {
   '0015_atlas_paths': atlasPaths,
   '0016_notifications': notifications,
   '0017_trade_offers': tradeOffers,
+  '0018_card_source': cardSource,
 };
 
 /** Les noms dans l'ordre alphabétique, c'est-à-dire l'ordre d'exécution attendu. */
