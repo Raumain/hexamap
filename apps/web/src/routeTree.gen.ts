@@ -22,6 +22,7 @@ import { Route as GuichetRouteImport } from './routes/guichet'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
+import { Route as PalmaresRouteImport } from './routes/palmares'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
@@ -98,6 +99,11 @@ const MentionsLegalesRoute = MentionsLegalesRouteImport.update({
   path: '/mentions-legales',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PalmaresRoute = PalmaresRouteImport.update({
+  id: '/palmares',
+  path: '/palmares',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -317,6 +329,7 @@ export interface RootRouteChildren {
   HomeRoute: typeof HomeRoute
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
+  PalmaresRoute: typeof PalmaresRoute
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
@@ -422,6 +435,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MentionsLegalesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/palmares': {
+      id: '/palmares'
+      path: '/palmares'
+      fullPath: '/palmares'
+      preLoaderRoute: typeof PalmaresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -509,6 +529,7 @@ const rootRouteChildren: RootRouteChildren = {
   HomeRoute: HomeRoute,
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
+  PalmaresRoute: PalmaresRoute,
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,
