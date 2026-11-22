@@ -89,6 +89,7 @@
       "dependencies": {
         "@hexamap/api": "workspace:*",
         "@hexamap/db": "workspace:*",
+        "@hexamap/import": "workspace:*",
         "@hexamap/shared": "workspace:*",
       },
     },

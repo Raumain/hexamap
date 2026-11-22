@@ -23,6 +23,14 @@ export interface CliOptions {
    * qu'un `TRUNCATE` gardé refuse dès qu'une collection cite une ligne.
    */
   merge: boolean;
+  /** Étape atlas seule : ni API Gouv, ni BAN, ni blasons. */
+  pathsOnly: boolean;
+  /** Recalcule un `path_d` déjà écrit (et réécrit une `geom` déjà acquise). */
+  pathsForce: boolean;
+  /** Avec `--paths-only` : n'acquiert aucune géométrie, calcule `path_d` depuis `geom`. */
+  pathsNoFetch: boolean;
+  /** Ne traite que n entités par niveau de l'étape atlas. `null` = toutes. */
+  pathsLimit: number | null;
   help: boolean;
 }
 
@@ -38,6 +46,14 @@ Options :
   --if-empty             Ne fait rien si le référentiel demandé est déjà complet.
   --merge                Réimport non destructeur : met à jour les lignes existantes et
                          n'élague que celles qu'aucune carte ne cite (préserve les collections).
+  --paths-only           N'exécute que l'étape atlas (\`geom\` puis \`path_d\`), sans
+                         référentiel ni BAN.
+  --no-fetch             Avec l'étape atlas : n'acquiert aucune géométrie (aucun appel WFS),
+                         calcule seulement \`path_d\` depuis \`geom\`.
+  --force                Étape atlas : recalcule \`path_d\` même s'il existe déjà, et réécrit
+                         une \`geom\` déjà acquise.
+  --limit=<n>            Étape atlas : ne calcule le tracé que pour n entités par niveau ;
+                         l'acquisition de la géométrie reste complète (développement).
   --help                 Affiche cette aide.`;
 
 export function parseArgs(argv: readonly string[]): CliOptions {
@@ -51,6 +67,10 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     skipBan: false,
     ifEmpty: false,
     merge: false,
+    pathsOnly: false,
+    pathsForce: false,
+    pathsNoFetch: false,
+    pathsLimit: null,
     help: false,
   };
 
@@ -75,6 +95,26 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     }
     if (arg === '--merge') {
       options.merge = true;
+      continue;
+    }
+    if (arg === '--paths-only') {
+      options.pathsOnly = true;
+      continue;
+    }
+    if (arg === '--no-fetch') {
+      options.pathsNoFetch = true;
+      continue;
+    }
+    if (arg === '--force') {
+      options.pathsForce = true;
+      continue;
+    }
+    if (arg.startsWith('--limit=')) {
+      const value = Number(arg.slice('--limit='.length).trim());
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error('--limit attend un entier positif ou nul');
+      }
+      options.pathsLimit = value;
       continue;
     }
     if (arg === '--help' || arg === '-h') {
