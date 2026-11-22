@@ -42,6 +42,21 @@ ton rapport : tu n'as pas le droit de changer le contrat en silence.
 Les skills se chargent avec l'outil `skill`, par identifiant. Si une skill ne se charge pas,
 applique ses étapes à la main et dis-le dans le rapport — ne saute pas l'étape.
 
+## Le tour se termine, la session meurt — committe avant d'attendre
+
+`opencode run` rend la main **dès que ton tour s'achève**, et il ne reprend jamais : une session
+interrompue ne se réveille pas, et tout ce qui n'est pas committé est perdu. Deux phases de la v2
+l'ont payé — la salle L'Atlas entière, puis le Palmarès, écrits, vérifiés au vert, et jamais
+committés, parce que le tour s'est terminé sur « j'attends le verdict ».
+
+Deux règles, sans exception :
+
+- **Ne termine jamais ton tour en attendant un sous-agent.** Si tu délègues, attends le verdict
+  dans le même tour. Un sous-agent laissé en arrière-plan ne travaille pas pour toi : la session
+  est déjà morte quand il rend sa réponse.
+- **Committe à chaque étape vérifiée, jamais un seul commit à la fin.** Un `ci:check` vert est
+  une raison de committer tout de suite, pas une raison d'attendre le suivant.
+
 ## Avant d'ouvrir la PR — la branche de base doit exister
 
 Ta PR cible `{{PARENT}}`. `gh pr create --base` échoue si cette branche n'est pas sur

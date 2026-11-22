@@ -215,8 +215,15 @@ prepare_worktree() {
   if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
     log "branche $branch déjà présente : reprise"
     if [ "$DRY_RUN" -eq 0 ]; then
-      git -C "$ROOT" worktree add -q "$wt" "$branch" 2>/dev/null \
-        || git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$base"
+      # `--keep` laisse les worktrees en place : une relance retrouve le chemin occupé
+      # et `git worktree add` échoue en `fatal: already used by worktree`. On réutilise
+      # l'arbre s'il est déjà monté sur la bonne branche, sans le recréer.
+      if [ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$branch" ]; then
+        log "worktree existant réutilisé : $wt"
+      else
+        git -C "$ROOT" worktree add -q "$wt" "$branch" 2>/dev/null \
+          || git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$base"
+      fi
     fi
   else
     log "worktree + branche $branch depuis $base"
@@ -290,6 +297,32 @@ launch() {
   log "session $phase ($slug) → $logfile"
   ( cd "$wt" && timeout "$SESSION_TIMEOUT" opencode "${args[@]}" "$(cat "$prompt")" ) \
     >"$logfile" 2>&1
+
+  # Une session peut se terminer sans rien livrer : `opencode run` rend la main quand le tour
+  # s'achève, y compris quand l'agent vient de déléguer à un sous-agent et attend son verdict.
+  # La phase 35 de la vague 4 s'est arrêtée ainsi, branche strictement inchangée ; `ci:check`
+  # étant vert sur une branche vide, la porte la validait et la vague perdait L'Atlas sans un
+  # mot. On refuse donc une phase qui n'a produit aucun commit au-delà de sa base.
+  local commits
+  commits=$(git -C "$ROOT" rev-list --count "$parent..$branch" 2>/dev/null || printf '0')
+  if [ "${commits:-0}" -eq 0 ]; then
+    warn "phase $phase : aucun commit au-delà de $parent — la session n'a rien livré"
+    return 1
+  fi
+
+  # Le complément du garde-fou précédent : une session peut aussi laisser du travail sur le
+  # disque sans le committer. `ci:check` le voit et passe au vert, la fusion ne transporte que
+  # la branche, et le travail disparaît en silence (phase 35, vague 4 : la salle Atlas entière
+  # était dans le worktree, non committée). Le worktree doit donc être propre pour accumuler.
+  local dirty
+  dirty=$(git -C "$wt" status --porcelain 2>/dev/null || true)
+  if [ -n "$dirty" ]; then
+    warn "phase $phase : worktree non propre, ce travail serait perdu à la fusion :"
+    printf '%s\n' "$dirty" >&2
+    return 1
+  fi
+
+  log "phase $phase : $commits commit(s) au-delà de $parent, worktree propre"
 }
 
 # ---------------------------------------------------------------- PR de phase
@@ -373,7 +406,9 @@ build_wave() {
       else
         warn "conflit réel en intégrant $b dans $branch :"
         printf '%s\n' "$conflicted" >&2
-        warn "rien n'est résolu automatiquement. Corrige à la main dans $wt, puis relance."
+        warn "rien n'est résolu automatiquement. Corrige dans $wt, termine la fusion, joue la"
+        warn "porte et le banc, puis pousse $branch : une relance de --wave réinitialise la"
+        warn "branche d'accumulation (git worktree add -B) et jetterait la résolution."
         return 1
       fi
     fi
