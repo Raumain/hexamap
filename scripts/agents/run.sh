@@ -24,7 +24,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd)
-PROMPTS="$SCRIPT_DIR/prompts"
+PROMPTS=${PROMPTS:-"$SCRIPT_DIR/prompts"}
 PLAN=${PLAN:-"$SCRIPT_DIR/phases.tsv"}
 # Nom de projet Compose stable, quel que soit le dossier courant (`hexamap`).
 COMPOSE_PROJECT=${COMPOSE_PROJECT:-$(basename "$ROOT" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')}
@@ -73,7 +73,7 @@ Usage : scripts/agents/run.sh [options]
   --no-push       Ne pousse pas les branches d'accumulation
   -h, --help      Ce texte
 
-Variables : BASE, PLAN, WAVE_PREFIX, WT_ROOT, LOGDIR, MAX_PARALLEL, SESSION_TIMEOUT,
+Variables : BASE, PLAN, PROMPTS, WAVE_PREFIX, WT_ROOT, LOGDIR, MAX_PARALLEL, SESSION_TIMEOUT,
             COMPOSE_PROJECT.
 TXT
 }
