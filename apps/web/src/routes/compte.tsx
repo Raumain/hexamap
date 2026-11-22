@@ -4,6 +4,7 @@ import { createFileRoute, Navigate, useRouter } from '@tanstack/react-router';
 import { type ReactNode, useId, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
+import { PushOptin } from '../components/push/push-optin';
 import { TextField } from '../components/text-field';
 import { outlineButtonClass } from '../components/ui/button-classes';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
@@ -12,6 +13,7 @@ import {
   ACCOUNT_PASSWORD_MIN_LENGTH,
   ACCOUNT_ROOM,
 } from '../content/account';
+import { PUSH_ROOM } from '../content/push';
 import {
   accountCapabilitiesQueryOptions,
   accountErrorMessageOf,
@@ -88,6 +90,9 @@ function AccountRoom({ user }: { user: SessionUser }) {
         <EmailSection user={user} verificationOpen={emailVerificationOpen} />
         <PasswordSection />
         <ProfileSection />
+        <AccountSection title={PUSH_ROOM.title} description={PUSH_ROOM.description}>
+          <PushOptin />
+        </AccountSection>
         <ExportSection />
         {deletionOpen && confirmationPseudo.length > 0 ? (
           <DangerSection pseudo={confirmationPseudo} />

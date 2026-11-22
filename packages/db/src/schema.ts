@@ -256,6 +256,29 @@ export interface TradeOfferTable {
   expires_at: Date;
 }
 
+/** La Sonnette — un abonnement par navigateur, clé métier `endpoint` (base §4.12). */
+export interface PushSubscriptionTable {
+  id: Generated<string>;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  /** Jour UTC `YYYY-MM-DD` du dernier envoi ; `null` tant qu'aucun envoi n'a eu lieu. */
+  last_sent_on: string | null;
+  /** Instant de régénération annoncé, pour ne pas réannoncer la même charge. */
+  last_notified_charge_at: Date | null;
+  last_sent_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+/** Heures calmes, clé `user_id` : survit au désabonnement (base §4.12). */
+export interface PushPreferencesTable {
+  user_id: string;
+  quiet_start: Generated<number>;
+  quiet_end: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -281,4 +304,6 @@ export interface Database {
   user_profiles: UserProfileTable;
   notifications: NotificationTable;
   trade_offers: TradeOfferTable;
+  push_subscriptions: PushSubscriptionTable;
+  push_preferences: PushPreferencesTable;
 }

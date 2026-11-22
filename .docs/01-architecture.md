@@ -451,14 +451,47 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   sortie : `assetName` préfixe `icons/`. Les PNG sont **versionnés** ; `bunx pwa-assets-generator`
   depuis `apps/web` est l'unique commande de régénération, et le build Docker n'a besoin
   d'aucun réseau.
-- **Le service worker ne cache jamais l'API.** Cinq entrées `NetworkOnly` couvrent `/api/`, une
-  par méthode HTTP : une entrée Workbox ne s'applique qu'à une seule méthode, et `POST` porte
-  toutes les mutations Eden. `/blasons/` est en `StaleWhileRevalidate` (200 entrées, 30 jours),
-  le reste de `dist/` en précache.
+- **Le service worker est écrit à la main : `injectManifest`, pas `generateSW`.** Depuis la
+  phase 43, `vite-plugin-pwa` est configuré avec `strategies: 'injectManifest'`, `srcDir: 'src'`,
+  `filename: 'sw.ts'` et `injectManifest.globPatterns` contenant `html`. Le fichier
+  `apps/web/src/sw.ts` porte les gestionnaires `push` et `notificationclick` que `generateSW`
+  ne savait pas produire. **Les règles de cache sont inchangées** : cinq routes `NetworkOnly`
+  couvrent `/api/`, une par méthode HTTP — une entrée Workbox ne s'applique qu'à une seule
+  méthode, et `POST` porte toutes les mutations Eden —, `/blasons/` reste en
+  `StaleWhileRevalidate` (200 entrées, 30 jours), le reste de `dist/` reste en précache.
+  Le worker s'aligne sur `PUSH_HTTP_METHODS` de `packages/shared/src/push.ts`, et
+  `packages/spec/src/push.spec.ts` verrouille cette liste de cinq méthodes.
 - **`navigateFallback: '/index.html'` exige `index.html` dans le précache** — `globPatterns`
   contient donc `html`. Sans cette entrée, `createHandlerBoundToURL('/index.html')` lève
   `non-precached-url` à l'installation : le worker ne s'active pas et le navigateur refuse
-  l'installation.
+  l'installation. En `injectManifest`, le repli est une `NavigationRoute` dont la `denylist`
+  vaut `/^\/api\//` et `/^\/blasons\//` : un chemin d'API mal orthographié rend un `404` JSON,
+  jamais `index.html`.
+- **La Sonnette ne pousse qu'un événement : le retour d'une charge.** `push` affiche le corps
+  français reçu et `notificationclick` focalise l'onglet existant de la même origine ou en ouvre
+  un. Aucun autre événement — vente, médaille, offre de troc — n'est poussé : ceux-là restent
+  dans Le Guichet. Le worker n'appelle **ni** `skipWaiting` **ni** `clients.claim`, donc
+  l'invitation de mise à jour reste le seul chemin.
+- **Les clés VAPID appartiennent à l'exploitant, jamais au dépôt.** `bun run --cwd apps/api
+  vapid:generate` (`apps/api/src/scripts/vapid.ts`) imprime une paire sur la sortie standard et
+  **n'écrit aucun fichier** ; l'exploitant la dépose dans `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+  et, s'il le souhaite, `VAPID_SUBJECT` du magasin de secrets du déploiement. Rien en base, rien
+  dans un fichier commité, `.env.example` ne portant que des commentaires. La lecture est faite
+  **à l'appel** (`apps/api/src/lib/vapid.ts`) : paire absente, `GET /api/v1/push/config` rend
+  `{ enabled: false }`, l'abonnement répond `503 PUSH_DISABLED`, l'ordonnanceur n'est pas
+  démarré — et **le processus démarre quand même**.
+- **Un battement de 60 s, un seul détenteur.** `apps/api/src/services/push-scheduler.ts` est
+  démarré par `index.ts` seul (jamais par `app.ts`, sinon chaque spécification ferait tourner une
+  horloge) et arrêté sur `SIGTERM`/`SIGINT`. Chaque battement prend
+  `pg_try_advisory_lock(2147483043)` sur sa propre connexion ; verrou non pris, il rend la main
+  sans attendre. Il lit **deux fois** : une ligne de `game_config`, puis les candidats en une
+  jointure bornée à 200 lignes (`user_scratch_charges_empty_idx`, partiel sur `charges = 0`).
+  Au repos, la seconde lecture rend zéro ligne. Le travail par candidat n'existe que pour un
+  envoi réel : une mise à jour d'une ligne, ou une suppression sur `404`/`410`.
+- **Le service worker a son propre programme TypeScript.** `src/sw.ts` vit dans `self`, pas dans
+  `window` : `apps/web/tsconfig.sw.json` le compile avec `lib: ["ES2023", "WebWorker"]`, et le
+  `tsconfig.json` principal l'exclut — sinon les globales de `lib.dom` et de `lib.webworker`
+  entreraient en collision. `typecheck` et `build` enchaînent les deux programmes.
 - **La mise à jour est proposée, pas imposée.** `registerType: 'prompt'`, `skipWaiting: false`,
   `clientsClaim: false`. `apps/web/src/lib/pwa.ts` porte l'enregistrement et
   `components/layout/pwa-update-prompt.tsx` l'invitation française (« Recharger » / « Plus
@@ -466,10 +499,14 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   le canvas de grattage (§4.6).
 - `biome.json` exclut `apps/web/dev-dist`, `**/sw.js` et `**/workbox-*.js` : le code Workbox
   généré n'est pas du code source. `.gitignore` exclut `apps/web/dev-dist`.
-- **La preuve est `packages/e2e/tests/pwa.spec.ts`, 7 cas**, joués par le seul projet `pwa`
-  (`serviceWorkers: 'allow'`, commutateur Chrome `--ignore-certificate-errors`). Le cas
+- **La preuve est `packages/e2e/tests/pwa.spec.ts`, toujours 7 cas**, joués par le seul projet
+  `pwa` (`serviceWorkers: 'allow'`, commutateur Chrome `--ignore-certificate-errors`). Le cas
   « le worker s'installe et contrôle » constate d'abord `controller === null` sur le premier
   chargement : `clientsClaim: false` impose un rechargement avant que `controller` soit non nul.
+  Le cas 4 a été **réécrit** par la phase 43 sans être relâché : il asserte désormais une lecture
+  **et** une écriture d'API en ligne, l'absence de toute URL `/api/` dans les caches, l'échec
+  réseau hors ligne, puis la **forme** du worker écrit à la main — une boucle qui parcourt
+  exactement les cinq méthodes et enregistre, pour chacune, une route `NetworkOnly` sur `/api/`.
   Le cas 7 est une assertion **structurelle** — `env(safe-area-inset-*)` vaut toujours `0` sous
   Playwright, une mesure ne prouverait rien ; il vérifie que les déclarations survivent à la
   compilation et que `viewport-fit=cover` est présent.

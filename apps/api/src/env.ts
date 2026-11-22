@@ -62,6 +62,19 @@ const envSchema = z
     // écrits, un fichier JSON par message. Aucun envoi réseau ; sans lui, le
     // changement d'adresse répond 503.
     MAIL_OUTBOX_DIR: z.string().optional(),
+    // La Sonnette — notifications poussées du navigateur (`.docs/01-architecture.md`
+    // §4.10). Les deux clés forment une paire VAPID : générée **une fois** par
+    // l'exploitant avec `bun run --cwd apps/api vapid:generate`, puis déposée dans
+    // le magasin de secrets du déploiement. Jamais en base, jamais dans le dépôt.
+    // Paire absente ou incomplète : la sonnette est éteinte proprement (les routes
+    // répondent un code nommé), le démarrage n'échoue pas. La lecture effective se
+    // fait à l'appel, dans `lib/vapid.ts`.
+    VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
+    // Identité de contact VAPID, au format `mailto:` ou URL. Facultative.
+    VAPID_SUBJECT: z.string().optional(),
+    // Période du battement de l'ordonnanceur, en millisecondes. 60 s par contrat.
+    PUSH_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
   })
   .superRefine((value, ctx) => {
     // La valeur d'exemple de `.env.example` ne doit jamais servir de secret :
