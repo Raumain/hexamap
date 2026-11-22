@@ -142,6 +142,15 @@ export function Sidebar() {
                 Sortir
               </button>
             </div>
+            <Link
+              to="/compte"
+              aria-current={pathname === '/compte' ? 'page' : undefined}
+              className={`mt-2 inline-flex font-mono text-[9px] uppercase tracking-[0.14em] transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:outline-none ${
+                pathname === '/compte' ? 'text-brass' : 'text-vellum/55 hover:text-brass'
+              }`}
+            >
+              Mon compte
+            </Link>
           </>
         ) : (
           <Link

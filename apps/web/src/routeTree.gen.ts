@@ -14,6 +14,7 @@ import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AssemblageRouteImport } from './routes/assemblage'
 import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as CompteRouteImport } from './routes/compte'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as HomeRouteImport } from './routes/home'
@@ -53,6 +54,11 @@ const CgvRoute = CgvRouteImport.update({
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompteRoute = CompteRouteImport.update({
+  id: '/compte',
+  path: '/compte',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/assemblage': typeof AssemblageRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/assemblage': typeof AssemblageRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/assemblage': typeof AssemblageRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
   '/home': typeof HomeRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/assemblage'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
     | '/home'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/assemblage'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
     | '/home'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/assemblage'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
     | '/home'
@@ -273,6 +285,7 @@ export interface RootRouteChildren {
   AssemblageRoute: typeof AssemblageRoute
   CgvRoute: typeof CgvRoute
   CollectionRoute: typeof CollectionRoute
+  CompteRoute: typeof CompteRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
   HomeRoute: typeof HomeRoute
@@ -325,6 +338,13 @@ declare module '@tanstack/react-router' {
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compte': {
+      id: '/compte'
+      path: '/compte'
+      fullPath: '/compte'
+      preLoaderRoute: typeof CompteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/confidentialite': {
@@ -441,6 +461,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssemblageRoute: AssemblageRoute,
   CgvRoute: CgvRoute,
   CollectionRoute: CollectionRoute,
+  CompteRoute: CompteRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
   HomeRoute: HomeRoute,
