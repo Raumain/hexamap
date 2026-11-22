@@ -56,6 +56,10 @@ services:
       TRUSTED_ORIGINS: ""
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
+      # La suppression de compte est éteinte par défaut (les pages légales ne
+      # sont pas définitives). Le banc l'allume pour prouver la cascade : la
+      # production garde le `503 ACCOUNT_DELETION_DISABLED`.
+      ACCOUNT_DELETION_ENABLED: "true"
     volumes:
       # Les blasons de référence du banc : le seed remplit `blason_url` sur les
       # communes, régions et départements E2E, et l'API les sert depuis ce

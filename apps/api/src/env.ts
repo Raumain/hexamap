@@ -50,6 +50,18 @@ const envSchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
+    // Fermeture de compte : éteinte par défaut, elle ne s'allume qu'après la
+    // publication des pages légales définitives (`.docs/05-deploiement.md` §7).
+    // Le défaut est posé **avant** la transformation : en Zod 4, `.default()`
+    // s'applique à la sortie, et `'false'` y serait une chaîne, donc vraie.
+    ACCOUNT_DELETION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    // Transport de courriel : répertoire où les messages de vérification sont
+    // écrits, un fichier JSON par message. Aucun envoi réseau ; sans lui, le
+    // changement d'adresse répond 503.
+    MAIL_OUTBOX_DIR: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     // La valeur d'exemple de `.env.example` ne doit jamais servir de secret :

@@ -300,6 +300,17 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 
       Tant que rien n'est décidé, ne pas laisser croire qu'une réinitialisation existe.
 
+- [ ] **[hôte]** Interrupteurs du compte, posés sur le service `api` :
+
+      | Variable | Défaut | Rôle |
+      | :--- | :--- | :--- |
+      | `ACCOUNT_DELETION_ENABLED` | `false` | Ouvre `DELETE /api/v1/account`. **À allumer seulement après** la publication des pages légales définitives : aucune suppression ne peut promettre un droit de rétractation que la politique de confidentialité n'explique pas. La variable est relue à chaque appel, donc un redéploiement n'est pas nécessaire pour l'éteindre. |
+      | `MAIL_OUTBOX_DIR` | absente | Transport de courriel : chaque message de vérification est écrit en JSON dans ce répertoire, sans aucun envoi réseau. Absente, `POST /api/v1/account/email` répond `503 EMAIL_VERIFICATION_DISABLED` et l'écran `/compte` désactive le formulaire au lieu d'annoncer un envoi. |
+
+      Le courriel n'est donc pas un service : c'est un fichier. Une vraie remise suppose un
+      prestataire (A9 ci-dessus), pas un dossier. `GET /api/v1/account/capabilities` rend ces
+      deux états à l'interface, qui ne propose jamais une action vouée au `503`.
+
 ---
 
 ## 8. Déploiement sur un VPS avec Dokploy

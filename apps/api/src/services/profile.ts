@@ -630,3 +630,27 @@ export async function loadPlayerProfile(
     friendState,
   };
 }
+
+/** Réglages de vitrine du compte lui-même, tels que `GET /profile` les rend. */
+export interface AccountProfileSettings {
+  bio: string | null;
+  profilePublic: boolean;
+}
+
+/**
+ * Le défaut de la table vaut aussi en lecture : sans ligne `user_profiles`, la
+ * vitrine est publique et la biographie est vide, exactement comme le PATCH
+ * écrit une première ligne. Aucune erreur n'est avalée : une panne SQL remonte.
+ */
+export async function loadAccountProfileSettings(
+  exec: Executor,
+  userId: string,
+): Promise<AccountProfileSettings> {
+  const row = await exec
+    .selectFrom('user_profiles')
+    .select(['bio', 'profile_public'])
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  return { bio: row?.bio ?? null, profilePublic: row?.profile_public ?? true };
+}
