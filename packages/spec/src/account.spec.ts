@@ -483,6 +483,22 @@ describe('Comptes §2.9 — les capacités du compte', () => {
       delete process.env.ACCOUNT_DELETION_ENABLED;
     }
   });
+
+  it('Comptes §2.9 — la vérification reste annoncée et vaut toujours faux', async () => {
+    // R-001 : le produit ne veut aucune confirmation d’adresse. La capacité reste
+    // dans la charge utile — un écran n’apprend pas son absence par une clé
+    // manquante — mais elle est éteinte pour de bon. `MAIL_OUTBOX_DIR` n’est pas
+    // un transport de courriel, seulement le témoin d’écriture du banc : le poser
+    // ne doit donc rien rallumer.
+    delete process.env.ACCOUNT_DELETION_ENABLED;
+
+    await withMailOutbox(async () => {
+      const account = await signUp();
+      const res = await authFetch('/api/v1/account/capabilities', {}, account.cookie);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ deletion: false, emailVerification: false });
+    });
+  });
 });
 
 describe('Comptes §2.9 — l’export', () => {
