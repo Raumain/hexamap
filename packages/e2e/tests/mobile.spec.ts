@@ -842,6 +842,11 @@ test("mobile — l'ancienne salle de l'Assemblage mène à L'Atlas", async ({ pa
   // `/assemblage` ne rend plus de teaser : la route redirige vers la salle réelle.
   await expect(page).toHaveURL(/\/atlas$/);
   await expect(page.getByRole('heading', { level: 1, name: "L'Atlas" })).toBeVisible();
+
+  // La salle remplace le teaser : la table équivalente est là, et l'annonce
+  // « Bientôt disponible » a disparu avec la salle qu'elle décrivait.
+  await expect(page.getByRole('table', { name: 'Table équivalente de la carte' })).toBeVisible();
+  await expect(page.getByText('Bientôt disponible')).toHaveCount(0);
 });
 
 test('mobile — la feuille se ferme par Échap et rend le focus', async ({ page }) => {
