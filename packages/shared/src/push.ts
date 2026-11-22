@@ -18,9 +18,6 @@ export type PushHttpMethod = (typeof PUSH_HTTP_METHODS)[number];
 export const PUSH_DEFAULT_QUIET_START = 22;
 export const PUSH_DEFAULT_QUIET_END = 8;
 
-/** Au plus une notification par jour et par abonnement. */
-export const PUSH_DAILY_QUOTA = 1;
-
 /** iOS ne pousse qu'à partir de 16.4, et seulement pour une PWA installée. */
 export const PUSH_IOS_MIN_MAJOR = 16;
 export const PUSH_IOS_MIN_MINOR = 4;
