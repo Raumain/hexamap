@@ -2,7 +2,16 @@ import type { Database, Rarity } from '@hexamap/db';
 import { pruneUnreferencedReferenceRows, type ReferenceScope } from '@hexamap/db';
 import { isFrenchRegionCode, rueRarity, rueScore } from '@hexamap/shared';
 import type { Kysely } from 'kysely';
-import { BAN_CSV_DIR, blasonsUsage, parseArgs, parseBlasonArgs, usage } from './args';
+import {
+  BAN_CSV_DIR,
+  blasonsUsage,
+  type CliOptions,
+  parseArgs,
+  parseBlasonArgs,
+  usage,
+} from './args';
+import { ATLAS_LEVELS, runAtlas } from './atlas';
+import { fillAtlasGeometry } from './atlas-ign';
 import { type BanCollectResult, type BanSource, type BanStats, collectOdonymes } from './ban';
 import { type BlasonReport, importBlasons, type LevelReport } from './blasons';
 import {
@@ -352,6 +361,36 @@ function formatLevelReport(
   return parts.join(' · ');
 }
 
+/**
+ * Étape atlas — acquisition éventuelle de `geom`, puis projection en `path_d`.
+ *
+ * Elle tourne **à la fin de `main()`**, après la BAN, sur le même handle : le
+ * pipeline reste la seule source de vérité des deux colonnes, et aucune requête
+ * joueur n'a jamais à projeter une géométrie.
+ */
+async function runAtlasStage(db: Kysely<Database>, options: CliOptions): Promise<void> {
+  if (options.pathsNoFetch) {
+    log('Atlas — acquisition de la géométrie ignorée (--no-fetch)');
+  } else {
+    for (const level of ATLAS_LEVELS) {
+      await fillAtlasGeometry(db, level, { force: options.pathsForce });
+    }
+  }
+
+  await runAtlas(db, { force: options.pathsForce, limit: options.pathsLimit });
+}
+
+/** `--paths-only` : l'étape atlas seule, sans référentiel, sans BAN, sans blasons. */
+async function runPathsOnly(options: CliOptions): Promise<void> {
+  const db = connectDatabase();
+
+  try {
+    await runAtlasStage(db, options);
+  } finally {
+    await db.destroy();
+  }
+}
+
 export async function main(argv: readonly string[]): Promise<void> {
   if (argv.includes('--blasons')) {
     await runBlasons(argv.filter((arg) => arg !== '--blasons'));
@@ -363,6 +402,12 @@ export async function main(argv: readonly string[]): Promise<void> {
 
   if (options.help) {
     console.log(usage());
+    return;
+  }
+
+  if (options.pathsOnly) {
+    log('Étape atlas seule (--paths-only)');
+    await runPathsOnly(options);
     return;
   }
 
@@ -535,6 +580,9 @@ export async function main(argv: readonly string[]): Promise<void> {
         await pruneReference(db, 'RUE', [...collected.odonymeCommunes.keys()]);
       }
     }
+
+    log('Atlas — géométrie puis tracés (`path_d`)');
+    await runAtlasStage(db, options);
 
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
     log(`Terminé en ${seconds} s`);
