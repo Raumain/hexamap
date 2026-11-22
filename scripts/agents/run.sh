@@ -406,7 +406,9 @@ build_wave() {
       else
         warn "conflit réel en intégrant $b dans $branch :"
         printf '%s\n' "$conflicted" >&2
-        warn "rien n'est résolu automatiquement. Corrige à la main dans $wt, puis relance."
+        warn "rien n'est résolu automatiquement. Corrige dans $wt, termine la fusion, joue la"
+        warn "porte et le banc, puis pousse $branch : une relance de --wave réinitialise la"
+        warn "branche d'accumulation (git worktree add -B) et jetterait la résolution."
         return 1
       fi
     fi
