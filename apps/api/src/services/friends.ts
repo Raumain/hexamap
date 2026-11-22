@@ -1,5 +1,6 @@
 import type { Database, FriendshipStatus } from '@hexamap/db';
 import { type ExpressionBuilder, type Kysely, sql } from 'kysely';
+import { emitNotification } from './notifications';
 
 export type FriendErrorCode =
   | 'SELF_FRIENDSHIP'
@@ -231,6 +232,8 @@ export async function sendRequest(
       return { ok: false, code: 'PLAYER_NOT_FOUND' };
     }
 
+    const requester = await readPlayer(trx, userId);
+
     if (await isBlockedBetween(trx, userId, targetId)) {
       return { ok: false, code: 'FRIENDSHIP_BLOCKED' };
     }
@@ -264,6 +267,21 @@ export async function sendRequest(
           }
           return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
         }
+
+        // Deux consentements valent acceptation mutuelle : les deux parties
+        // l'apprennent, dans la transaction qui vient de changer le statut.
+        await emitNotification(trx, {
+          userId,
+          kind: 'FRIEND_ACCEPTED',
+          ref: targetId,
+          payload: { playerId: targetId, pseudo: target.pseudo },
+        });
+        await emitNotification(trx, {
+          userId: targetId,
+          kind: 'FRIEND_ACCEPTED',
+          ref: userId,
+          payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+        });
 
         return { ok: true, value: { request: toEntry(accepted, target), created: false } };
       }
@@ -304,6 +322,16 @@ export async function sendRequest(
         return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
       }
 
+      // La clé d'idempotence étant l'identifiant du demandeur, une réouverture ne
+      // notifie que si la ligne d'origine a été balayée par la rétention ; sinon
+      // `on conflict do nothing` laisse la première notification intacte.
+      await emitNotification(trx, {
+        userId: targetId,
+        kind: 'FRIEND_REQUEST',
+        ref: userId,
+        payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+      });
+
       return { ok: true, value: { request: toEntry(reopened, target), created: false } };
     }
 
@@ -321,6 +349,12 @@ export async function sendRequest(
       .executeTakeFirst();
 
     if (inserted) {
+      await emitNotification(trx, {
+        userId: targetId,
+        kind: 'FRIEND_REQUEST',
+        ref: userId,
+        payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+      });
       return { ok: true, value: { request: toEntry(inserted, target), created: true } };
     }
 
@@ -341,31 +375,53 @@ export async function sendRequest(
   });
 }
 
+/**
+ * Ouvre sa propre transaction : ne jamais lui passer une `Transaction`, Kysely
+ * en ouvrirait une seconde sur une autre connexion.
+ */
 async function respondTo(
   db: Kysely<Database>,
   userId: string,
   otherId: string,
   status: 'ACCEPTED' | 'DECLINED',
 ): Promise<FriendResult<{ request: FriendEntry }>> {
-  const other = await readPlayer(db, otherId);
-  if (!other) {
-    return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+  if (db.isTransaction) {
+    throw new Error('respondTo ouvre sa propre transaction : il refuse une Transaction.');
   }
 
-  const row = await db
-    .updateTable('friendships')
-    .set({ status, responded_at: new Date() })
-    .where('requester_id', '=', otherId)
-    .where('addressee_id', '=', userId)
-    .where('status', '=', 'PENDING')
-    .returning(['requester_id', 'addressee_id', 'status', 'created_at'])
-    .executeTakeFirst();
+  return db.transaction().execute(async (trx): Promise<FriendResult<{ request: FriendEntry }>> => {
+    const other = await readPlayer(trx, otherId);
+    if (!other) {
+      return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+    }
 
-  if (!row) {
-    return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
-  }
+    const accepter = await readPlayer(trx, userId);
 
-  return { ok: true, value: { request: toEntry(row, other) } };
+    const row = await trx
+      .updateTable('friendships')
+      .set({ status, responded_at: new Date() })
+      .where('requester_id', '=', otherId)
+      .where('addressee_id', '=', userId)
+      .where('status', '=', 'PENDING')
+      .returning(['requester_id', 'addressee_id', 'status', 'created_at'])
+      .executeTakeFirst();
+
+    if (!row) {
+      return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+    }
+
+    // Un refus reste muet (Archi §2.9) : seul le consentement prévient le demandeur.
+    if (status === 'ACCEPTED') {
+      await emitNotification(trx, {
+        userId: otherId,
+        kind: 'FRIEND_ACCEPTED',
+        ref: userId,
+        payload: { playerId: userId, pseudo: accepter?.pseudo ?? null },
+      });
+    }
+
+    return { ok: true, value: { request: toEntry(row, other) } };
+  });
 }
 
 export function acceptRequest(

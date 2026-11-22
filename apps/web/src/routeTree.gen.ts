@@ -18,6 +18,7 @@ import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as CompteRouteImport } from './routes/compte'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
+import { Route as GuichetRouteImport } from './routes/guichet'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
@@ -75,6 +76,11 @@ const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
 const FriendsRoute = FriendsRouteImport.update({
   id: '/friends',
   path: '/friends',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuichetRoute = GuichetRouteImport.update({
+  id: '/guichet',
+  path: '/guichet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HomeRoute = HomeRouteImport.update({
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
@@ -301,6 +313,7 @@ export interface RootRouteChildren {
   CompteRoute: typeof CompteRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
+  GuichetRoute: typeof GuichetRoute
   HomeRoute: typeof HomeRoute
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
@@ -379,6 +392,13 @@ declare module '@tanstack/react-router' {
       path: '/friends'
       fullPath: '/friends'
       preLoaderRoute: typeof FriendsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guichet': {
+      id: '/guichet'
+      path: '/guichet'
+      fullPath: '/guichet'
+      preLoaderRoute: typeof GuichetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/home': {
@@ -485,6 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompteRoute: CompteRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
+  GuichetRoute: GuichetRoute,
   HomeRoute: HomeRoute,
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,

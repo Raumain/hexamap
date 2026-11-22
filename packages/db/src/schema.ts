@@ -220,6 +220,27 @@ export interface UserProfileTable {
   updated_at: Generated<Date>;
 }
 
+export type NotificationKind =
+  | 'FRIEND_REQUEST'
+  | 'FRIEND_ACCEPTED'
+  | 'ACHIEVEMENT'
+  | 'MARKET_SOLD'
+  | 'MARKET_BOUGHT'
+  | 'TRADE_OFFER'
+  | 'TRADE_ACCEPTED'
+  | 'TRADE_DECLINED'
+  | 'TRADE_EXPIRED';
+
+export interface NotificationTable {
+  id: Generated<string>;
+  user_id: string;
+  kind: NotificationKind;
+  dedupe_key: string;
+  payload: unknown;
+  created_at: Generated<Date>;
+  read_at: Date | null;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -243,4 +264,5 @@ export interface Database {
   friendships: FriendshipTable;
   blocks: BlockTable;
   user_profiles: UserProfileTable;
+  notifications: NotificationTable;
 }

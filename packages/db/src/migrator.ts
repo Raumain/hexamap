@@ -15,6 +15,7 @@ import * as profiles from '../migrations/0012_profiles';
 import * as shop from '../migrations/0013_shop';
 import * as refIntegrity from '../migrations/0014_ref_integrity';
 import * as atlasPaths from '../migrations/0015_atlas_paths';
+import * as notifications from '../migrations/0016_notifications';
 import type { Database } from './index';
 
 /**
@@ -39,6 +40,7 @@ const migrations: Record<string, Migration> = {
   '0013_shop': shop,
   '0014_ref_integrity': refIntegrity,
   '0015_atlas_paths': atlasPaths,
+  '0016_notifications': notifications,
 };
 
 /** Les noms dans l'ordre alphabétique, c'est-à-dire l'ordre d'exécution attendu. */
