@@ -37,6 +37,7 @@
 | Index `currency_ledger_purchase_uniq` | **Migrée** | `packages/db/migrations/0013_shop.ts` |
 | Gardes d'intégrité du référentiel : `ref_truncate_guard()` (3 triggers `BEFORE TRUNCATE`), `orphan_user_cards()` | **Migrée** | `packages/db/migrations/0014_ref_integrity.ts` |
 | `path_d text` sur `ref_regions`, `ref_departements` et `ref_communes` | **Migrée** (2026-11-22) | `packages/db/migrations/0015_atlas_paths.ts` |
+| `notifications` | **Migrée** | `packages/db/migrations/0016_notifications.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -404,6 +405,62 @@ create unique index user_pseudo_lower_idx on "user" (lower(pseudo)) where pseudo
   deux sens — c'est une règle du service, pas une cascade SQL.
 - La vitrine ne lit **ni** `session`, **ni** `account`, **ni** `user.currency`.
 
+### 4.10 Notifications
+
+```sql
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references "user" ("id") on delete cascade,
+  kind text not null,
+  dedupe_key text not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+create unique index if not exists notifications_user_dedupe_idx
+  on notifications (user_id, dedupe_key);
+create index if not exists notifications_user_idx
+  on notifications (user_id, created_at desc) where read_at is null;
+```
+
+`kind` n'a **aucune contrainte `CHECK`** : la liste fermée est **validée dans le code**, pas en
+base, pour que la phase 40 émette `TRADE_*` sans migration. Neuf valeurs existent, déclarées par
+`NOTIFICATION_KINDS` de `packages/shared/src/notifications.ts` :
+
+| `kind` | Émis par | Référence de `dedupe_key` |
+| :--- | :--- | :--- |
+| `FRIEND_REQUEST` | phase 39 (`services/friends.ts`, `sendRequest`) | `requester_id` |
+| `FRIEND_ACCEPTED` | phase 39 (`services/friends.ts`, acceptation) | `accepter_id` |
+| `ACHIEVEMENT` | phase 39 (`services/achievements.ts`) | `achievement.key` |
+| `MARKET_SOLD` | phase 39 (`routes/market.ts`, achat) | `listing_id` |
+| `MARKET_BOUGHT` | phase 39 (`routes/market.ts`, achat) | `listing_id` |
+| `TRADE_OFFER` | phase 40 | à définir par le troc |
+| `TRADE_ACCEPTED` | phase 40 | à définir par le troc |
+| `TRADE_DECLINED` | phase 40 | à définir par le troc |
+| `TRADE_EXPIRED` | phase 40 | à définir par le troc |
+
+Les quatre `TRADE_*` sont **déclarés et rendus** par la phase 39, mais **émis** par la phase 40 :
+la salle les reconnaît dès aujourd'hui sans qu'une émission puisse exister avant que le troc ne
+soit livré.
+
+**Idempotence.** `dedupe_key` vaut `<kind>:<référence>` et se construit par la fonction pure
+`notificationDedupeKey` : `ACHIEVEMENT:<key>`, `MARKET_SOLD:<listing_id>`,
+`FRIEND_REQUEST:<requester_id>`. L'écriture est un
+`insert … on conflict (user_id, dedupe_key) do nothing`, et **c'est l'index unique qui porte
+l'idempotence** : deux émissions simultanées du même événement lisent toutes deux « absent », la
+base n'en garde qu'une.
+
+**Charge utile.** `payload` est un JSON borné qui décide de l'affichage de la salle : identifiant
+public, pseudo public, prix, libellé de médaille. Il ne porte **jamais** `grid`,
+`treasure_index`, ni le solde ou les cartes d'un tiers — même liste de non-exposition que le §2.9.
+Il identifie de quoi rebondir (lien vers `/players/:id` quand il porte un `playerId`).
+
+**Rétention.** 90 jours (`NOTIFICATION_RETENTION_MS` dans `packages/shared`). Le balayage se fait
+**à la lecture de la salle** (`GET /api/v1/notifications`), borné à l'utilisateur qui lit :
+`delete … where user_id = ? and created_at < now() - interval '90 days'`. Aucun ordonnanceur,
+aucune dépendance, et un compte ne purge jamais les lignes d'un autre.
+
 ---
 
 ## 5. Schéma des référentiels (import Open Data)
@@ -733,6 +790,27 @@ export interface UserProfileTable {
   updated_at: Generated<Date>;
 }
 
+export type NotificationKind =
+  | 'FRIEND_REQUEST'
+  | 'FRIEND_ACCEPTED'
+  | 'ACHIEVEMENT'
+  | 'MARKET_SOLD'
+  | 'MARKET_BOUGHT'
+  | 'TRADE_OFFER'
+  | 'TRADE_ACCEPTED'
+  | 'TRADE_DECLINED'
+  | 'TRADE_EXPIRED';
+
+export interface NotificationTable {
+  id: Generated<string>;
+  user_id: string;
+  kind: NotificationKind;
+  dedupe_key: string;
+  payload: unknown;
+  created_at: Generated<Date>;
+  read_at: Date | null;
+}
+
 export interface RefRegionTable {
   code: string;
   nom: string;
@@ -811,6 +889,7 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  notifications: NotificationTable;
 }
 ```
 
@@ -860,6 +939,15 @@ export interface Database {
 - **À l'import, un code de région hors des dix-huit codes officiels est refusé avant toute
   écriture** (`REFERENCE_CODE_INVALID`), et `isFrenchRegionCode` de `packages/shared` est la
   seule autorité sur cette liste.
+- **L'unicité `(user_id, dedupe_key)` porte l'idempotence des notifications** : l'émission écrit
+  `on conflict do nothing`, et deux émissions simultanées du même événement n'écrivent qu'une
+  ligne. Aucune vérification « lire puis insérer » ne tient ce rôle.
+- **`notifications.read_at` n'est jamais dans le futur** : une notification se marque lue, elle ne
+  se marque pas « à lire plus tard ». Un `read_at` postérieur à `now()` est un défaut d'écriture,
+  pas un état.
+- **Le balayage à 90 jours ne supprime que les lignes plus anciennes que la rétention, et jamais
+  celles d'un autre compte** : `delete … where user_id = ? and created_at < now() - interval
+  '90 days'` s'exécute à la lecture de la salle, sans ordonnanceur.
 
 ### 7.2 Tirage d'une carte d'un palier
 

@@ -2,6 +2,7 @@ export * from './account';
 export * from './achievements';
 export * from './atlas';
 export * from './charges';
+export * from './notifications';
 export * from './packs';
 export * from './payments';
 export * from './pseudo';
