@@ -266,10 +266,26 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
         .where('status', '=', 'OPEN')
         .executeTakeFirst();
 
-      // Une carte n'est exposée qu'à son propriétaire ou tant qu'elle est en vente.
+      // Une carte n'est exposée qu'à son propriétaire, tant qu'elle est en vente,
+      // ou à la partie adverse d'une offre d'échange ouverte : sans cette
+      // troisième voie, le destinataire ne pourrait pas ouvrir ce qu'on lui offre.
       if (card.user_id !== user.id && !listing) {
-        set.status = 403;
-        return { code: 'CARD_NOT_VISIBLE', message: "Cette carte n'est pas exposée." };
+        const engaged = await db
+          .selectFrom('trade_offers')
+          .select('id')
+          .where('status', '=', 'PENDING')
+          .where((eb) =>
+            eb.and([
+              eb.or([eb('offered_card_id', '=', card.id), eb('requested_card_id', '=', card.id)]),
+              eb.or([eb('proposer_id', '=', user.id), eb('receiver_id', '=', user.id)]),
+            ]),
+          )
+          .executeTakeFirst();
+
+        if (!engaged) {
+          set.status = 403;
+          return { code: 'CARD_NOT_VISIBLE', message: "Cette carte n'est pas exposée." };
+        }
       }
 
       const refs = [{ category: card.category, ref_code: card.ref_code }];
