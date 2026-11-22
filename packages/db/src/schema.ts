@@ -5,7 +5,7 @@ export type Rarity = 'COMMUNE' | 'INHABITUELLE' | 'RARE' | 'EPIQUE' | 'LEGENDAIR
 export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
 export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
 export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
-export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+export type CardSource = 'TICKET' | 'MARKET' | 'REWARD' | 'CRAFT';
 
 export interface UserTable {
   id: string;

@@ -48,6 +48,7 @@ export const CARD_SOURCE_LABELS = {
   TICKET: 'Découverte au grattage',
   MARKET: 'Acquise au comptoir',
   REWARD: 'Récompense',
+  CRAFT: 'Fondue à l’Atelier',
 } as const;
 
 export function stateLabel(locked: boolean, listed: boolean): string {

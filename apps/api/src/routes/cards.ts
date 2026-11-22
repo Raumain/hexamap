@@ -1,7 +1,9 @@
 import { CATEGORY, RARITY } from '@hexamap/shared';
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
+import { HttpError } from '../lib/http-error';
 import { authPlugin } from '../middleware/auth';
+import { craftCards } from '../services/atelier';
 import { resolveCardDetail } from '../services/card-detail';
 import { cardNomKey, resolveCardAssets, resolveCardNoms } from '../services/draw';
 
@@ -21,6 +23,15 @@ const categorySchema = t.Union([
   t.Literal('RUE'),
 ]);
 
+const craftBodySchema = t.Object(
+  {
+    category: categorySchema,
+    refCode: t.String({ minLength: 1, maxLength: 128 }),
+    rarity: raritySchema,
+  },
+  { additionalProperties: false },
+);
+
 const cardSchema = t.Object(
   {
     id: t.String(),
@@ -32,7 +43,12 @@ const cardSchema = t.Object(
     rarity: raritySchema,
     score: t.Integer(),
     acquiredAt: t.String(),
-    source: t.Union([t.Literal('TICKET'), t.Literal('MARKET'), t.Literal('REWARD')]),
+    source: t.Union([
+      t.Literal('TICKET'),
+      t.Literal('MARKET'),
+      t.Literal('REWARD'),
+      t.Literal('CRAFT'),
+    ]),
     locked: t.Boolean(),
   },
   { additionalProperties: false },
@@ -103,7 +119,12 @@ const cardDetailSchema = t.Object(
         rarity: raritySchema,
         score: t.Integer(),
         acquiredAt: t.String(),
-        source: t.Union([t.Literal('TICKET'), t.Literal('MARKET'), t.Literal('REWARD')]),
+        source: t.Union([
+          t.Literal('TICKET'),
+          t.Literal('MARKET'),
+          t.Literal('REWARD'),
+          t.Literal('CRAFT'),
+        ]),
         locked: t.Boolean(),
         blasonUrl: t.Union([t.String(), t.Null()]),
         blasonCredit: t.Union([t.String(), t.Null()]),
@@ -337,6 +358,38 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
         401: errorSchema,
         403: errorSchema,
         404: errorSchema,
+      },
+    },
+  )
+  .post(
+    '/cards/craft',
+    async ({ user, body, set }) => {
+      if (!user) {
+        set.status = 401;
+        return unauthorized;
+      }
+
+      try {
+        const result = await craftCards(user.id, body);
+        set.status = 201;
+        return result;
+      } catch (error) {
+        if (error instanceof HttpError) {
+          set.status = error.status;
+          return { code: error.code, message: error.message };
+        }
+        throw error;
+      }
+    },
+    {
+      body: craftBodySchema,
+      response: {
+        201: t.Object(
+          { craftedCard: cardSchema, consumed: t.Integer() },
+          { additionalProperties: false },
+        ),
+        401: errorSchema,
+        409: errorSchema,
       },
     },
   );
