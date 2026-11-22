@@ -11,6 +11,7 @@ import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
 import { accountRoutes } from './routes/account';
 import { achievementRoutes } from './routes/achievements';
+import { atlasRoutes } from './routes/atlas';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
 import { chargeRoutes } from './routes/charges';
@@ -65,6 +66,7 @@ function buildProtectedRoutes(provider: PaymentProvider) {
       // qui peut contenir chemins, DSN et URL amont. Réservé aux sessions ouvertes.
       .use(importStatusRoutes)
       .use(shopCheckoutRoutes(provider))
+      .use(atlasRoutes)
       .get('/me', ({ user, status }) => {
         if (!user) {
           return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });
