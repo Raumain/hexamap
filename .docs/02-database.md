@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-22 (troc — `trade_offers`).
+> Dernière mise à jour : 2026-11-22 (Palmarès — `tableaux.score`).
 
 ---
 
@@ -40,6 +40,7 @@
 | `notifications` | **Migrée** | `packages/db/migrations/0016_notifications.ts` |
 | `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
 | `user_cards.source` élargi à `CRAFT` | **Migrée** (2026-11-22) | `packages/db/migrations/0018_card_source.ts` |
+| Colonne `tableaux.score` | **Migrée** (2026-11-22) | `packages/db/migrations/0019_tableau_score.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -247,11 +248,25 @@ create table tableaux (
   departement_card_id uuid references user_cards (id) on delete set null,
   commune_card_id uuid references user_cards (id) on delete set null,
   rue_card_id uuid references user_cards (id) on delete set null,
+  score integer not null default 0,
   created_at timestamptz not null default now()
 );
 
 create index tableaux_user_idx on tableaux (user_id);
 ```
+
+- **`score` est écrit une seule fois, à la soumission**, par `evaluateTableau` de
+  `packages/shared` appelé côté serveur dans la transaction de `POST /api/v1/tableaux`. Aucune
+  formule n'est recopiée dans `apps/` : la colonne reçoit le `total` que la route renvoie déjà.
+- **`score` n'est jamais recalculé** — ni par le classement hebdomadaire, ni par une route de
+  modification. C'est la valeur figée qui fait foi, y compris si `user_cards.score` changeait
+  après coup.
+- **`0` est réservé aux insertions directes de test.** Six sites hors phase insèrent un tableau
+  sans fournir de score (les specs `tableaux`, `profile`, `atelier`, `account` ×2 et la fixture
+  `vitrine`) : le défaut les laisse fonctionner, et aucun chemin de production n'écrit `0`. La
+  brèche est **bornée et écrite** : `packages/spec/src/palmares.spec.ts` asserte que la route de
+  soumission écrit toujours le score, et une migration ultérieure pourra retirer le défaut une
+  fois ces six sites mis à jour — d'ici là, il est documenté, pas silencieux.
 
 ### 4.5 Marché V1 (vente et achat direct uniquement)
 
@@ -644,7 +659,7 @@ begin
   return null;
 end $$;
 
-create trigger ref_regions_truncate_guard      before truncate on ref_regions      for each statement execute function ref_truncate_guard('REGION');
+create trigger ref_truncate_guard           before truncate on ref_regions      for each statement execute function ref_truncate_guard('REGION');
 create trigger ref_departements_truncate_guard before truncate on ref_departements for each statement execute function ref_truncate_guard('DEPARTEMENT');
 create trigger ref_communes_truncate_guard     before truncate on ref_communes     for each statement execute function ref_truncate_guard('COMMUNE');
 
@@ -812,6 +827,8 @@ export interface TableauTable {
   departement_card_id: string | null;
   commune_card_id: string | null;
   rue_card_id: string | null;
+  /** `Generated` parce que la colonne porte un défaut SQL (`0`) : Kysely autorise l'omission. */
+  score: Generated<number>;
   created_at: Generated<Date>;
 }
 
@@ -981,6 +998,14 @@ export interface Database {
 - Un utilisateur a au plus **un ticket `ACTIVE`** (index unique partiel).
 - `treasure_index ∈ [0, 15]`.
 - `distance = |L1 - L2| + |C1 - C2| ∈ [0, 6]`.
+- **Le score d'un tableau est figé à la soumission** dans `tableaux.score` et n'est **jamais**
+  recalculé : ni le classement, ni une route de modification ne le réécrivent.
+- **Le classement hebdomadaire est ordonné `score desc, created_at asc, id asc`**, en SQL, en une
+  seule implémentation serveur. Le rang est la position 1..N : le départage étant total, aucun ex
+  æquo n'est partagé et le navigateur ne trie jamais.
+- **La semaine est la semaine ISO 8601** (lundi 00:00:00.000 UTC → lundi suivant exclu) calculée
+  depuis `tableaux.created_at`. Une semaine inexistante (`2027-W53`) est refusée, jamais repliée
+  sur la semaine 1 de l'année suivante.
 - Une carte ne peut être dans qu'une seule annonce **ouverte** (index unique partiel `market_listings_open_card_idx`).
 - Un achat est atomique : débit acheteur, crédit vendeur, transfert de `user_cards.user_id`, statut `SOLD`, `buyer_id`, `sold_at`.
 - Les cartes verrouillées (`locked = true`) ne peuvent pas être vendues ou supprimées.
