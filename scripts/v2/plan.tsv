@@ -1,0 +1,29 @@
+# Plan de la v2 — une ligne par phase, exécutée par `scripts/v2/run.sh`.
+# Colonnes : wave<TAB>phase<TAB>slug<TAB>branche<TAB>migration<TAB>statut
+#
+# Le lanceur lit SIX champs exactement : une septième colonne décalerait `statut`.
+# Une vague joue ses phases par lots de `--parallel`, et tous ses lots s'accumulent dans
+# la même branche `feat/v2-wave-<n>`.
+#
+# Deux règles décident du découpage :
+#   — UNE SEULE MIGRATION PAR VAGUE. `packages/db/src/migrator.ts` et
+#     `packages/db/src/schema.ts` sont partagés et ne s'éditent qu'en ajout, en fin de
+#     liste : deux phases de la même vague y écriraient en parallèle et se marcheraient
+#     dessus. Deux phases d'une vague ne prennent donc jamais de migration à la fois.
+#   — UN SEUL PROPRIÉTAIRE DE LA COQUILLE PAR VAGUE. `apps/web/src/components/layout/` est
+#     le même fichier pour tout le monde : une seule phase d'une vague y touche.
+#
+# Les numéros de la colonne `migration` sont INDICATIFS ; le brief de la phase fait foi,
+# et `-` signifie « cette phase n'en prend aucune ».
+1	32	socle-v2	feat/v2-32-socle	0014_ref_integrity	ready
+2	33	assemblage-donnees	feat/v2-33-assemblage-data	0015_atlas_paths	ready
+2	38	vitrine-planche	feat/v2-38-vitrine-planche	-	ready
+3	34	assemblage-api	feat/v2-34-assemblage-api	-	ready
+3	37	comptes	feat/v2-37-comptes	-	ready
+4	35	assemblage-salle	feat/v2-35-assemblage-salle	-	ready
+4	39	guichet	feat/v2-39-guichet	0016_notifications	ready
+5	36	cadastre-filtres	feat/v2-36-cadastre	-	ready
+5	40	troc	feat/v2-40-troc	0017_trade_offers	ready
+6	41	atelier	feat/v2-41-atelier	0018_card_source	ready
+7	42	palmares	feat/v2-42-palmares	0019_tableau_score	ready
+8	43	sonnette	feat/v2-43-sonnette	0020_push	ready
