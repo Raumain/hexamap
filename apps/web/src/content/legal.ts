@@ -4,11 +4,11 @@
 // inventé ici.
 
 export const PUBLISHER = {
-  name: '[NOM À COMPLÉTER]',
-  firstName: '[PRÉNOM À COMPLÉTER]',
-  address: '[ADRESSE À COMPLÉTER]',
-  phone: '[TÉLÉPHONE À COMPLÉTER]',
-  email: '[ADRESSE ÉLECTRONIQUE À COMPLÉTER]',
+  name: 'Thibaud',
+  firstName: 'Romain',
+  address: 'nd',
+  phone: 'nd',
+  email: 'nd',
   siren: '[SIREN À COMPLÉTER]',
 } as const;
 
