@@ -9,7 +9,6 @@ export const PUBLISHER = {
   address: '[ADRESSE À COMPLÉTER]',
   phone: '[TÉLÉPHONE À COMPLÉTER]',
   email: '[ADRESSE ÉLECTRONIQUE À COMPLÉTER]',
-  siren: '[SIREN À COMPLÉTER]',
 } as const;
 
 // Les trois documents sont rédigés et versionnés ; cet interrupteur les publie.
@@ -25,7 +24,7 @@ const LAST_UPDATED = '21 novembre 2026';
 const EDITOR = `${PUBLISHER.firstName} ${PUBLISHER.name}`;
 
 export const LEGAL_BANNER =
-  'Texte provisoire — les mentions d’identité (nom, prénoms, domicile, téléphone, SIREN) seront complétées à l’immatriculation de l’éditeur, avant la mise en vente.';
+  'Texte provisoire — les mentions d’identité (nom, prénoms, domicile, téléphone, adresse électronique) seront complétées avant la mise en vente.';
 
 export interface LegalSegment {
   readonly heading: string;
@@ -66,9 +65,8 @@ export const CGV_LEGAL: LegalDocument = {
     {
       heading: 'Identité du vendeur',
       paragraphs: [
-        `Le vendeur est ${EDITOR}, agissant en qualité de micro-entrepreneur.`,
-        `Domicile : ${PUBLISHER.address}. Téléphone : ${PUBLISHER.phone}. Adresse électronique : ${PUBLISHER.email}. Numéro d’immatriculation (SIREN) : ${PUBLISHER.siren}.`,
-        'TVA non applicable, article 293 B du CGI.',
+        `Le vendeur est ${EDITOR}, éditeur non professionnel du jeu Hexamap.`,
+        `Domicile : ${PUBLISHER.address}. Téléphone : ${PUBLISHER.phone}. Adresse électronique : ${PUBLISHER.email}.`,
       ],
     },
     {
@@ -155,9 +153,8 @@ export const MENTIONS_LEGALES: LegalDocument = {
     {
       heading: 'Éditeur du site',
       paragraphs: [
-        `Nom : ${PUBLISHER.name}. Prénoms : ${PUBLISHER.firstName}. L’éditeur agit en qualité de micro-entrepreneur.`,
+        `Nom : ${PUBLISHER.name}. Prénoms : ${PUBLISHER.firstName}. L’éditeur est un particulier, éditeur non professionnel du jeu Hexamap.`,
         `Domicile : ${PUBLISHER.address}. Téléphone : ${PUBLISHER.phone}. Adresse électronique : ${PUBLISHER.email}.`,
-        `Numéro d’immatriculation (SIREN) : ${PUBLISHER.siren}. TVA non applicable, article 293 B du CGI.`,
       ],
     },
     {

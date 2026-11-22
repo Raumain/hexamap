@@ -50,8 +50,11 @@ const envSchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
-    // Fermeture de compte : éteinte par défaut, elle ne s'allume qu'après la
-    // publication des pages légales définitives (`.docs/05-deploiement.md` §7).
+    // Fermeture de compte : le défaut du code reste `false` parce qu'une
+    // spécification exerce les **deux** états dans un même processus en
+    // supprimant la variable (`packages/spec/src/account.spec.ts`). L'ouverture
+    // est une décision d'exploitation, pas un défaut : `.env.example` pose
+    // `ACCOUNT_DELETION_ENABLED=true`, et la variable est relue à chaque appel.
     // Le défaut est posé **avant** la transformation : en Zod 4, `.default()`
     // s'applique à la sortie, et `'false'` y serait une chaîne, donc vraie.
     ACCOUNT_DELETION_ENABLED: z
