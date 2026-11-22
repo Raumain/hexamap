@@ -112,7 +112,7 @@ la phase : ce serait une décision produit prise à la place du titulaire.
 ✓ 1/4 Lint            Checked 280 files in 192ms. No fixes applied.
 ✓ 2/4 Typecheck       6 workspaces (shared, db, api, web, spec, e2e)
 ✓ 3/4 Base de données [hexamap] Base de données joignable.
-✓ 4/4 Spécifications  393 pass · 0 fail · 2403 expect() calls · 21 fichiers
+✓ 4/4 Spécifications  394 pass · 0 fail · 2406 expect() calls · 21 fichiers
 ✓ Gatekeeper vert.
 ```
 
@@ -124,14 +124,32 @@ docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install pl
   82 passed (2.5m)   — chromium · pwa · Pixel 7 · iPhone 13
 ```
 
-`packages/spec/src/account.spec.ts` seul : **22 pass, 0 fail**, 173 `expect()` ;
+`packages/spec/src/account.spec.ts` seul : **23 pass, 0 fail**, 177 `expect()` ;
 `packages/e2e/tests/account.spec.ts` : **7 pass, 0 fail**.
 
 Rappel : la spec est d'abord passée **rouge** (`Cannot find module '@hexamap/api/lib/mailer'`,
-0 pass / 1 fail) avant la première ligne de la phase 3.
+0 pass / 1 fail) avant la première ligne de la phase 3. Le cas d'ordre de la suppression
+(`Comptes §2.9 — la réauthentification précède la confirmation du pseudo`) est lui aussi passé
+**rouge** avant son correctif : `400` reçu, `401` attendu, 0 pass / 1 fail.
 
 PR : https://github.com/Raumain/hexamap/pull/63 (brouillon, base `feat/v2-wave-2`).
 
 ## 6. Revue
 
 Verdict et défauts dans `.docs/sessions/comptes/review.md`.
+
+## 7. Reprise — l'ordre de la suppression aligné sur le contrat
+
+Constaté à la relecture de reprise : `deleteAccount` vérifiait la **confirmation du pseudo avant**
+le mot de passe, alors que la décision 8 du brief ordonne « réauthentification par mot de passe,
+saisie du pseudo en confirmation ». Deux champs faux rendaient donc `400 CONFIRMATION_MISMATCH`
+au lieu de `401 INVALID_PASSWORD`, et une session volée apprenait le pseudo du compte sans
+connaître le mot de passe.
+
+Correctif : `verifyPassword` remonté avant toute lecture de compte dans
+`apps/api/src/services/account.ts`. Cas neuf écrit d'abord et **vu rouge** (`400` reçu, `401`
+attendu, 0 pass / 1 fail), puis vert. Aucun cas existant modifié — les trois cas de suppression
+déjà présents restent verts sans retouche.
+
+Rejoué après correctif : `ci:check` vert (**394 spécifications, 21 fichiers, 0 échec**) et banc
+E2E complet **82 passés, 0 échoué, 0 ignoré**.

@@ -18,6 +18,22 @@ applique le défaut à la **sortie** en Zod 4 — il produisait donc le booléen
 C'est le seul défaut de la phase qui aurait été une faille si la spec n'avait pas exercé l'état
 éteint.
 
+## Écart de contrat trouvé en reprise, puis corrigé
+
+La décision 8 du brief ordonne « **réauthentification par mot de passe**, saisie du pseudo en
+confirmation, annulation des annonces ouvertes, `deleteUser` ». Le code livré faisait la
+confirmation **avant** la vérification du mot de passe : deux champs faux rendaient
+`400 CONFIRMATION_MISMATCH` au lieu de `401 INVALID_PASSWORD`, et une session volée obtenait une
+lecture de compte (le pseudo) sans connaître le mot de passe.
+
+- Ordre rétabli dans `deleteAccount` (`apps/api/src/services/account.ts`) : le mot de passe est
+  vérifié avant toute lecture de compte.
+- Cas neuf écrit **d'abord et vu rouge** dans `packages/spec/src/account.spec.ts` —
+  « la réauthentification précède la confirmation du pseudo » —, puis vert après le correctif :
+  mot de passe faux + confirmation fausse → `401 INVALID_PASSWORD`.
+- Aucun cas existant n'a été modifié : « un mauvais mot de passe ne supprime rien » et « une
+  confirmation erronée ne supprime rien » restent verts sans retouche.
+
 ## Suggestions fortes, appliquées
 
 - `assertAccountPurged` **fait échouer** la suppression (`500 ACCOUNT_PURGE_INCOMPLETE`) au lieu de
@@ -60,7 +76,7 @@ C'est le seul défaut de la phase qui aurait été une faille si la spec n'avait
 
 ## Preuves finales
 
-- `ci:check` : **393 spécifications, 21 fichiers, 0 échec** (lint et typecheck compris).
+- `ci:check` : **394 spécifications, 21 fichiers, 0 échec** (lint et typecheck compris).
 - Banc E2E complet : **82 exécutés, 82 passés, 0 ignoré** ; `account.spec.ts` : 7/7, dont une
   visite navigateur de `/compte` avec session (six sections, badge réel du courriel, zone de
   suppression présente et formulaire de courriel annoncé indisponible), sans erreur de page.
