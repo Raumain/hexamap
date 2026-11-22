@@ -58,6 +58,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
 | `/card/$cardId` | **Le Cartel** | Lire la fiche complète d'une planche : cartel, lieu, réserves, mise à l'offre. |
 | `/players/$playerId` | **La Vitrine** | Lire la fiche publique d'un joueur : complétude, meilleur tableau, médailles, annonces, amis. |
+| `/atlas` | **L'Atlas** | Descendre la carte de France : régions, départements, communes, du possédé au couvert. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
 
 Le vocabulaire est fixe : un **bordereau** (ticket), une **planche** (carte possédée), un
