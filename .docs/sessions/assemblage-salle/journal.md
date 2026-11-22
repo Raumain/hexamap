@@ -110,6 +110,44 @@ volume entre tous les worktrees : une session sœur avait appliqué la migration
 à la même base, ce qui faisait sortir l'API de cette branche en `corrupted migrations`. La pile a
 été remise à zéro (`down -v` puis `up --build`) et le banc rejoué deux fois de suite, vert.
 
+## Reprise — vérification indépendante (2026-11-22, 16 h)
+
+Passe séparée sur le diff livré, puis correctifs. Trois défauts réels, invisibles pour
+`ci:check` et pour les cas E2E existants, donc trouvés à la lecture des largeurs et des couleurs.
+
+1. **La couverture était rognée à 320 px.** `table-fixed` + `overflow-hidden` sur le cadre : la
+   colonne de couverture du département faisait 20 % de 280 px, soit 44 px utiles pour
+   `100,0 %` en JetBrains Mono 12 px (≈ 50 px), et le lien « Cadastre » du national débordait de
+   même. Colonnes rééquilibrées — national `48/24/28`, département `50/26/24` —, `whitespace-nowrap`
+   sur les cellules numériques et `break-words` sur la colonne d'état. Aucun débordement
+   horizontal n'était mesuré : le texte était coupé **à l'intérieur** du cadre.
+2. **Le message d'erreur échouait AA.** `text-danger` (`#b4463a`) sur `bg-cabinet-raised`
+   (`#131b17`) vaut **3,24:1** pour du texte de 14 px, sous le 4,5:1 du critère 3. Le rouge reste
+   porté par la bordure (`border-danger/45`) et le fond (`bg-danger/10`), le texte repasse en
+   `text-vellum` (≈ 13,5:1). Aucun jeton ajouté.
+3. **Le niveau national n'était plus lisible pendant le chargement du département.** La carte
+   restait, mais la table — le seul équivalent accessible d'un SVG `aria-hidden` — était remplacée
+   par une ligne « Chargement des communes… ». La table nationale reste désormais affichée sous
+   `aria-busy="true"`, ce que le point 4 des paramètres demande explicitement.
+
+**Vérification rejouée après correctifs, dans Docker, sur cet état exact :**
+
+```
+docker compose --profile tools run --rm \
+  -e TEST_DATABASE_URL='postgres://hexamap:hexamap@db:5432/hexamap_test_35' \
+  dev bun run ci:check
+
+  ✓ 1/4 Lint            Checked 288 files. No fixes applied.
+  ✓ 2/4 Typecheck       6 workspaces
+  ✓ 3/4 Base de données 15 migrations, dans l'ordre
+  ✓ 4/4 Spécifications  408 pass, 0 fail, 2 519 expect(), 22 fichiers
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+
+  90 passed (2.9m), 0 failed, 0 skipped
+```
+
 ## Reprise — audit du travail récupéré et rejeu des vérifications
 
 Le code de cette phase a été écrit par deux sessions interrompues avant de vérifier et de

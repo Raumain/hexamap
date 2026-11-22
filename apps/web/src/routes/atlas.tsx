@@ -19,10 +19,11 @@ const backButtonClass =
   'inline-flex min-h-11 items-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.14em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale';
 
 const rowHeadClass = 'break-words py-2 pl-3 pr-2 text-left font-normal';
-const cellClass = 'py-2 pr-2';
-const numericCellClass = 'py-2 pr-3 text-right font-mono tabular-nums text-vellum/70';
+const cellClass = 'break-words py-2 pr-2';
+const numericCellClass =
+  'whitespace-nowrap py-2 pr-3 text-right font-mono tabular-nums text-vellum/70';
 const headClass = 'py-2 pl-3 pr-2 text-left font-normal text-vellum/60';
-const numericHeadClass = 'py-2 pr-3 text-right font-normal text-vellum/60';
+const numericHeadClass = 'whitespace-nowrap py-2 pr-3 text-right font-normal text-vellum/60';
 const linkClass = 'text-brass underline decoration-brass/40 underline-offset-2';
 
 interface OpenDepartement {
@@ -157,8 +158,8 @@ function AtlasBoard() {
       ) : null}
 
       {summaryQuery.isError ? (
-        <div className="space-y-4 rounded-sheet border border-veil bg-cabinet-raised p-5 md:p-6">
-          <p role="alert" className="text-sm text-danger">
+        <div className="space-y-4 rounded-sheet border border-danger/45 bg-danger/10 p-5 md:p-6">
+          <p role="alert" className="text-sm text-vellum">
             {atlasErrorMessage(summaryQuery.error)}
           </p>
           <button
@@ -193,8 +194,8 @@ function AtlasBoard() {
           {openDepartement === null ? (
             <NationalTable summary={summary} onOpen={setOpenDepartement} />
           ) : detailQuery.isError ? (
-            <div className="space-y-4 rounded-sheet border border-veil bg-cabinet-raised p-5 md:p-6">
-              <p role="alert" className="text-sm text-danger">
+            <div className="space-y-4 rounded-sheet border border-danger/45 bg-danger/10 p-5 md:p-6">
+              <p role="alert" className="text-sm text-vellum">
                 {atlasErrorMessage(detailQuery.error)}
               </p>
               <button
@@ -206,7 +207,10 @@ function AtlasBoard() {
               </button>
             </div>
           ) : shownDetail === undefined ? (
-            <p className="text-sm text-vellum/70">{ATLAS_ROOM.loadingDepartement}</p>
+            <div aria-busy="true" className="space-y-3">
+              <p className="text-sm text-vellum/70">{ATLAS_ROOM.loadingDepartement}</p>
+              <NationalTable summary={summary} onOpen={setOpenDepartement} />
+            </div>
           ) : shownDetail.communes.length === 0 ? (
             <p className="rounded-sheet border border-veil bg-cabinet-raised p-5 text-sm leading-relaxed text-vellum/70">
               {ATLAS_ROOM.emptyDepartement}
@@ -334,9 +338,9 @@ function NationalTable({ summary, onOpen }: NationalTableProps) {
       <table className="w-full table-fixed border-collapse text-xs">
         <caption className="sr-only">{ATLAS_ROOM.tableCaption}</caption>
         <colgroup>
-          <col className="w-[56%]" />
-          <col className="w-[20%]" />
+          <col className="w-[48%]" />
           <col className="w-[24%]" />
+          <col className="w-[28%]" />
         </colgroup>
         <thead>
           <tr className="border-b border-veil">
@@ -414,9 +418,9 @@ function DepartementTable({ detail }: { detail: AtlasDepartementDetail }) {
       <table className="w-full table-fixed border-collapse text-xs">
         <caption className="sr-only">{ATLAS_ROOM.tableCaption}</caption>
         <colgroup>
-          <col className="w-[52%]" />
-          <col className="w-[28%]" />
-          <col className="w-[20%]" />
+          <col className="w-[50%]" />
+          <col className="w-[26%]" />
+          <col className="w-[24%]" />
         </colgroup>
         <thead>
           <tr className="border-b border-veil">

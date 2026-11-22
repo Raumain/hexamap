@@ -88,3 +88,20 @@ correctifs. Les quatre défauts trouvés en première passe sont corrigés et re
 
 **Verdict : prêt à livrer**, la dette de la phase 39 nommée ci-dessus (libellé « L'Assemblage » de
 la coquille, à basculer en phase 39, et non un défaut de cette phase).
+
+## Seconde relecture hostile, indépendante (2026-11-22, 16 h)
+
+**Verdict : prêt à livrer après trois correctifs.** Les trois défauts ci-dessous étaient réels et
+aucun contrôle automatique ne les voyait : ils vivent dans les largeurs calculées et dans un
+rapport de contraste, pas dans le DOM.
+
+| # | Défaut | Gravité | Correction |
+| - | ------ | ------- | ---------- |
+| 1 | Couverture rognée à 320 px : colonne département à 20 % (44 px utiles) pour `100,0 %` (≈ 50 px), lien « Cadastre » du national débordant ; `table-fixed` + `overflow-hidden` coupaient le texte **dans** le cadre, sans débordement de page | **deal-breaker** (critère 4 : la table est l'équivalent lisible) | Colonnes `48/24/28` et `50/26/24`, `whitespace-nowrap` sur les cellules numériques, `break-words` sur l'état |
+| 2 | `text-danger` sur `bg-cabinet-raised` = **3,24:1** pour 14 px, sous AA | **deal-breaker** (critère 3) | Rouge porté par la bordure et le fond, texte en `text-vellum` (≈ 13,5:1), aucun jeton ajouté |
+| 3 | Pendant le chargement du département, la table nationale — seul équivalent accessible du SVG `aria-hidden` — laissait place à une ligne de chargement | suggestion forte (point 4 des paramètres : « le niveau national reste affiché ») | Table nationale maintenue sous `aria-busy="true"` |
+
+**Ce qui a été rejoué après correctifs** : `ci:check` vert (**408 spécifications, 22 fichiers,
+0 échec**) et banc E2E complet **90 passés, 0 échoué, 0 ignoré** (`chromium`, `pwa`, `Pixel 7`,
+`iPhone 13`). Aucun `skip`, aucun délai relâché, aucune assertion retirée, aucun fichier de
+`apps/web/src/components/layout/`, de `packages/spec` ou de `apps/api` touché.
