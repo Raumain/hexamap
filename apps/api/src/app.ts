@@ -9,19 +9,25 @@ import { db } from './db';
 import { env } from './env';
 import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
+import { accountRoutes } from './routes/account';
 import { achievementRoutes } from './routes/achievements';
+import { atlasRoutes } from './routes/atlas';
 import { blasonRoutes } from './routes/blasons';
 import { cardRoutes } from './routes/cards';
 import { chargeRoutes } from './routes/charges';
 import { friendRoutes } from './routes/friends';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
+import { notificationRoutes } from './routes/notifications';
+import { palmaresRoutes } from './routes/palmares';
 import { playerRoutes } from './routes/players';
 import { profileRoutes } from './routes/profile';
+import { pushRoutes } from './routes/push';
 import { refRoutes } from './routes/ref';
 import { shopCheckoutRoutes, shopWebhookRoutes } from './routes/shop';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
+import { tradeRoutes } from './routes/trades';
 import { stripePaymentProvider } from './services/stripe-payments';
 import { webRoutes } from './static';
 
@@ -59,10 +65,16 @@ function buildProtectedRoutes(provider: PaymentProvider) {
       .use(friendRoutes)
       .use(achievementRoutes)
       .use(profileRoutes)
+      .use(accountRoutes)
+      .use(notificationRoutes)
+      .use(tradeRoutes)
+      .use(palmaresRoutes)
+      .use(pushRoutes)
       // Suivi d'import : la charge utile expose des erreurs brutes et un journal
       // qui peut contenir chemins, DSN et URL amont. Réservé aux sessions ouvertes.
       .use(importStatusRoutes)
       .use(shopCheckoutRoutes(provider))
+      .use(atlasRoutes)
       .get('/me', ({ user, status }) => {
         if (!user) {
           return status(401, { code: 'UNAUTHORIZED', message: 'Non authentifié' });

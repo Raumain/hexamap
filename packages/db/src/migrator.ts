@@ -14,12 +14,19 @@ import * as achievements from '../migrations/0011_achievements';
 import * as profiles from '../migrations/0012_profiles';
 import * as shop from '../migrations/0013_shop';
 import * as refIntegrity from '../migrations/0014_ref_integrity';
+import * as atlasPaths from '../migrations/0015_atlas_paths';
+import * as notifications from '../migrations/0016_notifications';
+import * as tradeOffers from '../migrations/0017_trade_offers';
+import * as cardSource from '../migrations/0018_card_source';
+import * as tableauScore from '../migrations/0019_tableau_score';
+import * as push from '../migrations/0020_push';
 import type { Database } from './index';
 
 /**
- * Source unique de la liste des migrations. Elle est aussi exportée
- * (`migrationNames`) pour que `prepare.ts` puisse vérifier l'intégrité de
- * `kysely_migration` avant que les workers parallèles ne s'en servent.
+ * Source unique de la liste des migrations. `0014` et `0015` ont été ajoutées par
+ * les phases 33 et 34 ; leur oubli ici laisserait la base à moitié migrée, donc la
+ * liste est aussi exportée (`migrationNames`) pour que `prepare.ts` puisse vérifier
+ * l'intégrité de `kysely_migration` avant que les workers ne s'en servent.
  */
 const migrations: Record<string, Migration> = {
   '0001_init': init,
@@ -36,6 +43,12 @@ const migrations: Record<string, Migration> = {
   '0012_profiles': profiles,
   '0013_shop': shop,
   '0014_ref_integrity': refIntegrity,
+  '0015_atlas_paths': atlasPaths,
+  '0016_notifications': notifications,
+  '0017_trade_offers': tradeOffers,
+  '0018_card_source': cardSource,
+  '0019_tableau_score': tableauScore,
+  '0020_push': push,
 };
 
 /** Les noms dans l'ordre alphabétique, c'est-à-dire l'ordre d'exécution attendu. */

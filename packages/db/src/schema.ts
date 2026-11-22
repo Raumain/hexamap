@@ -5,7 +5,7 @@ export type Rarity = 'COMMUNE' | 'INHABITUELLE' | 'RARE' | 'EPIQUE' | 'LEGENDAIR
 export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
 export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
 export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
-export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+export type CardSource = 'TICKET' | 'MARKET' | 'REWARD' | 'CRAFT';
 
 export interface UserTable {
   id: string;
@@ -101,6 +101,7 @@ export interface TableauTable {
   departement_card_id: string | null;
   commune_card_id: string | null;
   rue_card_id: string | null;
+  score: Generated<number>;
   created_at: Generated<Date>;
 }
 
@@ -220,6 +221,64 @@ export interface UserProfileTable {
   updated_at: Generated<Date>;
 }
 
+export type NotificationKind =
+  | 'FRIEND_REQUEST'
+  | 'FRIEND_ACCEPTED'
+  | 'ACHIEVEMENT'
+  | 'MARKET_SOLD'
+  | 'MARKET_BOUGHT'
+  | 'TRADE_OFFER'
+  | 'TRADE_ACCEPTED'
+  | 'TRADE_DECLINED'
+  | 'TRADE_EXPIRED';
+
+export interface NotificationTable {
+  id: Generated<string>;
+  user_id: string;
+  kind: NotificationKind;
+  dedupe_key: string;
+  payload: unknown;
+  created_at: Generated<Date>;
+  read_at: Date | null;
+}
+
+export type TradeStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED' | 'EXPIRED';
+
+export interface TradeOfferTable {
+  id: Generated<string>;
+  proposer_id: string;
+  receiver_id: string;
+  offered_card_id: string;
+  requested_card_id: string;
+  status: Generated<TradeStatus>;
+  created_at: Generated<Date>;
+  responded_at: Date | null;
+  expires_at: Date;
+}
+
+/** La Sonnette — un abonnement par navigateur, clé métier `endpoint` (base §4.12). */
+export interface PushSubscriptionTable {
+  id: Generated<string>;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  /** Jour UTC `YYYY-MM-DD` du dernier envoi ; `null` tant qu'aucun envoi n'a eu lieu. */
+  last_sent_on: string | null;
+  /** Instant de régénération annoncé, pour ne pas réannoncer la même charge. */
+  last_notified_charge_at: Date | null;
+  last_sent_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+/** Heures calmes, clé `user_id` : survit au désabonnement (base §4.12). */
+export interface PushPreferencesTable {
+  user_id: string;
+  quiet_start: Generated<number>;
+  quiet_end: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -243,4 +302,8 @@ export interface Database {
   friendships: FriendshipTable;
   blocks: BlockTable;
   user_profiles: UserProfileTable;
+  notifications: NotificationTable;
+  trade_offers: TradeOfferTable;
+  push_subscriptions: PushSubscriptionTable;
+  push_preferences: PushPreferencesTable;
 }

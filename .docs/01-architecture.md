@@ -98,7 +98,7 @@ Liens vérifiés par le serveur :
 Règles d'implémentation (Phase 8) :
 
 - Toutes les règles ci-dessus vivent dans `packages/shared/src/tableau.ts` (`evaluateTableauAlignment`, `evaluateTableau`, `rueExistsInCommune`) et `scoring.ts` (`tableauScore`, `alignmentMultiplier`). Le serveur et le client importent les mêmes fonctions ; aucune formule n'est dupliquée.
-- Le score d'un tableau n'est **pas stocké** : il est recalculé à la lecture et à la soumission à partir des `user_cards.score`. Une évolution vers un score figé devrait passer par `.docs/02-database.md`.
+- **Le score d'un tableau est figé à la soumission** dans `tableaux.score` : `evaluateTableau` de `packages/shared` est appelé une seule fois, côté serveur, dans la transaction de `POST /api/v1/tableaux`. Aucune formule n'est recopiée dans `apps/`. En revanche, le score et l'alignement restent recalculés à la lecture depuis `user_cards.score` en **quatre** endroits : l'aperçu de composition (`GET /api/v1/tableaux/preview`), la liste du joueur (`GET /api/v1/tableaux`), le « meilleur tableau » de La Vitrine (`services/profile.ts`) et le fil des médailles, qui lit un multiplicateur et un total par tableau (`services/achievements.ts`). Ces quatre lectures ne font pas foi. Le classement hebdomadaire, lui, ne lit **que** la colonne figée `tableaux.score` — jamais un recalcul — et c'est cette colonne seule qui fait foi. Les ex æquo sont départagés par `created_at` puis `id`, en ordre croissant, en un seul `ORDER BY` serveur : le rang est la position 1..N, et le navigateur ne trie pas. La semaine est la **semaine ISO 8601**, lundi 00:00:00.000 UTC → lundi suivant exclu, calculée depuis `tableaux.created_at` par `packages/shared/src/palmares.ts` ; une semaine inexistante (`2027-W53`) est refusée plutôt que repliée sur la semaine 1 de l'année suivante.
 - Les cartes d'un tableau ne passent **pas** à `locked = true` : `locked` reste réservé à la vente. La soumission exige en revanche `locked = false` et refuse (`403 CARD_NOT_OWNED`) une carte verrouillée. **Une carte peut en revanche appartenir à autant de tableaux que le joueur le souhaite, sans aucune limite** : aucune exclusivité n'est vérifiée, et rejouer la même soumission crée un tableau de plus. Une carte est un **objet de collection**, pas un pion : l'exclusivité aurait obligé le joueur à détruire un tableau pour en composer un autre, alors que le score est recalculé à la lecture et qu'aucune règle ne dépend de l'unicité d'appartenance. Seul le marché conserve son exclusivité — une carte ne peut être dans qu'une seule annonce ouverte.
 - Une carte ne peut occuper que l'emplacement de sa catégorie (`slotMatchesCategory`).
 - **Le tiroir de sélection trie par compatibilité, sans jamais cacher.** `GET /api/v1/tableaux/candidates` reçoit l'emplacement visé et les cartes déjà choisies, et rend `{ slot, considered, cardIds }`. L'identifiant fourni pour l'emplacement visé est **ignoré** : le tiroir sert aussi à *remplacer* une carte, et cette carte ne doit pas se contraindre elle-même. `TABLEAU_CANDIDATE_LINKS` est la seule table qui dise quels liens une carte candidate peut valider — un lien n'existe qu'entre voisins —, et `hasConstrainingSelection` décide s'il y a matière à comparer : sans extrémité choisie, `considered = false`, aucune pastille, ordre naturel. Les cartes non compatibles restent **toutes** listées, après les compatibles (`rankCardsByCompatibility`, tri stable, entrée jamais mutée) : le joueur garde le droit de poser une carte hors-zone. L'endpoint décrit la **compatibilité**, pas l'éligibilité : le tiroir ne filtre que `locked` et la catégorie de l'emplacement (`slotMatchesCategory`). Aucune exclusivité n'y est vérifiée — une carte peut appartenir à plusieurs tableaux —, donc une carte déjà posée reste listée, sans badge « déjà placée ailleurs ».
@@ -174,6 +174,7 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - **Le blocage est unilatéral et silencieux** : il supprime toute relation pendante ou acceptée dans les deux sens et masque la vitrine aux deux comptes. Il ne notifie jamais la personne bloquée.
 - **La vitrine est publique par défaut, révocable.** `/players/:id` montre le pseudo, l'ancienneté, le nombre de cartes, la complétude par catégorie, le meilleur tableau, les médailles, les annonces ouvertes et le nombre d'amis. Elle ne montre **jamais** l'adresse électronique, le solde, la session, l'état `locked`, `grid` ni `treasure_index` — même liste que l'invariant de non-exposition du §2.6.
 - **Une vitrine privée répond `404`, pas `403`** : un 403 confirmerait l'existence du compte, exactement ce que la vitrine privée cherche à éviter. Même raisonnement que `CARD_NOT_VISIBLE`.
+- **Le Palmarès nomme ses auteurs par `pseudo`**, l'identité publique déjà employée par le marché, et n'offre un lien vers la vitrine que lorsque `profile_public` est vrai : une vitrine privée répond `404` par dessein, et la salle ne doit pas proposer un lien mort.
 - **`pseudo` devient une identité publique.** Il est aujourd'hui `required` côté Better Auth, `nullable` en base, sans contrôle de longueur ni d'unicité. La vitrine exige donc un index unique sur `lower(pseudo)` et une validation de forme (3 à 24 caractères) **avant** d'être rendue linkable.
 - **Les salles** (amis, vitrine) sont nommées dans `DESIGN_SYSTEM.md` au moment de leur phase, pas ici : la coquille et le rail restent les propriétaires de la nomenclature.
 
@@ -297,7 +298,7 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - Tests statistiques : RNG injecté et seedé pour être déterministes.
 - Tests d'intégration : vrai PostgreSQL, schéma isolé par worker.
 - E2E : Playwright, sélecteurs par rôle et libellés français.
-- **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db prepare`, dossier `packages/db/src/prepare.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
+- **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db db:prepare`, dossier `packages/db/src/prepare.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ». Le script s'appelle `db:prepare` et non `prepare` : `prepare` est un crochet de cycle de vie npm/bun, exécuté à chaque `bun install`, et l'étape `deps` du `Dockerfile` ne copie que les `package.json` — un `prepare` déclaré dans un workspace y échoue faute de sources. Aucun `package.json` du monorepo ne déclare de crochet `prepare`, `preprepare`, `preinstall`, `install`, `postinstall` ni `prepublish`.
 - **La base de test est préparée avant les workers, et les migrations sont sérialisées.** `bun test` exécute les fichiers en parallèle et douze d'entre eux appellent `runMigrations` sur la même base : `runMigrations` prend donc un verrou consultatif PostgreSQL (`pg_advisory_lock`, tenu sur une seule connexion par `db.connection()`) autour de `migrateToLatest`, sans quoi deux migrateurs liraient le même état « rien n'est appliqué » et écriraient une liste entrelacée. L'étape `3/4` applique en plus les migrations **une seule fois, sérialement**, avant les spécifications (`packages/db/src/prepare.ts`) : elle reconstruit le schéma public d'une base dont `kysely_migration` n'est pas le préfixe de l'ordre du code, état hérité d'un ancien worktree qui rendait toutes les spécifications rouges en `corrupted migrations`. Une base de test est jetable par contrat, et `ci:check` refuse déjà `NODE_ENV=production` et `TEST_DATABASE_URL === DATABASE_URL`.
 - **Base de test dédiée, imposée par le garde-fou.** `ci:check` exige `TEST_DATABASE_URL` et refuse de démarrer si elle est absente, si elle égale `DATABASE_URL`, ou si `NODE_ENV=production`. La suite de spécifications ne touche donc jamais les référentiels importés en développement. `packages/db` réexporte `sql` de Kysely pour que les specs puissent lancer du SQL brut sans dépendance propre.
 - **Banc E2E — HTTPS.** `docker-compose.e2e.yml` termine TLS sur une bordure Caddy et une AC
@@ -450,14 +451,47 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   sortie : `assetName` préfixe `icons/`. Les PNG sont **versionnés** ; `bunx pwa-assets-generator`
   depuis `apps/web` est l'unique commande de régénération, et le build Docker n'a besoin
   d'aucun réseau.
-- **Le service worker ne cache jamais l'API.** Cinq entrées `NetworkOnly` couvrent `/api/`, une
-  par méthode HTTP : une entrée Workbox ne s'applique qu'à une seule méthode, et `POST` porte
-  toutes les mutations Eden. `/blasons/` est en `StaleWhileRevalidate` (200 entrées, 30 jours),
-  le reste de `dist/` en précache.
+- **Le service worker est écrit à la main : `injectManifest`, pas `generateSW`.** Depuis la
+  phase 43, `vite-plugin-pwa` est configuré avec `strategies: 'injectManifest'`, `srcDir: 'src'`,
+  `filename: 'sw.ts'` et `injectManifest.globPatterns` contenant `html`. Le fichier
+  `apps/web/src/sw.ts` porte les gestionnaires `push` et `notificationclick` que `generateSW`
+  ne savait pas produire. **Les règles de cache sont inchangées** : cinq routes `NetworkOnly`
+  couvrent `/api/`, une par méthode HTTP — une entrée Workbox ne s'applique qu'à une seule
+  méthode, et `POST` porte toutes les mutations Eden —, `/blasons/` reste en
+  `StaleWhileRevalidate` (200 entrées, 30 jours), le reste de `dist/` reste en précache.
+  Le worker s'aligne sur `PUSH_HTTP_METHODS` de `packages/shared/src/push.ts`, et
+  `packages/spec/src/push.spec.ts` verrouille cette liste de cinq méthodes.
 - **`navigateFallback: '/index.html'` exige `index.html` dans le précache** — `globPatterns`
   contient donc `html`. Sans cette entrée, `createHandlerBoundToURL('/index.html')` lève
   `non-precached-url` à l'installation : le worker ne s'active pas et le navigateur refuse
-  l'installation.
+  l'installation. En `injectManifest`, le repli est une `NavigationRoute` dont la `denylist`
+  vaut `/^\/api\//` et `/^\/blasons\//` : un chemin d'API mal orthographié rend un `404` JSON,
+  jamais `index.html`.
+- **La Sonnette ne pousse qu'un événement : le retour d'une charge.** `push` affiche le corps
+  français reçu et `notificationclick` focalise l'onglet existant de la même origine ou en ouvre
+  un. Aucun autre événement — vente, médaille, offre de troc — n'est poussé : ceux-là restent
+  dans Le Guichet. Le worker n'appelle **ni** `skipWaiting` **ni** `clients.claim`, donc
+  l'invitation de mise à jour reste le seul chemin.
+- **Les clés VAPID appartiennent à l'exploitant, jamais au dépôt.** `bun run --cwd apps/api
+  vapid:generate` (`apps/api/src/scripts/vapid.ts`) imprime une paire sur la sortie standard et
+  **n'écrit aucun fichier** ; l'exploitant la dépose dans `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+  et, s'il le souhaite, `VAPID_SUBJECT` du magasin de secrets du déploiement. Rien en base, rien
+  dans un fichier commité, `.env.example` ne portant que des commentaires. La lecture est faite
+  **à l'appel** (`apps/api/src/lib/vapid.ts`) : paire absente, `GET /api/v1/push/config` rend
+  `{ enabled: false }`, l'abonnement répond `503 PUSH_DISABLED`, l'ordonnanceur n'est pas
+  démarré — et **le processus démarre quand même**.
+- **Un battement de 60 s, un seul détenteur.** `apps/api/src/services/push-scheduler.ts` est
+  démarré par `index.ts` seul (jamais par `app.ts`, sinon chaque spécification ferait tourner une
+  horloge) et arrêté sur `SIGTERM`/`SIGINT`. Chaque battement prend
+  `pg_try_advisory_lock(2147483043)` sur sa propre connexion ; verrou non pris, il rend la main
+  sans attendre. Il lit **deux fois** : une ligne de `game_config`, puis les candidats en une
+  jointure bornée à 200 lignes (`user_scratch_charges_empty_idx`, partiel sur `charges = 0`).
+  Au repos, la seconde lecture rend zéro ligne. Le travail par candidat n'existe que pour un
+  envoi réel : une mise à jour d'une ligne, ou une suppression sur `404`/`410`.
+- **Le service worker a son propre programme TypeScript.** `src/sw.ts` vit dans `self`, pas dans
+  `window` : `apps/web/tsconfig.sw.json` le compile avec `lib: ["ES2023", "WebWorker"]`, et le
+  `tsconfig.json` principal l'exclut — sinon les globales de `lib.dom` et de `lib.webworker`
+  entreraient en collision. `typecheck` et `build` enchaînent les deux programmes.
 - **La mise à jour est proposée, pas imposée.** `registerType: 'prompt'`, `skipWaiting: false`,
   `clientsClaim: false`. `apps/web/src/lib/pwa.ts` porte l'enregistrement et
   `components/layout/pwa-update-prompt.tsx` l'invitation française (« Recharger » / « Plus
@@ -465,10 +499,14 @@ cartographie »). Cette section fixe les règles qui engagent le code, pas seule
   le canvas de grattage (§4.6).
 - `biome.json` exclut `apps/web/dev-dist`, `**/sw.js` et `**/workbox-*.js` : le code Workbox
   généré n'est pas du code source. `.gitignore` exclut `apps/web/dev-dist`.
-- **La preuve est `packages/e2e/tests/pwa.spec.ts`, 7 cas**, joués par le seul projet `pwa`
-  (`serviceWorkers: 'allow'`, commutateur Chrome `--ignore-certificate-errors`). Le cas
+- **La preuve est `packages/e2e/tests/pwa.spec.ts`, toujours 7 cas**, joués par le seul projet
+  `pwa` (`serviceWorkers: 'allow'`, commutateur Chrome `--ignore-certificate-errors`). Le cas
   « le worker s'installe et contrôle » constate d'abord `controller === null` sur le premier
   chargement : `clientsClaim: false` impose un rechargement avant que `controller` soit non nul.
+  Le cas 4 a été **réécrit** par la phase 43 sans être relâché : il asserte désormais une lecture
+  **et** une écriture d'API en ligne, l'absence de toute URL `/api/` dans les caches, l'échec
+  réseau hors ligne, puis la **forme** du worker écrit à la main — une boucle qui parcourt
+  exactement les cinq méthodes et enregistre, pour chacune, une route `NetworkOnly` sur `/api/`.
   Le cas 7 est une assertion **structurelle** — `env(safe-area-inset-*)` vaut toujours `0` sous
   Playwright, une mesure ne prouverait rien ; il vérifie que les déclarations survivent à la
   compilation et que `viewport-fit=cover` est présent.

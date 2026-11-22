@@ -16,6 +16,8 @@ const steps: readonly Step[] = [
     // `db:prepare` remplace `ping` : il sonde la base **et** applique les migrations
     // une seule fois, sérialement, avant que les fichiers de spécification ne
     // tournent en parallèle sur la même base (`.docs/01-architecture.md` §4.8).
+    // Le nom évite `prepare`, crochet de cycle de vie exécuté à chaque `bun install`,
+    // alors que l'étape `deps` du Dockerfile ne copie que les `package.json`.
     command: ['bun', 'run', '--cwd', 'packages/db', 'db:prepare'],
     testDatabase: true,
   },

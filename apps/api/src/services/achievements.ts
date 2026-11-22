@@ -8,6 +8,7 @@ import { sql } from 'kysely';
 import { db } from '../db';
 import { HttpError } from '../lib/http-error';
 import type { Executor } from './draw';
+import { emitNotification } from './notifications';
 import { loadTableauScores } from './tableaux';
 
 const PAYOUTS_KEY = 'ACHIEVEMENT_PAYOUTS_ENABLED';
@@ -331,6 +332,15 @@ export async function evaluateAchievements(userId: string): Promise<Achievements
       if (!inserted) {
         continue;
       }
+
+      // La médaille est annoncée dans la transaction de son versement : un
+      // échec d'écriture annule la prime, jamais l'inverse.
+      await emitNotification(trx, {
+        userId,
+        kind: 'ACHIEVEMENT',
+        ref: achievement.key,
+        payload: { key: achievement.key, label: achievement.label, payout: achievement.payout },
+      });
 
       await trx
         .insertInto('currency_ledger')

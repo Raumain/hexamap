@@ -12,13 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AssemblageRouteImport } from './routes/assemblage'
+import { Route as AtlasRouteImport } from './routes/atlas'
 import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as CompteRouteImport } from './routes/compte'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as FriendsRouteImport } from './routes/friends'
+import { Route as GuichetRouteImport } from './routes/guichet'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
+import { Route as PalmaresRouteImport } from './routes/palmares'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
@@ -45,6 +49,11 @@ const AssemblageRoute = AssemblageRouteImport.update({
   path: '/assemblage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AtlasRoute = AtlasRouteImport.update({
+  id: '/atlas',
+  path: '/atlas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CgvRoute = CgvRouteImport.update({
   id: '/cgv',
   path: '/cgv',
@@ -55,6 +64,11 @@ const CollectionRoute = CollectionRouteImport.update({
   path: '/collection',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompteRoute = CompteRouteImport.update({
+  id: '/compte',
+  path: '/compte',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
   id: '/confidentialite',
   path: '/confidentialite',
@@ -63,6 +77,11 @@ const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
 const FriendsRoute = FriendsRouteImport.update({
   id: '/friends',
   path: '/friends',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuichetRoute = GuichetRouteImport.update({
+  id: '/guichet',
+  path: '/guichet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HomeRoute = HomeRouteImport.update({
@@ -78,6 +97,11 @@ const LoginRoute = LoginRouteImport.update({
 const MentionsLegalesRoute = MentionsLegalesRouteImport.update({
   id: '/mentions-legales',
   path: '/mentions-legales',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PalmaresRoute = PalmaresRouteImport.update({
+  id: '/palmares',
+  path: '/palmares',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -135,13 +159,17 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -157,13 +185,17 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -180,13 +212,17 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
+  '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/friends': typeof FriendsRoute
+  '/guichet': typeof GuichetRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
+  '/palmares': typeof PalmaresRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -204,13 +240,17 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -226,13 +266,17 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -248,13 +292,17 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
+    | '/compte'
     | '/confidentialite'
     | '/friends'
+    | '/guichet'
     | '/home'
     | '/login'
     | '/mentions-legales'
+    | '/palmares'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -271,13 +319,17 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AchievementsRoute: typeof AchievementsRoute
   AssemblageRoute: typeof AssemblageRoute
+  AtlasRoute: typeof AtlasRoute
   CgvRoute: typeof CgvRoute
   CollectionRoute: typeof CollectionRoute
+  CompteRoute: typeof CompteRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   FriendsRoute: typeof FriendsRoute
+  GuichetRoute: typeof GuichetRoute
   HomeRoute: typeof HomeRoute
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
+  PalmaresRoute: typeof PalmaresRoute
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
@@ -313,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssemblageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/atlas': {
+      id: '/atlas'
+      path: '/atlas'
+      fullPath: '/atlas'
+      preLoaderRoute: typeof AtlasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cgv': {
       id: '/cgv'
       path: '/cgv'
@@ -327,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compte': {
+      id: '/compte'
+      path: '/compte'
+      fullPath: '/compte'
+      preLoaderRoute: typeof CompteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/confidentialite': {
       id: '/confidentialite'
       path: '/confidentialite'
@@ -339,6 +405,13 @@ declare module '@tanstack/react-router' {
       path: '/friends'
       fullPath: '/friends'
       preLoaderRoute: typeof FriendsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guichet': {
+      id: '/guichet'
+      path: '/guichet'
+      fullPath: '/guichet'
+      preLoaderRoute: typeof GuichetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/home': {
@@ -360,6 +433,13 @@ declare module '@tanstack/react-router' {
       path: '/mentions-legales'
       fullPath: '/mentions-legales'
       preLoaderRoute: typeof MentionsLegalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/palmares': {
+      id: '/palmares'
+      path: '/palmares'
+      fullPath: '/palmares'
+      preLoaderRoute: typeof PalmaresRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -439,13 +519,17 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AchievementsRoute: AchievementsRoute,
   AssemblageRoute: AssemblageRoute,
+  AtlasRoute: AtlasRoute,
   CgvRoute: CgvRoute,
   CollectionRoute: CollectionRoute,
+  CompteRoute: CompteRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
   FriendsRoute: FriendsRoute,
+  GuichetRoute: GuichetRoute,
   HomeRoute: HomeRoute,
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
+  PalmaresRoute: PalmaresRoute,
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,

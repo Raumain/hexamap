@@ -8,5 +8,10 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  // Le service worker est un programme séparé : il vit dans `self`, pas dans
+  // `window`, et ses globales (`ServiceWorkerGlobalScope`, `PushEvent`) entrent en
+  // collision avec `lib.dom`. Il a donc son propre `tsconfig.sw.json`
+  // (`bun run --cwd apps/web typecheck` le vérifie à la suite).
+  "exclude": ["src/sw.ts"]
 }
