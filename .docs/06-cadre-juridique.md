@@ -316,6 +316,13 @@ surveiller, pas à implémenter aujourd'hui.
 
 ## 4. CGV et droit de la consommation
 
+> **État du produit au 23 novembre 2026.** La page de conditions générales de vente a été
+> **retirée de l'interface** (retour R-004, phase 46) : aucune URL publique ne publie de CGV, et
+> la boutique est fermée. Ce qui suit reste la référence du jour où une vente serait encaissée —
+> ces obligations ne décrivent **aucune page actuellement en ligne**. Les mentions légales
+> (`/mentions-legales`) et la politique de confidentialité (`/confidentialite`) restent
+> publiées.
+
 ### (B) Informations précontractuelles — art. L. 221-5
 
 ⚠ **Texte modifié, selon la transposition alléguée, par l'ordonnance n° 2026-2 du 5 janvier
