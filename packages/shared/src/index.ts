@@ -5,6 +5,7 @@ export * from './atlas';
 export * from './charges';
 export * from './notifications';
 export * from './packs';
+export * from './palmares';
 export * from './payments';
 export * from './pseudo';
 export * from './rarity';

@@ -19,6 +19,7 @@ import { friendRoutes } from './routes/friends';
 import { importStatusRoutes } from './routes/import-status';
 import { marketRoutes } from './routes/market';
 import { notificationRoutes } from './routes/notifications';
+import { palmaresRoutes } from './routes/palmares';
 import { playerRoutes } from './routes/players';
 import { profileRoutes } from './routes/profile';
 import { refRoutes } from './routes/ref';
@@ -66,6 +67,7 @@ function buildProtectedRoutes(provider: PaymentProvider) {
       .use(accountRoutes)
       .use(notificationRoutes)
       .use(tradeRoutes)
+      .use(palmaresRoutes)
       // Suivi d'import : la charge utile expose des erreurs brutes et un journal
       // qui peut contenir chemins, DSN et URL amont. Réservé aux sessions ouvertes.
       .use(importStatusRoutes)
