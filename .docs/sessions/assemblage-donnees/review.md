@@ -51,6 +51,17 @@ pas coché**. Ce n'est pas un défaut d'implémentation mais une incompatibilit�
 | `scripts/import/src/atlas.ts` | `classifyGeometry` puis `geometryToPathD` projettent deux fois la même géométrie. | Coût mesuré acceptable sur 35 000 communes ; refondre l'API du module pur pour cela n'apporte rien à la phase. |
 | `scripts/import/src/atlas-ign.ts` | Une panne WFS en cours de parcours laisse les niveaux suivants non exécutés (le `throw` remonte avant `runAtlas`). | Le rejeu rattrape (`geom is null`), et l'état demi-écrit est sain. Le message d'erreur a été corrigé pour le dire. |
 
+## Portée réelle du diff
+
+La branche porte cinq commits, dont **un qui n'appartient pas au plan de la phase** :
+`a564430 fix(agents): réinstaller les dépendances après la fusion d'une vague` ajoute 11 lignes à
+`scripts/agents/run.sh` et une ligne à `bun.lock`. Le correctif rend le lanceur capable de rejouer
+`bun install --frozen-lockfile` après la fusion d'une vague — sans lui, le typecheck de
+l'accumulation échoue en TS2307 sur `@hexamap/import`, la dépendance d'espace de travail que cette
+phase ajoute à `packages/spec`. Il est donc une conséquence directe de la phase, pas un élargissement
+de périmètre, mais il n'était pas listé dans les fichiers touchés du plan : c'est écrit ici plutôt
+que corrigé, parce que retirer le commit casserait la vague.
+
 ## Ce que le code ne prouve pas
 
 - **Aucun écran.** Cette phase ne livre que de la donnée ; rien dans `apps/` ne la lit encore. La

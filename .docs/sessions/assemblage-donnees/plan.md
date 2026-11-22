@@ -1,6 +1,6 @@
 ---
 objective: "À la fin de cette phase, chaque entité métropolitaine des trois tables de référentiel porte un `path_d` SVG projeté dans le `viewBox` partagé `0 0 1000 1000`, calculé une seule fois à l'import, rejouable à l'identique, et le navigateur n'a plus jamais à projeter ni à simplifier une géométrie."
-status: pending
+status: done
 ---
 
 # Plan: Phase 33 — L'Assemblage, la donnée
