@@ -532,6 +532,24 @@ export async function deleteAccount(
     );
   }
 
+  // Réauthentification d'abord : c'est l'ordre du contrat (§2.9), et il ne
+  // laisse aucune lecture de compte à un porteur de session volée qui ignore
+  // le mot de passe.
+  try {
+    const verified = await auth.api.verifyPassword({
+      body: { password: input.password },
+      headers,
+    });
+    if (!verified.status) {
+      throw new HttpError(401, 'INVALID_PASSWORD', 'Mot de passe incorrect.');
+    }
+  } catch (error) {
+    if (authErrorCode(error) === 'INVALID_PASSWORD') {
+      throw new HttpError(401, 'INVALID_PASSWORD', 'Mot de passe incorrect.');
+    }
+    throw error;
+  }
+
   const userRow = await db
     .selectFrom('user')
     .select('pseudo')
@@ -558,21 +576,6 @@ export async function deleteAccount(
     .where('user_id', '=', userId)
     .execute();
   const ticketIds = ticketRows.map((row) => row.id);
-
-  try {
-    const verified = await auth.api.verifyPassword({
-      body: { password: input.password },
-      headers,
-    });
-    if (!verified.status) {
-      throw new HttpError(401, 'INVALID_PASSWORD', 'Mot de passe incorrect.');
-    }
-  } catch (error) {
-    if (authErrorCode(error) === 'INVALID_PASSWORD') {
-      throw new HttpError(401, 'INVALID_PASSWORD', 'Mot de passe incorrect.');
-    }
-    throw error;
-  }
 
   await cancelOpenListings(userId);
   await auth.api.deleteUser({ body: { password: input.password }, headers });

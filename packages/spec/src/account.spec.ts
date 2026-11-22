@@ -639,6 +639,30 @@ describe('Comptes §2.9 — la suppression', () => {
     }
   });
 
+  it('Comptes §2.9 — la réauthentification précède la confirmation du pseudo', async () => {
+    process.env.ACCOUNT_DELETION_ENABLED = 'true';
+    try {
+      const account = await signUp();
+
+      // Les deux champs sont faux : la réponse doit nommer le mot de passe,
+      // parce que la décision de contrat ordonne la réauthentification d'abord
+      // et la saisie du pseudo ensuite.
+      const res = await authFetch(
+        '/api/v1/account',
+        jsonInit('DELETE', {
+          password: 'mauvais-mot-de-passe',
+          confirmation: 'mauvais-pseudo',
+        }),
+        account.cookie,
+      );
+      expect(res.status).toBe(401);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe('INVALID_PASSWORD');
+    } finally {
+      delete process.env.ACCOUNT_DELETION_ENABLED;
+    }
+  });
+
   it('Comptes §2.9 — une confirmation erronée ne supprime rien', async () => {
     process.env.ACCOUNT_DELETION_ENABLED = 'true';
     try {
