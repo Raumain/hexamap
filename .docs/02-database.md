@@ -35,6 +35,7 @@
 | `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
 | `user_profiles`, index `user_pseudo_lower_idx` | **Migrée** | `packages/db/migrations/0012_profiles.ts` |
 | Index `currency_ledger_purchase_uniq` | **Migrée** | `packages/db/migrations/0013_shop.ts` |
+| Gardes d'intégrité du référentiel : `ref_truncate_guard()` (3 triggers `BEFORE TRUNCATE`), `orphan_user_cards()` | **Migrée** | `packages/db/migrations/0014_ref_integrity.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -481,6 +482,66 @@ image n'a pu être importée. `blason_credit` est l'attribution obligatoire au f
 colonnes sont nullable : Wikidata ne référence pas de blason pour toutes les entités, et
 `contour_url` n'est rempli que pour les communes sans armoiries (repli géographique IGN).
 
+### 5.1 Intégrité du référentiel (migration `0014_ref_integrity`)
+
+```sql
+create or replace function ref_truncate_guard() returns trigger
+language plpgsql as $$
+declare cited bigint;
+begin
+  execute format('select count(*) from user_cards where category = %L', TG_ARGV[0]) into cited;
+  if cited > 0 then
+    raise exception 'la table % est citée par % carte(s) : un réimport ne peut pas la vider',
+      TG_TABLE_NAME, cited
+      using errcode = 'foreign_key_violation';
+  end if;
+  return null;
+end $$;
+
+create trigger ref_regions_truncate_guard      before truncate on ref_regions      for each statement execute function ref_truncate_guard('REGION');
+create trigger ref_departements_truncate_guard before truncate on ref_departements for each statement execute function ref_truncate_guard('DEPARTEMENT');
+create trigger ref_communes_truncate_guard     before truncate on ref_communes     for each statement execute function ref_truncate_guard('COMMUNE');
+
+create or replace function orphan_user_cards()
+returns table (id uuid, user_id text, category text, ref_code text)
+language sql stable as $$
+  select uc.id, uc.user_id, uc.category::text, uc.ref_code
+  from user_cards uc
+  where (uc.category = 'REGION'      and not exists (select 1 from ref_regions      r where r.code      = uc.ref_code))
+     or (uc.category = 'DEPARTEMENT' and not exists (select 1 from ref_departements d where d.code      = uc.ref_code))
+     or (uc.category = 'COMMUNE'     and not exists (select 1 from ref_communes     c where c.code_insee = uc.ref_code))
+     or (uc.category = 'RUE'         and not exists (select 1 from ref_odonymes     o where o.id::text  = uc.ref_code))
+$$;
+```
+
+- **Aucune colonne, aucun index, aucune table n'est ajouté** par cette migration : elle ne pose
+  que deux fonctions et trois triggers.
+- **`TRUNCATE` est refusé dès qu'une carte cite la table** (`23503`), pour `ref_regions`,
+  `ref_departements` et `ref_communes`. C'est le chemin destructeur qui a produit BUG-002.
+  **`ref_odonymes` n'est pas gardée** : deux cas gelés de `tickets.spec.ts` vident
+  volontairement `commune_odonymes` et `ref_odonymes` pour éprouver la robustesse du tirage, et
+  une garde les rendrait rouges ; les cartes de rue restent protégées par l'élagage `--merge`.
+  `DELETE` reste permis partout, parce que les `afterAll` de `packages/spec` suppriment les
+  `ref_*` avant `"user"` et qu'une garde sur `DELETE` ferait échouer chaque nettoyage de la
+  suite gelée.
+- **`orphan_user_cards()` ne répare rien**, elle nomme le dégât : jusqu'ici
+  `routes/cards.ts` résolvait le nom par `noms.get(...) ?? ''` et une carte sans référentiel
+  s'affichait simplement sans nom, sans que rien ne puisse la compter.
+- **Une clé étrangère `(category, ref_code)` et un `CHECK` sur `ref_regions.code` ont été
+  écartés**, et pas par confort : `achievements.spec.ts` insère une carte `COMMUNE` sans aucun
+  référentiel semé, cinq autres fichiers de spec sèment des régions aux codes `<préfixe>-R1`, le
+  banc sème `E2E-R1`, et leurs nettoyages suppriment les `ref_*` avant `"user"`. Une FK ou un
+  `CHECK` de table rejetterait ces fixtures, que cette phase n'a pas le droit de réécrire. La
+  validation du code de région vit donc à la frontière que BUG-003 propose lui-même :
+  `scripts/import` refuse un code hors des dix-huit codes officiels **avant** la première
+  écriture (`REFERENCE_CODE_INVALID`), via `isFrenchRegionCode` de `packages/shared`.
+- **Réimport non destructeur.** `bun run --cwd scripts/import start --merge` remplace le
+  `TRUNCATE` par un upsert (`on conflict … do update set`) suivi de
+  `pruneUnreferencedReferenceRows` (`packages/db/src/reference-integrity.ts`), qui supprime une
+  ligne périmée **seulement** si aucune carte ne la cite. Les colonnes d'assets (`blason_url`,
+  `contour_url`, `blason_credit`) et `geom` ne sont jamais réécrites par ce chemin : elles
+  appartiennent aux étapes blasons et atlas.
+
 ---
 
 ## 6. Types Kysely
@@ -769,6 +830,15 @@ export interface Database {
   porte l'idempotence, et une insertion en conflit ne paie pas.
 - `"user".pseudo` est unique sans tenir compte de la casse dès que l'index `user_pseudo_lower_idx`
   est migré.
+- **Aucune table de référentiel citée par une carte ne peut être vidée** : `TRUNCATE
+  ref_regions|ref_departements|ref_communes|ref_odonymes` lève `23503` dès qu'une ligne de
+  `user_cards` porte la catégorie correspondante (`0014_ref_integrity`).
+- **Un élagage de référentiel ne supprime jamais une ligne citée.** `--merge` élague une ligne
+  périmée seulement si aucune carte ne la cite ; une ligne conservée pour cette raison est
+  comptée dans `PruneResult.preserved`.
+- **À l'import, un code de région hors des dix-huit codes officiels est refusé avant toute
+  écriture** (`REFERENCE_CODE_INVALID`), et `isFrenchRegionCode` de `packages/shared` est la
+  seule autorité sur cette liste.
 
 ### 7.2 Tirage d'une carte d'un palier
 
