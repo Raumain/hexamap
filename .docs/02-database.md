@@ -39,6 +39,7 @@
 | `path_d text` sur `ref_regions`, `ref_departements` et `ref_communes` | **Migrée** (2026-11-22) | `packages/db/migrations/0015_atlas_paths.ts` |
 | `notifications` | **Migrée** | `packages/db/migrations/0016_notifications.ts` |
 | `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
+| `user_cards.source` élargi à `CRAFT` | **Migrée** (2026-11-22) | `packages/db/migrations/0018_card_source.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -170,7 +171,8 @@ create table user_cards (
   ),
   score integer not null check (score >= 0),
   acquired_at timestamptz not null default now(),
-  source text not null default 'TICKET' check (source in ('TICKET', 'MARKET', 'REWARD')),
+  source text not null default 'TICKET'
+    check (source in ('TICKET', 'MARKET', 'REWARD', 'CRAFT')),
   locked boolean not null default false
 );
 
@@ -179,6 +181,12 @@ create index user_cards_ref_idx on user_cards (category, ref_code);
 ```
 
 `ref_code` contient : le code région, le code département, le code INSEE de la commune, ou l'identifiant `ref_odonymes.id` sérialisé en texte.
+
+`source = 'CRAFT'` est écrit par l'Atelier, et **uniquement** par lui : la route de fusion ne
+reçoit ni `source`, ni `score`, ni `id`, et le service insère la carte produite sous transaction.
+Aucun client ne peut donc fabriquer une carte `CRAFT`. La fusion est déterministe (palier `+1`),
+ne produit jamais `MYTHIQUE` et consomme tout le groupe `(catégorie, ref_code, rareté)` ; la
+règle vit dans `packages/shared/src/atelier.ts`.
 
 ### 4.3 Tickets
 
@@ -700,7 +708,7 @@ export type Rarity =
 export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
 export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
 export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
-export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+export type CardSource = 'TICKET' | 'MARKET' | 'REWARD' | 'CRAFT';
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export interface UserTable {
