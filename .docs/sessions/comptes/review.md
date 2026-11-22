@@ -58,6 +58,13 @@ C'est le seul défaut de la phase qui aurait été une faille si la spec n'avait
 | 8 — risque `buyer_id` | `journal.md` §4, avec la conséquence pour le webhook de remboursement |
 | 9 — `ci:check` | voir la sortie ci-dessous |
 
+## Preuves finales
+
+- `ci:check` : **393 spécifications, 21 fichiers, 0 échec** (lint et typecheck compris).
+- Banc E2E complet : **82 exécutés, 82 passés, 0 ignoré** ; `account.spec.ts` : 7/7, dont une
+  visite navigateur de `/compte` avec session (six sections, badge réel du courriel, zone de
+  suppression présente et formulaire de courriel annoncé indisponible), sans erreur de page.
+
 ## Verdict
 
 **Prêt à livrer**, avec une réserve écrite : la suppression et le changement de courriel sont

@@ -104,10 +104,33 @@ la phase : ce serait une décision produit prise à la place du titulaire.
   `tableaux.*_card_id` / `ticket_reveals.card_user_id` en `set null` appartiennent à des lignes
   elles-mêmes supprimées.
 
-## 5. Vérification
+## 5. Vérification — sorties exactes
 
-Voir la section « Vérification » de la PR : `ci:check` (lint, typecheck, PostgreSQL,
-spécifications) et le banc E2E complet, joués après la revue.
+`ci:check` sur `postgres://hexamap:hexamap@db:5432/hexamap_test_37` :
+
+```text
+✓ 1/4 Lint            Checked 280 files in 192ms. No fixes applied.
+✓ 2/4 Typecheck       6 workspaces (shared, db, api, web, spec, e2e)
+✓ 3/4 Base de données [hexamap] Base de données joignable.
+✓ 4/4 Spécifications  393 pass · 0 fail · 2403 expect() calls · 21 fichiers
+✓ Gatekeeper vert.
+```
+
+Banc E2E complet, tous projets :
+
+```text
+docker compose -f docker-compose.e2e.yml up -d db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  82 passed (2.5m)   — chromium · pwa · Pixel 7 · iPhone 13
+```
+
+`packages/spec/src/account.spec.ts` seul : **22 pass, 0 fail**, 173 `expect()` ;
+`packages/e2e/tests/account.spec.ts` : **7 pass, 0 fail**.
+
+Rappel : la spec est d'abord passée **rouge** (`Cannot find module '@hexamap/api/lib/mailer'`,
+0 pass / 1 fail) avant la première ligne de la phase 3.
+
+PR : https://github.com/Raumain/hexamap/pull/63 (brouillon, base `feat/v2-wave-2`).
 
 ## 6. Revue
 
