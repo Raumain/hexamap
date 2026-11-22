@@ -31,15 +31,32 @@ test.describe('La salle introuvable', () => {
   test('salle introuvable — une route éteinte par `notFound()` rend la même page', async ({
     page,
   }) => {
-    // `LEGAL_PAGES_ENABLED = false` : la route répond `notFound()`, ce qui est un
+    // `SHOP_ENABLED = false` : la boutique répond `notFound()`, ce qui est un
     // chemin de code distinct d'une URL inconnue.
-    await page.goto('/cgv', { waitUntil: 'domcontentloaded' });
+    await page.goto('/boutique', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible();
     await expect(page.getByRole('link', { name: ACTION })).toHaveAttribute('href', '/');
 
-    // Ce qui ne doit plus apparaître : le document légal lui-même.
-    await expect(page.getByText('Conditions générales de vente')).toHaveCount(0);
+    // Défaut préexistant, consigné et **non masqué** : sur ce chemin (route
+    // appariée qui lève `notFound()`), la page n'est rendue dans aucun `<main>`,
+    // alors qu'une URL inconnue en rend un. Le repère principal manque donc, et
+    // l'asserter ici reviendrait à figer le défaut. Voir « Ce qui reste à faire ».
+  });
+
+  test('conditions générales — la page légale est publiée', async ({ page }) => {
+    await page.goto('/cgv', { waitUntil: 'domcontentloaded' });
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Conditions générales de vente' }),
+    ).toBeVisible();
+
+    // Le bandeau provisoire reste visible tant que l'identité de l'éditeur n'est
+    // pas renseignée : la page ne doit pas se faire passer pour définitive.
+    await expect(page.getByText(/Texte provisoire/)).toBeVisible();
+
+    // Ce n'est plus une salle introuvable.
+    await expect(page.getByRole('heading', { level: 1, name: TITLE })).toHaveCount(0);
   });
 
   test('salle introuvable — le retour mène réellement au Seuil', async ({ page }) => {
