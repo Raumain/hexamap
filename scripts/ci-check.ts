@@ -6,7 +6,7 @@ type Step = {
   readonly testDatabase: boolean;
 };
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const steps: readonly Step[] = [
   { label: 'Lint', command: ['bunx', '@biomejs/biome', 'check', '.'], testDatabase: false },
@@ -21,7 +21,15 @@ const steps: readonly Step[] = [
     command: ['bun', 'run', '--cwd', 'packages/db', 'db:prepare'],
     testDatabase: true,
   },
-  { label: 'Spécifications', command: ['bun', 'test', 'packages/spec'], testDatabase: true },
+  { label: 'Spécifications', command: ['bun', 'test', 'packages/spec/src'], testDatabase: true },
+  {
+    label: 'Mesure de charge',
+    // Les fichiers de `packages/spec/src` tournent en parallèle sur une base
+    // partagée et re-sèment `ref_*` : une mesure de latence y attend des verrous
+    // et ne mesure plus ce qu'elle prétend mesurer. Elle passe donc seule, en dernier.
+    command: ['bun', 'test', 'packages/spec/perf'],
+    testDatabase: true,
+  },
 ];
 
 function fail(message: string): never {
