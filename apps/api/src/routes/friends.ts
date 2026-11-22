@@ -19,7 +19,14 @@ const friendshipStatusSchema = t.Union([
 ]);
 
 const playerSchema = t.Object(
-  { id: t.String(), pseudo: t.Union([t.String(), t.Null()]) },
+  {
+    id: t.String(),
+    pseudo: t.Union([t.String(), t.Null()]),
+    // R-003 : l'écran des Amis n'offre un lien vers la vitrine que si elle est
+    // publique, une vitrine privée répondant `404` par dessein (architecture §2.9).
+    // Le drapeau doit donc traverser un schéma `response` fermé, sinon il est retiré.
+    profile_public: t.Boolean(),
+  },
   { additionalProperties: false },
 );
 

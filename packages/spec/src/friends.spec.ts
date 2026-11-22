@@ -494,4 +494,60 @@ describe('Phase 28 — Les Amis (architecture §2.9 / base §4.9)', () => {
     expect(blank.status, 'Un pseudo vide après trim ne trouve personne.').toBe(404);
     expect(((await blank.json()) as { code: string }).code).toBe('PLAYER_NOT_FOUND');
   });
+
+  // R-003 — « Un ami n'a pas de lien vers sa vitrine ». Le lien n'est offert que
+  // lorsque la vitrine est publique, donc la charge utile de `/friends` doit porter
+  // le drapeau : sans lui, l'écran ne peut pas distinguer un ami public d'un ami privé
+  // et produirait un lien vers un `404` silencieux (architecture §2.9).
+  interface FriendEntryWithFlag {
+    id: string;
+    player: { id: string; pseudo: string | null; profile_public: boolean };
+  }
+
+  async function friendsWithFlag(cookie: string): Promise<FriendEntryWithFlag[]> {
+    const res = await authFetch('/api/v1/friends', {}, cookie);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { friends: FriendEntryWithFlag[] }).friends;
+  }
+
+  it('19 — GET /friends rend `profile_public`, vrai quand aucune ligne de profil n’existe', async () => {
+    const { a, b } = await acceptedPair('r3-pub');
+
+    const entry = (await friendsWithFlag(a.cookie)).find((item) => item.id === b.userId);
+    expect(entry, 'L’ami accepté doit figurer dans « Mes amis ».').toBeDefined();
+    expect(
+      entry?.player.profile_public,
+      'Sans ligne `user_profiles`, le profil est public : c’est le défaut SQL (base §4.9).',
+    ).toBe(true);
+    expect(
+      typeof entry?.player.profile_public,
+      'Le schéma `response` est fermé : un drapeau non déclaré serait retiré de la charge utile.',
+    ).toBe('boolean');
+
+    await db
+      .insertInto('user_profiles')
+      .values({ user_id: b.userId, bio: null, profile_public: true })
+      .execute();
+
+    const after = (await friendsWithFlag(a.cookie)).find((item) => item.id === b.userId);
+    expect(after?.player.profile_public, 'Une ligne explicite à `true` reste publique.').toBe(true);
+  });
+
+  it('20 — GET /friends rend `profile_public` faux quand la vitrine est fermée', async () => {
+    const { a, b } = await acceptedPair('r3-prv');
+
+    await db
+      .insertInto('user_profiles')
+      .values({ user_id: b.userId, bio: null, profile_public: false })
+      .execute();
+
+    const entry = (await friendsWithFlag(a.cookie)).find((item) => item.id === b.userId);
+    expect(entry?.player.profile_public, 'Un profil fermé doit être rendu `false`.').toBe(false);
+
+    const other = (await friendsWithFlag(b.cookie)).find((item) => item.id === a.userId);
+    expect(
+      other?.player.profile_public,
+      'Le drapeau est celui du joueur visé, pas celui du lecteur.',
+    ).toBe(true);
+  });
 });
