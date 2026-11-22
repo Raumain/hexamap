@@ -9,8 +9,17 @@ import {
   isoWeekRange,
   tableauScore,
 } from '@hexamap/shared';
+import * as migration0019 from '../../db/migrations/0019_tableau_score';
 
 const db = createDb(process.env.DATABASE_URL ?? '');
+
+/**
+ * `up` est typé sur `Kysely<unknown>` — une migration ne connaît pas le schéma
+ * courant, c'est ce qui l'empêche d'en dépendre. Le seul écart avec `db` est un
+ * paramètre de type fantôme : aucun cast de valeur, et le rejeu appelle bien le
+ * module de migration, pas une copie de son SQL.
+ */
+const replay0019 = migration0019.up as unknown as (exec: typeof db) => Promise<void>;
 
 const baseUrl = 'http://localhost:3000';
 const origin = 'http://localhost:5174';
@@ -670,10 +679,15 @@ describe('Phase 42 — le contrat de données du Palmarès', () => {
         await sql`update tableaux set score = null where id = ${id}::uuid`.execute(db);
       }
 
-      // Rejeu réel : la ligne de `kysely_migration` est retirée, `runMigrations`
-      // réapplique `0019_tableau_score` sur la base vivante.
-      await sql`delete from kysely_migration where name = '0019_tableau_score'`.execute(db);
-      await runMigrations(db);
+      // Rejeu réel : `0019_tableau_score` est réappliquée **en direct** sur la base
+      // vivante. La ligne de `kysely_migration` n'est plus retirée : Kysely exige
+      // que les migrations exécutées forment le préfixe de l'ordre du code, et
+      // depuis la phase 43 une `0020_push` suit `0019`. Retirer `0019` de la table
+      // rendait donc la liste non préfixe et faisait lever `corrupted migrations`
+      // avant toute réapplication — le rejeu se fait par le module lui-même, qui
+      // est le seul code concerné et reste idempotent (`if not exists`, remplissage
+      // borné par `score is null`).
+      await replay0019(db);
 
       expect(await readTableauScore(complete.id)).toBe(expectedComplete);
       expect(await readTableauScore(partial.id)).toBe(expectedPartial);
@@ -710,8 +724,7 @@ describe('Phase 42 — le contrat de données du Palmarès', () => {
         where table_name = 'tableaux' and column_name = 'score'
       `.execute(db);
       if (state.rows[0]?.is_nullable !== 'NO') {
-        await sql`delete from kysely_migration where name = '0019_tableau_score'`.execute(db);
-        await runMigrations(db);
+        await replay0019(db);
       }
     }
   });

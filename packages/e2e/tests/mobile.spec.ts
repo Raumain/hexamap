@@ -902,3 +902,41 @@ test.describe('mobile — la boutique retirée', () => {
     await expect(page.getByText("La boutique n'est pas encore ouverte.")).toHaveCount(0);
   });
 });
+
+/**
+ * Phase 43 « La Sonnette » — le message doit correspondre au navigateur, jamais
+ * à un bouton inerte.
+ *
+ * Le cas tourne sur les deux projets tactiles, et c'est voulu : un iPhone non
+ * installé lit la marche à suivre d'iOS, un Android lit que le serveur a éteint
+ * la sonnette (le banc n'a pas de paire VAPID). Chacun asserte **son** état réel ;
+ * aucun cas n'est sauté, et la branche est décidée par l'agent utilisateur que le
+ * navigateur s'attribue vraiment.
+ */
+test.describe('mobile — la Sonnette dit ce que le navigateur peut faire', () => {
+  test('compte — la bascule suit le support réel', async ({ page }) => {
+    await page.goto('/compte', { waitUntil: 'domcontentloaded' });
+
+    const isIos = await page.evaluate(() => /iPad|iPhone|iPod/.test(navigator.userAgent));
+    const state = page.locator('[data-push-state]');
+    const toggle = page.getByRole('button', { name: 'Activer la Sonnette' });
+
+    if (isIos) {
+      // iOS 16.4+ **et** une PWA installée : le banc émule un iPhone non
+      // installé, donc la marche à suivre doit être écrite, pas un bouton mort.
+      await expect(state).toHaveAttribute('data-push-state', 'ios-requires-install');
+      await expect(page.locator('[data-push-message="ios-install"]')).toContainText(
+        'écran d’accueil',
+      );
+      await expect(page.locator('[data-push-message="ios-install"]')).toContainText('16.4');
+      await expect(toggle).toHaveCount(0);
+      return;
+    }
+
+    // Sans paire VAPID, le serveur éteint la sonnette : l'écran le dit, et
+    // n'offre toujours pas de bouton qui ne ferait rien.
+    await expect(state).toHaveAttribute('data-push-state', 'disabled');
+    await expect(page.locator('[data-push-message="disabled"]')).toBeVisible();
+    await expect(toggle).toHaveCount(0);
+  });
+});

@@ -110,6 +110,16 @@ services:
       STRIPE_PRICE_PACK_1200: ${STRIPE_PRICE_PACK_1200:?STRIPE_PRICE_PACK_1200 est obligatoire (boutique ouverte au lancement)}
       STRIPE_PRICE_PACK_2500: ${STRIPE_PRICE_PACK_2500:?STRIPE_PRICE_PACK_2500 est obligatoire (boutique ouverte au lancement)}
       STRIPE_PRICE_PACK_6000: ${STRIPE_PRICE_PACK_6000:?STRIPE_PRICE_PACK_6000 est obligatoire (boutique ouverte au lancement)}
+      # La Sonnette — notifications poussées (`.docs/01-architecture.md` §4.10).
+      # **Facultatives à dessein**, contrairement aux six clés Stripe : une paire
+      # VAPID absente éteint la fonctionnalité proprement (`GET /push/config` rend
+      # `enabled: false`, l'abonnement répond `503 PUSH_DISABLED`, aucun envoi) et
+      # n'arrête pas la pile. Générer la paire avec
+      # `bun run --cwd apps/api vapid:generate` ; elle ne va jamais dans le dépôt.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      PUSH_SWEEP_INTERVAL_MS: ${PUSH_SWEEP_INTERVAL_MS:-60000}
     volumes:
       - blasons:/data/blasons:ro
       - importstatus:/data/import-status:ro

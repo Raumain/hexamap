@@ -15,7 +15,8 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun dist/index.js",
     "typecheck": "tsc --noEmit",
-    "auth:generate": "bunx auth@latest generate --adapter kysely"
+    "auth:generate": "bunx auth@latest generate --adapter kysely",
+    "vapid:generate": "bun src/scripts/vapid.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.3",
@@ -26,9 +27,11 @@
     "elysia": "^1.4.32",
     "kysely": "^0.29.9",
     "stripe": "^18.0.0",
+    "web-push": "^3.6.7",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/web-push": "^3.6.4",
     "kysely-codegen": "^0.20.0"
   }
 }

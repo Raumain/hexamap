@@ -203,6 +203,29 @@ test('installation — les appels d’API ne viennent jamais du cache', async ({
   const health = await page.request.get('/api/v1/health');
   expect(health.status()).toBe(200);
 
+  // En ligne, une **lecture** traverse le worker.
+  const read = await page.evaluate(() => fetch('/api/v1/health').then((res) => res.status));
+  expect(read).toBe(200);
+
+  // En ligne, une **écriture** aussi. Une entrée Workbox ne couvre qu'une seule
+  // méthode, et `POST` porte toutes les mutations Eden : c'est la méthode qu'une
+  // cache laxiste laisserait passer.
+  const posted = await page.evaluate(() =>
+    fetch('/api/v1/health', { method: 'POST' }).then((res) => res.status),
+  );
+  expect(posted).toBeGreaterThanOrEqual(400);
+
+  // Ni l'une ni l'autre n'a laissé de trace : le worker ne met jamais l'API en
+  // cache, quelle que soit la méthode.
+  for (const [name, urls] of Object.entries(await readCaches(page))) {
+    expect(
+      urls.filter((url) => url.includes('/api/')),
+      `Cache ${name}`,
+    ).toHaveLength(0);
+  }
+
+  // Hors ligne, l'API n'est jamais servie : ni par une cache, ni par une autre
+  // route du worker.
   await page.context().setOffline(true);
   try {
     const outcome = await page.evaluate(async () => {
@@ -219,28 +242,24 @@ test('installation — les appels d’API ne viennent jamais du cache', async ({
     await page.context().setOffline(false);
   }
 
-  // Complément statique : le runtime ne peut échantillonner que GET. Les quatre
-  // autres méthodes sont prouvées par le worker généré ; ce couplage à la
-  // sortie de Workbox est accepté et localisé ici.
+  // Complément structurel — et c'est là que le passage à `injectManifest` se
+  // paie. Le worker n'est plus généré par Workbox mais écrit à la main
+  // (`apps/web/src/sw.ts`), donc ses classes sont minifiées et illisibles : on
+  // n'asserte plus le nom `NetworkOnly`, on asserte la **forme** qui porte la
+  // garantie. Une boucle parcourt exactement les cinq méthodes et enregistre,
+  // pour chacune, une route sur `/api/` avec un gestionnaire neuf — et cette
+  // route ne nomme aucune cache. C'est la couverture par méthode qui compte : une
+  // entrée Workbox ne s'applique qu'à une seule méthode HTTP.
   const workerResponse = await page.request.get('/sw.js');
   expect(workerResponse.status()).toBe(200);
 
   const workerSource = await workerResponse.text();
+  const loop = /for\s*\(\s*(?:let|const|var)\s+[\w$]+\s+of\s*\[([^\]]*)\]\s*\)\s*[\w$]+\(/.exec(
+    workerSource,
+  );
+  expect(loop, 'Le worker enregistre une route par méthode').not.toBeNull();
 
-  // Le worker généré est minifié : la classe Workbox y est aliasée et l'appel
-  // sans argument perd ses parenthèses (`new s.NetworkOnly,"GET"`), donc le
-  // motif tolère le préfixe du module et une liste d'arguments vide.
-  const networkOnly = workerSource.match(/new\s+[\w$]*\.?NetworkOnly\b/g) ?? [];
-  expect(
-    networkOnly.length,
-    'Une route NetworkOnly par méthode HTTP, sur /api/',
-  ).toBeGreaterThanOrEqual(5);
-
-  // Et ces cinq routes couvrent réellement les cinq méthodes : une entrée
-  // Workbox ne s'applique qu'à une méthode.
-  const methods = [...workerSource.matchAll(/NetworkOnly\b\)?,\s*"([A-Z]+)"/g)]
-    .map((match) => match[1])
-    .sort();
+  const methods = [...(loop?.[1] ?? '').matchAll(/`([A-Z]+)`/g)].map((match) => match[1]).sort();
   expect(methods, 'Les cinq méthodes HTTP sont couvertes').toEqual([
     'DELETE',
     'GET',
@@ -248,6 +267,16 @@ test('installation — les appels d’API ne viennent jamais du cache', async ({
     'POST',
     'PUT',
   ]);
+
+  // Le bloc de la boucle, isolé du reste du worker : la route des blasons, qui
+  // suit et nomme légitimement une cache, ne doit pas polluer l'assertion.
+  const after = workerSource.slice(loop?.index ?? 0);
+  const boundary = after.indexOf('/blasons/');
+  const block = boundary === -1 ? after.slice(0, 200) : after.slice(0, boundary);
+
+  expect(block, 'La route vise le chemin de l’API').toContain('/api/');
+  expect(block, 'La route de l’API n’ouvre aucune cache').not.toContain('cacheName');
+  expect(block, 'Chaque méthode reçoit un gestionnaire neuf').toContain('new ');
 });
 
 /* ── 5. Repli de navigation hors ligne ───────────────────────────────────── */

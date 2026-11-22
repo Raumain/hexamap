@@ -8,6 +8,7 @@ export * from './packs';
 export * from './palmares';
 export * from './payments';
 export * from './pseudo';
+export * from './push';
 export * from './rarity';
 export * from './reference-codes';
 export * from './scoring';
