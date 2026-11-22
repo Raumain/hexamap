@@ -148,6 +148,12 @@ const outlineButtonClass =
   'inline-flex min-h-10 items-center justify-center rounded-[2px] border border-brass/50 px-4 font-mono text-[10px] uppercase tracking-[0.16em] text-brass transition-colors duration-150 hover:border-brass hover:text-brass-pale disabled:cursor-not-allowed disabled:opacity-40';
 
 export const Route = createFileRoute('/collection')({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { departement?: string; commune?: string } => ({
+    departement: typeof search.departement === 'string' ? search.departement : undefined,
+    commune: typeof search.commune === 'string' ? search.commune : undefined,
+  }),
   component: CollectionPage,
 });
 
