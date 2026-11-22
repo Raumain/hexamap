@@ -312,7 +312,7 @@ function AtlasMap({ viewBox, entities }: AtlasMapProps) {
               fillOpacity={entity.fillOpacity}
               strokeWidth={entity.possessed ? 2 : 0.75}
               vectorEffect="non-scaling-stroke"
-              className={`atlas-entity fill-vellum-2 transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
+              className={`fill-vellum-2 transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
                 entity.possessed ? 'stroke-brass' : 'stroke-veil-strong'
               }`}
             />
