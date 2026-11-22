@@ -54,6 +54,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     $$;
   `.execute(db);
 
+  await sql`drop trigger if exists ref_truncate_guard on ref_regions`.execute(db);
   await sql`drop trigger if exists ref_regions_truncate_guard on ref_regions`.execute(db);
   await sql`
     create trigger ref_truncate_guard
@@ -109,6 +110,7 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await sql`drop trigger if exists ref_odonymes_truncate_guard on ref_odonymes`.execute(db);
   await sql`drop trigger if exists ref_communes_truncate_guard on ref_communes`.execute(db);
   await sql`drop trigger if exists ref_departements_truncate_guard on ref_departements`.execute(db);
+  await sql`drop trigger if exists ref_truncate_guard on ref_regions`.execute(db);
   await sql`drop trigger if exists ref_regions_truncate_guard on ref_regions`.execute(db);
   await sql`drop function if exists orphan_user_cards()`.execute(db);
   await sql`drop function if exists ref_truncate_guard()`.execute(db);

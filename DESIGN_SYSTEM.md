@@ -60,6 +60,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/players/$playerId` | **La Vitrine** | Lire la fiche publique d'un joueur : complétude, meilleur tableau, médailles, annonces, amis. |
 | `/atlas` | **L'Atlas** | Descendre la carte de France : régions, départements, communes, du possédé au couvert. |
 | `/guichet` | **Le Guichet** | Lire ce que le cabinet a laissé : demandes d'ami, ventes, médailles. |
+| `/palmares` | **Le Palmarès** | Lire le classement hebdomadaire des meilleurs tableaux, au score figé à la soumission. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
 
 Le vocabulaire est fixe : un **bordereau** (ticket), une **planche** (carte possédée), un
@@ -573,8 +574,9 @@ rail (§9.1) et dans l'en-tête mobile (§9.2), la salle en est la destination.
   **Le Comptoir** `/market`.
 - Entrées secondaires, plus petites, séparées par un filet :
   **Le Guichet** `/guichet`, **Les Planches** `/tableaux`, **Les Amis** `/friends`,
-  **Mes Offres** `/market/mine`. Le Guichet ouvre la liste : c'est la salle qu'on vient
-  consulter, pas celle où l'on travaille, et la cloche qui la signale est juste au-dessus.
+  **Mes Offres** `/market/mine`, **Le Palmarès** `/palmares`. Le Guichet ouvre la liste :
+  c'est la salle qu'on vient consulter, pas celle où l'on travaille, et la cloche qui la
+  signale est juste au-dessus.
 - État actif : fond `cabinet`, filet gauche de laiton de 2 px, libellé en `vellum`.
   `aria-current="page"`.
 - En bas : la **bourse** (pièce de laiton + « 1 250 écus » en mono) et l'**usager**
@@ -727,7 +729,7 @@ Les titres de salle sont des noms, pas des verbes. « Le Cadastre », pas « Ma 
 | `apps/web/src/routes/*` | les salles |
 
 Ordre de livraison : jetons et polices → coquille → planches → Le Relevé → Le Cadastre →
-La Planche → Le Comptoir → Le Guichet → Le Seuil.
+La Planche → Le Comptoir → Le Guichet → Le Palmarès → Le Seuil.
 
 ---
 
