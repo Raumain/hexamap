@@ -66,3 +66,25 @@ correctifs. Les quatre défauts trouvés en première passe sont corrigés et re
 - **Le niveau régional ne s'ouvre pas** : l'API de la phase 34 n'a pas de route par région. La
   descente est donc département → commune, et les régions sont lues dans la table (nom, possession,
   couverture) sans être interactives. Contrat respecté, pas contourné.
+
+## Reprise — revue du 2026-11-22 (passe hostile)
+
+**Résultat de la table de constats.** Aucun **deal-breaker** après l'annulation du renommage de
+`nav-items.ts` et le retrait de la classe inerte `atlas-entity`. Une **suggestion** :
+`L'Assemblage` / `L'Atlas` — la coquille annonce encore l'ancien nom alors que la salle s'intitule
+« L'Atlas ». Renvoyé à la phase 39, qui possède `components/layout/`.
+
+**Confirmations, avec leur preuve.**
+
+| Point | Preuve |
+| --- | --- |
+| `components/layout/` hors du diff de la phase | `git diff --stat feat/v2-wave-3..HEAD -- apps/web/src/components/layout/` : vide |
+| `collection.tsx` limité à l'exception du brief | diff = `validateSearch` avec deux paramètres optionnels, aucune logique, aucun filtrage ; la salle du Cadastre ignore les deux paramètres |
+| Aucune couleur littérale dans les lignes ajoutées | seuls des jetons (`fill-vellum-2`, `stroke-brass`, `stroke-veil-strong`) et deux nombres en style en ligne (`fillOpacity`, `strokeWidth`) |
+| Aucun gestionnaire de pointeur ni de survol dans `atlas.tsx` | `grep onPointer\|onMouse\|onTouch\|onHover\|addEventListener` : aucun résultat ; ni `tabIndex` sur un tracé |
+| Aucun `skip`, aucun `fixme` | grep sur les cas E2E de la phase : aucun |
+| Aucun texte sous 10 px | chaque `text-[…]` ajouté vaut **10 px** ou **15 px** |
+| SVG purement décoratif | `aria-hidden="true"` + `role="presentation"` + `focusable="false"` |
+
+**Verdict : prêt à livrer**, la dette de la phase 39 nommée ci-dessus (libellé « L'Assemblage » de
+la coquille, à basculer en phase 39, et non un défaut de cette phase).

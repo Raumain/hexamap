@@ -57,7 +57,8 @@ qui est binaire par nature : `100,0 %` ou `0,0 %`).
    aucune logique), sinon TanStack Router refuserait le typage de `search`.
 6. **Mouvement réduit par utilitaire.** `transition-[fill-opacity,stroke] duration-300
    motion-reduce:transition-none` : aucune règle CSS nouvelle, aucun jeton nouveau.
-7. **`nav-items.ts` n'est pas touché** (phase 39). Son libellé `"L'Assemblage"` reste donc dans la
+7. **`nav-items.ts` n'est pas touché** (phase 39 — un renommage tenté plus tard sur cette branche a
+   été annulé, la règle tient donc). Son libellé `"L'Assemblage"` reste donc dans la
    feuille mobile et le titre de salle de la barre ; c'est écrit au journal comme dette de la
    phase 39. La page, elle, s'intitule « L'Atlas ».
 

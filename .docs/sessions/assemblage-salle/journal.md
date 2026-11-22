@@ -144,3 +144,46 @@ communes de », `data-entity-code`). Le référentiel E2E a été resemmé, puis
 2. `packages/shared/src/atlas.ts` ne portait plus qu'une référence textuelle morte à l'ancien nom
    (« salle L'Assemblage »), dans son commentaire de tête : corrigée en « salle L'Atlas », sans
    toucher au contrat.
+
+## Reprise — la coquille rendue intacte, et le rejeu qui suit
+
+**Un commit avait renommé `nav-items.ts`.** Sur cette branche, un commit
+(`2568289 fix(web): renommer l'entrée de salle en L'Atlas`) modifiait
+`apps/web/src/components/layout/nav-items.ts` : le libellé de la salle et les deux clés
+`'/assemblage'` devenaient `'/atlas'`. Ce changement contredisait le brief — `components/layout/`
+appartient à la phase 39 — et le critère d'acceptation 8 ; il cassait aussi en silence le cas E2E
+mobile, qui clique le lien nommé « L'Assemblage » et ne le trouvait plus.
+
+**Il a été annulé** (`55af7e8 revert(web): rendre la coquille intacte à la phase 39`). La coquille
+annonce donc toujours « L'Assemblage » alors que la salle s'intitule « L'Atlas », et `/assemblage`
+redirige vers `/atlas`. C'est la dette de la phase 39, désormais réellement intacte :
+`git diff --stat feat/v2-wave-3..HEAD -- apps/web/src/components/layout/` est vide.
+
+**La classe inerte a été retirée.** `apps/web/src/routes/atlas.tsx` portait encore `atlas-entity`
+sur ses tracés, sans qu'aucune règle de `styles.css` ne la définisse. La note de reprise
+précédente l'avait laissée faute de bail d'édition ; elle est supprimée (`64b4528 fix(web):
+retirer une classe de L'Atlas sans règle CSS`). Aucun comportement n'en dépendait.
+
+**Rejeu des deux preuves, dans Docker.**
+
+```
+docker compose --profile tools run --rm \
+  -e TEST_DATABASE_URL='postgres://hexamap:hexamap@db:5432/hexamap_test_35' \
+  dev bun run ci:check
+
+  ✓ 1/4 Lint · ✓ 2/4 Typecheck · ✓ 3/4 Base de données · ✓ 4/4 Spécifications
+  408 pass, 0 fail, 22 files  (2534 expect() calls)
+
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+
+  90 passed, 0 failed, 0 skipped  (2,2 min)
+  chromium 43 · pwa 7 · Pixel 7 20 · iPhone 13 20
+```
+
+Le cas `mobile — l'ancienne salle de l'Assemblage mène à L'Atlas` passe sur les deux projets
+mobiles.
+
+**Portée de cette passe.** Aucun cas de spécification, aucun cas E2E et aucun `skip` n'a été
+touché ; `packages/spec` est intact. Seuls `nav-items.ts` (annulation) et `atlas.tsx` (retrait de
+la classe) ont changé depuis la reprise précédente.
