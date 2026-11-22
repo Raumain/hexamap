@@ -76,6 +76,14 @@ export const auth = betterAuth({
   // Le changement de courriel passe par un lien signé : aucune colonne
   // `pendingEmail` n'existe, c'est l'ouverture du lien qui écrit. L'inscription
   // n'envoie rien (`sendOnSignUp: false`) : elle garde son comportement actuel.
+  //
+  // Ce rappel reste branché après R-001, et c'est un constat, pas un oubli : son
+  // unique consommateur est le flux `changeEmail` de Better Auth. La
+  // réinitialisation de mot de passe ne l'utilise pas — `sendResetPassword`
+  // n'existe nulle part dans le dépôt, aucune route de réinitialisation n'est
+  // montée — et `sendChangeEmailVerification` non plus. Le débrancher laisserait
+  // donc `POST /api/v1/account/email` sans aucun chemin d'application, alors que
+  // `packages/spec/src/account.spec.ts` gèle encore ce flux.
   emailVerification: {
     expiresIn: 3600,
     sendOnSignUp: false,

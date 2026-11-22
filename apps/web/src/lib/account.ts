@@ -155,7 +155,12 @@ export function accountProfileQueryOptions() {
 export interface AccountCapabilities {
   /** La fermeture de compte est-elle ouverte côté serveur ? */
   readonly deletion: boolean;
-  /** Un courriel de vérification peut-il réellement partir ? */
+  /**
+   * La capacité de vérification d'adresse, rendue par le serveur et **toujours
+   * `false`** depuis R-001 : le produit n'a aucun transport de courriel. La clé
+   * reste au contrat pour qu'aucun écran n'ait à apprendre son absence par un
+   * champ manquant, et aucun écran ne décide plus en fonction d'elle.
+   */
   readonly emailVerification: boolean;
 }
 
