@@ -309,7 +309,20 @@ launch() {
     warn "phase $phase : aucun commit au-delà de $parent — la session n'a rien livré"
     return 1
   fi
-  log "phase $phase : $commits commit(s) au-delà de $parent"
+
+  # Le complément du garde-fou précédent : une session peut aussi laisser du travail sur le
+  # disque sans le committer. `ci:check` le voit et passe au vert, la fusion ne transporte que
+  # la branche, et le travail disparaît en silence (phase 35, vague 4 : la salle Atlas entière
+  # était dans le worktree, non committée). Le worktree doit donc être propre pour accumuler.
+  local dirty
+  dirty=$(git -C "$wt" status --porcelain 2>/dev/null || true)
+  if [ -n "$dirty" ]; then
+    warn "phase $phase : worktree non propre, ce travail serait perdu à la fusion :"
+    printf '%s\n' "$dirty" >&2
+    return 1
+  fi
+
+  log "phase $phase : $commits commit(s) au-delà de $parent, worktree propre"
 }
 
 # ---------------------------------------------------------------- PR de phase
