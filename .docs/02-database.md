@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-20.
+> Dernière mise à jour : 2026-11-22.
 
 ---
 
@@ -36,6 +36,7 @@
 | `user_profiles`, index `user_pseudo_lower_idx` | **Migrée** | `packages/db/migrations/0012_profiles.ts` |
 | Index `currency_ledger_purchase_uniq` | **Migrée** | `packages/db/migrations/0013_shop.ts` |
 | Gardes d'intégrité du référentiel : `ref_truncate_guard()` (3 triggers `BEFORE TRUNCATE`), `orphan_user_cards()` | **Migrée** | `packages/db/migrations/0014_ref_integrity.ts` |
+| `path_d text` sur `ref_regions`, `ref_departements` et `ref_communes` | **Migrée** (2026-11-22) | `packages/db/migrations/0015_atlas_paths.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -414,7 +415,8 @@ create table ref_regions (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text
 );
 
 create table ref_departements (
@@ -425,7 +427,8 @@ create table ref_departements (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text
 );
 
 create index ref_departements_region_idx on ref_departements (code_region);
@@ -446,7 +449,8 @@ create table ref_communes (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text
 );
 
 create index ref_communes_rarete_bucket_idx on ref_communes (rarete, draw_bucket);
@@ -481,6 +485,14 @@ image n'a pu être importée. `blason_credit` est l'attribution obligatoire au f
 `<licence> · <auteur> · Wikimedia Commons`, `NULL` quand aucun blason n'est associé. Les trois
 colonnes sont nullable : Wikidata ne référence pas de blason pour toutes les entités, et
 `contour_url` n'est rempli que pour les communes sans armoiries (repli géographique IGN).
+
+`path_d` est le tracé SVG de l'entité, **dérivé de `geom`** et écrit une seule fois au moment de
+l'import ; il n'est **jamais** calculé au runtime, ni côté API ni côté navigateur. `NULL` quand
+la géométrie est absente, invalide, ou hors du `viewBox` métropolitain. Le contrat de projection
+est unique et partagé par les trois tables : **Mercator sphérique (EPSG:3857)**, `R = 6 378 137`,
+cadré sur l'emprise métropolitaine lon `[−5,5 ; 9,9]` / lat `[41,2 ; 51,3]`, rendu dans le
+`viewBox` **`0 0 1000 1000`** avec `y` inversé, échelle uniforme et centrage. Aucun index : la
+colonne se lit par clé primaire, elle ne se filtre pas.
 
 ### 5.1 Intégrité du référentiel (migration `0014_ref_integrity`)
 
@@ -728,6 +740,7 @@ export interface RefRegionTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
 }
 
 export interface RefDepartementTable {
@@ -739,6 +752,7 @@ export interface RefDepartementTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
 }
 
 export interface RefCommuneTable {
@@ -756,6 +770,7 @@ export interface RefCommuneTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
 }
 
 export interface RefOdonymeTable {
@@ -833,6 +848,12 @@ export interface Database {
 - **Aucune table de référentiel citée par une carte ne peut être vidée** : `TRUNCATE
   ref_regions|ref_departements|ref_communes|ref_odonymes` lève `23503` dès qu'une ligne de
   `user_cards` porte la catégorie correspondante (`0014_ref_integrity`).
+- **`path_d` n'est jamais calculé au runtime.** Il est dérivé de `geom` une seule fois, à l'import,
+  et se lit ensuite tel quel : ni l'API ni le navigateur ne projettent ni ne simplifient une
+  géométrie.
+- **Une entité d'outre-mer porte `path_d = NULL`.** La règle est géométrique, pas une liste de
+  codes : le `viewBox` partagé est métropolitain, donc une géométrie dont la bbox est disjointe de
+  `[0, 1000]²` est classée `out_of_viewbox` et ne rend aucun tracé.
 - **Un élagage de référentiel ne supprime jamais une ligne citée.** `--merge` élague une ligne
   périmée seulement si aucune carte ne la cite ; une ligne conservée pour cette raison est
   comptée dans `PruneResult.preserved`.

@@ -9,6 +9,7 @@
 
 import { createDb } from '@hexamap/db';
 import { RARITY, type Rarity } from '@hexamap/shared';
+import { type AtlasLevel, geometryToPathD } from './atlas-projection';
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -25,6 +26,52 @@ const regionB = `${PREFIX}-R2`;
 const deptA = `${PREFIX}-D1`;
 const deptB = `${PREFIX}-D2`;
 
+interface SeedPolygon {
+  type: 'Polygon';
+  coordinates: number[][][];
+}
+
+/**
+ * Quadrilatère **métropolitain** déterministe : 0,04° de côté, posé sur une
+ * trame au pas de 0,05° autour de 2,0 °E / 47,0 °N. Deux entités ne se
+ * chevauchent donc jamais, et deux semis produisent exactement la même
+ * géométrie — donc le même `path_d`. Aucun aléatoire, aucune géométrie
+ * d'outre-mer : le banc doit pouvoir mesurer l'atlas.
+ */
+function seedPolygon(index: number): SeedPolygon {
+  const lon = 2 + (index % 20) * 0.05;
+  const lat = 47 + Math.floor(index / 20) * 0.05;
+  const half = 0.02;
+
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [lon - half, lat - half],
+        [lon + half, lat - half],
+        [lon + half, lat + half],
+        [lon - half, lat + half],
+        [lon - half, lat - half],
+      ],
+    ],
+  };
+}
+
+/** `geom` et `path_d` d'une entité : le tracé vient du module pur, jamais d'ici. */
+function seedAtlas(index: number, level: AtlasLevel): { geom: SeedPolygon; path_d: string } {
+  const geometry = seedPolygon(index);
+  const pathD = geometryToPathD(geometry, level);
+
+  if (pathD === null) {
+    throw new Error(`[e2e] géométrie non projetable à l’indice ${index} (${level})`);
+  }
+
+  // La colonne est `jsonb` : c'est l'objet GeoJSON qui est passé, jamais sa
+  // sérialisation — une chaîne serait stockée comme *chaîne jsonb*, et la
+  // géométrie deviendrait illisible pour l'étape atlas.
+  return { geom: geometry, path_d: pathD };
+}
+
 try {
   // Idempotent : on repart d'un référentiel E2E propre.
   await db.deleteFrom('commune_odonymes').execute();
@@ -33,45 +80,25 @@ try {
   await db.deleteFrom('ref_departements').where('code', 'like', `${PREFIX}-%`).execute();
   await db.deleteFrom('ref_regions').where('code', 'like', `${PREFIX}-%`).execute();
 
-  await db
-    .insertInto('ref_regions')
-    .values([
-      {
-        code: regionA,
-        nom: 'Région E2E A',
-        blason_url: `/blasons/regions/${regionA}.svg`,
-        blason_credit: 'CC0 · Fixture E2E · Hexamap',
-      },
-      {
-        code: regionB,
-        nom: 'Région E2E B',
-        blason_url: `/blasons/regions/${regionB}.svg`,
-        blason_credit: 'CC0 · Fixture E2E · Hexamap',
-      },
-    ])
-    .execute();
+  const regions = [regionA, regionB].map((code, index) => ({
+    code,
+    nom: code === regionA ? 'Région E2E A' : 'Région E2E B',
+    blason_url: `/blasons/regions/${code}.svg`,
+    blason_credit: 'CC0 · Fixture E2E · Hexamap',
+    ...seedAtlas(index, 'REGION'),
+  }));
+  await db.insertInto('ref_regions').values(regions).execute();
 
-  await db
-    .insertInto('ref_departements')
-    .values([
-      {
-        code: deptA,
-        nom: 'Département E2E A',
-        code_region: regionA,
-        population: 1_000_000,
-        blason_url: `/blasons/departements/${deptA}.svg`,
-        blason_credit: 'CC0 · Fixture E2E · Hexamap',
-      },
-      {
-        code: deptB,
-        nom: 'Département E2E B',
-        code_region: regionB,
-        population: 500_000,
-        blason_url: `/blasons/departements/${deptB}.svg`,
-        blason_credit: 'CC0 · Fixture E2E · Hexamap',
-      },
-    ])
-    .execute();
+  const departements = [deptA, deptB].map((code, index) => ({
+    code,
+    nom: code === deptA ? 'Département E2E A' : 'Département E2E B',
+    code_region: code === deptA ? regionA : regionB,
+    population: code === deptA ? 1_000_000 : 500_000,
+    blason_url: `/blasons/departements/${code}.svg`,
+    blason_credit: 'CC0 · Fixture E2E · Hexamap',
+    ...seedAtlas(2 + index, 'DEPARTEMENT'),
+  }));
+  await db.insertInto('ref_departements').values(departements).execute();
 
   const communes = RARITY.flatMap((rarete: Rarity, rarityIndex: number) =>
     [0, 1].map((district) => {
@@ -90,6 +117,7 @@ try {
         // être mesuré (le blason est une zone réservée de la composition).
         blason_url: `/blasons/communes/${codeInsee}.svg`,
         blason_credit: 'CC0 · Fixture E2E · Hexamap',
+        ...seedAtlas(4 + rarityIndex * 2 + district, 'COMMUNE'),
       };
     }),
   );
