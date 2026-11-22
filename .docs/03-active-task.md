@@ -74,17 +74,22 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 1. **Réinstallation des dépendances après une fusion** — une fusion qui touche `package.json` ou le
    verrou laissait un `node_modules` périmé, et la phase suivante échouait au typecheck.
-2. **Réutilisation d'un worktree existant à la reprise** — une reprise recréait un worktree au lieu
-   de reprendre celui de la phase interrompue, et perdait son travail en vrac.
+2. **Réutilisation d'un worktree existant à la reprise** — `--keep` laissait les worktrees en
+   place ; une relance retrouvait le chemin occupé et `git worktree add` échouait en `fatal: already
+   used by worktree`, alors que le lanceur venait d'annoncer « reprise ». L'arbre est désormais
+   réutilisé quand il est déjà monté sur la branche demandée.
 3. **Migrations sérialisées et base préparée avant les workers** — `runMigrations` prend un
    `pg_advisory_lock` tenu sur une seule connexion, et la base de test est préparée une fois,
    sérialement, avant que les fichiers de spec ne s'exécutent en parallèle.
 4. **`prepare` renommé `db:prepare`** — `prepare` est un crochet de cycle de vie npm : le nommer
    ainsi le faisait exécuter par tout `bun install`, et cassait le build de l'image.
-5. **Refus d'une phase sans commit** — une session qui rendait un worktree modifié mais non
-   committé était acceptée en silence ; elle est désormais refusée.
-6. **Refus d'un worktree non propre** — un worktree portant des modifications étrangères est refusé
-   au démarrage au lieu d'être mélangé à la phase.
+5. **Refus d'une phase sans commit** — une session qui rendait la main sans avoir committé laissait
+   une branche identique à sa base, où `ci:check` est vert parce qu'il n'y a rien à casser. Le
+   lanceur compte désormais les commits au-delà de la branche de base et refuse la phase à zéro.
+6. **Refus d'accumuler un worktree non propre** — le complément du précédent : une session peut
+   aussi laisser du travail **sur le disque**. `ci:check` le voit et passe au vert, la fusion ne
+   transporte que la branche, et le travail disparaît. Le contrôle a lieu **après la session et
+   avant l'accumulation**, et nomme les fichiers en cause.
 7. **Message de conflit de fusion corrigé** — le message annonçait une résolution qui n'avait pas
    eu lieu (voir la session, plus bas).
 8. **Interdiction de finir un tour en attendant un sous-agent** — une session qui s'arrêtait en
