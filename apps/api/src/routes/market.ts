@@ -10,6 +10,7 @@ import {
   resolveCardAssets,
   resolveCardNoms,
 } from '../services/draw';
+import { emitNotification } from '../services/notifications';
 
 const categorySchema = t.Union([
   t.Literal('REGION'),
@@ -392,7 +393,7 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
           // tout interblocage entre deux achats croisés.
           const lockedUsers = await trx
             .selectFrom('user')
-            .select(['id', 'currency'])
+            .select(['id', 'currency', 'pseudo'])
             .where('id', 'in', [user.id, listing.seller_id])
             .orderBy('id')
             .forUpdate()
@@ -449,6 +450,21 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
               { user_id: seller.id, delta: listing.price, reason: 'MARKET_SELL' },
             ])
             .execute();
+
+          // Le vendeur apprend la vente, l'acheteur son achat, dans la même
+          // transaction : aucune notification ne survit à un achat annulé.
+          await emitNotification(trx, {
+            userId: seller.id,
+            kind: 'MARKET_SOLD',
+            ref: listing.id,
+            payload: { listingId: listing.id, price: listing.price, buyerPseudo: buyer.pseudo },
+          });
+          await emitNotification(trx, {
+            userId: buyer.id,
+            kind: 'MARKET_BOUGHT',
+            ref: listing.id,
+            payload: { listingId: listing.id, price: listing.price },
+          });
 
           await trx
             .updateTable('user_cards')

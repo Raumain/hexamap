@@ -6,6 +6,7 @@ import { useSession } from '../../lib/session';
 import { BottomTabBar } from './bottom-tab-bar';
 import { HexSeal } from './hex-seal';
 import { salonForPath } from './nav-items';
+import { NotificationBell } from './notification-bell';
 import { PwaUpdatePrompt } from './pwa-update-prompt';
 import { Sidebar } from './sidebar';
 
@@ -23,20 +24,23 @@ function MobileHeader() {
             {salonForPath(pathname)}
           </span>
         </Link>
-        {user ? (
-          <span className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] font-medium tabular-nums text-brass">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-brass" />
-            {priceLabel(user.currency ?? 0)}
-            <span className="sr-only">{CURRENCY.label}</span>
-          </span>
-        ) : (
-          <Link
-            to="/login"
-            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-brass"
-          >
-            Entrer
-          </Link>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          <NotificationBell />
+          {user ? (
+            <span className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] font-medium tabular-nums text-brass">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brass" />
+              {priceLabel(user.currency ?? 0)}
+              <span className="sr-only">{CURRENCY.label}</span>
+            </span>
+          ) : (
+            <Link
+              to="/login"
+              className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-brass"
+            >
+              Entrer
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
