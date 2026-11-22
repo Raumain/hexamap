@@ -20,4 +20,11 @@ export const PLAYER_PROFILE = {
   friendFriends: 'Amis',
   friendUnavailable: 'Indisponible',
   pts: 'pts',
+  bestTableauCardsLabel: 'Les quatre planches',
+  bestTableauSlotEmpty: 'Emplacement vide',
 } as const;
+
+export function bestTableauLinksLabel(links: number): string {
+  if (links <= 0) return 'Aucun lien d’alignement';
+  return links === 1 ? '1 lien d’alignement' : `${links} liens d’alignement`;
+}
