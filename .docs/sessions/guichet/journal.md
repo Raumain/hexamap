@@ -125,6 +125,39 @@ fermée ». 82 + 2 = 84, et aucun cas existant n'a bougé.
   `more-sheet.tsx` et `alignment-connector.tsx`.** Ce sont des fichiers des phases 36 à 38, hors
   périmètre ; les fichiers créés par cette phase sont tous remontés à 10 px. Consigné, pas corrigé.
 
+## Reprise — revérification indépendante du 2026-11-22
+
+La session de reprise n'a trouvé **rien à coder** : la branche `feat/v2-39-guichet` était déjà
+poussée (`eb163bf`, en phase avec l'origine) et la PR **#64** ouverte en brouillon sur
+`feat/v2-wave-3`. Son travail a donc été de **rejouer la preuve**, pas de refaire la phase.
+`review.md` signalait explicitement n'avoir exécuté ni `ci:check` ni le banc : c'est ce trou qui est
+comblé ici.
+
+`ci:check` rejoué depuis ce worktree, base `hexamap_test_39` :
+
+```
+✓ 1/4 Lint
+✓ 2/4 Typecheck
+✓ 3/4 Base de données
+✓ 4/4 Spécifications   418 pass, 0 fail, 2 640 expect(), 23 fichiers
+```
+
+Les dix cas de `packages/spec/src/notifications.spec.ts` sont **vus passer**, cas 0 à 9, dont le
+rejeu (cas 3) et la purge à 90 jours (cas 7). Les neuf critères d'acceptation ont été revérifiés un
+par un sur le code livré : aucun `CHECK` sur `kind` (`0016_notifications.ts`, colonne
+`kind text not null` nue), `NOTIFICATION_KINDS` fermé dans `packages/shared`, parité avec le type
+Kysely assertée par le cas 0, purge en SQL (`created_at < now() - interval '90 days'`) bornée à
+`user_id`, quatre routes sous `authPlugin`, cloche sans `useState` ni compteur local
+(`unreadQuery.data?.unread`), sondage `60_000` + `refetchOnWindowFocus`, aucun `EventSource` /
+`WebSocket` dans `apps/web/src`, garde anonyme `Navigate to="/login"` dans la salle.
+
+**Ce que la reprise n'a pas rejoué : le banc E2E.** La pile `hexamap-e2e` (nom de projet, volumes et
+tag d'image fixes) était **occupée par une autre session de la vague** au moment de la reprise —
+quatre conteneurs `hexamap-e2e-*` `Up`, dont un `playwright-run` actif. Le lancer en parallèle
+aurait écrasé son image et son volume. Les **84 cas verts** consignés plus haut restent donc la
+preuve de la session d'origine, non reproduite ici ; `packages/e2e/tests/guichet.spec.ts` porte bien
+ses deux cas sans `skip`, `only` ni `fixme`.
+
 ## Ce que cette session n'a pas prouvé
 
 - Aucun rendu navigateur n'a été observé à l'œil par l'orchestrateur : l'agent web a vérifié que
