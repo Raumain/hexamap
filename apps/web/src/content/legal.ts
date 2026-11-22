@@ -12,10 +12,11 @@ export const PUBLISHER = {
   siren: '[SIREN À COMPLÉTER]',
 } as const;
 
-// Les trois documents restent rédigés et versionnés ; cet interrupteur les retire
-// du site tant que l'identité de l'éditeur (SIREN, domicile, téléphone) n'est pas
-// renseignée. Le repasser à `true` suffit à les rallumer.
-export const LEGAL_PAGES_ENABLED = false;
+// Les trois documents sont rédigés et versionnés ; cet interrupteur les publie.
+// L'identité de l'éditeur reste en repères `[À COMPLÉTER]` dans `PUBLISHER`, et
+// `LEGAL_BANNER` l'annonce en tête de chaque page : les documents sont publiés
+// **provisoirement**, à compléter avant la mise en vente.
+export const LEGAL_PAGES_ENABLED = true;
 
 const CONSUMER_MEDIATOR = '[MÉDIATEUR DE LA CONSOMMATION À COMPLÉTER — nom, adresse et site]';
 
