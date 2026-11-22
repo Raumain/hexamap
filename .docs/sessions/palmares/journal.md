@@ -107,3 +107,50 @@ dans la semaine, et la salle les rend sans jamais lier le cartel d'un autre joue
 `main`, l'arbre principal, `.docs/03-active-task.md`,
 `packages/db/src/types.generated.ts`, et aucune assertion de `packages/spec` hors du fichier neuf
 `packages/spec/src/palmares.spec.ts`. Aucun `skip`, aucun délai relâché.
+
+## La revue hostile, et le rejeu des preuves
+
+La reprise avait livré le code, les specs et l'E2E, mais **pas** de `.docs/sessions/palmares/review.md` :
+l'étape de relecture manquait, et les chiffres du journal étaient hérités de la session morte. Les
+deux manques ont été comblés dans la même session.
+
+**La revue** (`.docs/sessions/palmares/review.md`) est une passe séparée sur le diff, commit par
+commit, plus le service, la route, la salle, la migration et les deux fichiers de tests. Verdict :
+**prêt à livrer**, aucun `deal-breaker`. Neuf points restent, tous `suggestion` : lien de cartel mort
+après la vente d'une carte classée, `limit` non borné dans le service (la route le borne), deux
+identifiants de tiers publiés mais irrésolubles, salle limitée à la semaine courante et 20 lignes
+alors que `total` est annoncé, aucun index pour la requête hebdomadaire, deux cas de spec non isolés
+dans une semaine dédiée, rejeu de `0019` sur un schéma partagé, E2E cumulatif, et un `created_at`
+absent de la charge utile de la salle qui empêche l'E2E d'asserter le départage lui-même. Aucune de
+ces suggestions ne viole une règle écrite ; elles sont écrites pour ne pas être redécouvertes.
+
+**Les preuves ont été rejouées, pas reprises du journal.**
+
+```sh
+docker compose -p hexamap --profile tools run --rm \
+  -e TEST_DATABASE_URL='postgres://hexamap:hexamap@db:5432/hexamap_test_42' \
+  dev bun run ci:check
+  ✓ 1/4 Lint   ✓ 2/4 Typecheck   ✓ 3/4 Base de données   ✓ 4/4 Spécifications
+  506 pass, 0 fail, 3122 expect() calls, 27 files (37.73s)
+  [hexamap] ✓ Gatekeeper vert.
+```
+
+Le rejeu de la migration s'y lit deux fois :
+`column "score" of relation "tableaux" already exists, skipping`, puis
+`[db] migration 0019_tableau_score appliquée` — la rejouabilité est constatée, pas supposée.
+
+```sh
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  103 passed (3.2m), 0 échoué, 0 ignoré
+
+docker compose -f docker-compose.e2e.yml run --rm playwright \
+  npx --no-install playwright test tests/palmares.spec.ts
+  1 passed (9.4s)
+  [e2e] entrées étrangères classées : 16
+```
+
+Le compteur est passé de 12 à 16 entre deux sessions : c'est exactement la croissance que la revue
+signale comme fragilité du banc (chaque passage laisse deux tableaux de plus dans la semaine
+courante), observée plutôt que supposée. Le cas tient encore avec `limit=100` ; il faudra l'isoler
+le jour où la semaine sera assez chargée pour dépasser la page.
