@@ -58,6 +58,7 @@ Chaque route est une salle nommée. Le nom de salle est un titre, pas un libell�
 | `/market/mine` | **Mes Offres** | Suivre et retirer ses propres lots. |
 | `/card/$cardId` | **Le Cartel** | Lire la fiche complète d'une planche : cartel, lieu, réserves, mise à l'offre. |
 | `/players/$playerId` | **La Vitrine** | Lire la fiche publique d'un joueur : complétude, meilleur tableau, médailles, annonces, amis. |
+| `/guichet` | **Le Guichet** | Lire ce que le cabinet a laissé : demandes d'ami, ventes, médailles. |
 | `/login`, `/register` | **Le Seuil** | Entrer dans le cabinet. |
 
 Le vocabulaire est fixe : un **bordereau** (ticket), une **planche** (carte possédée), un
@@ -520,6 +521,42 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   `grid` d'un ticket ni la Pépite (§2.6).
 - Une vitrine privée répond `404` : un `403` confirmerait l'existence du compte.
 
+### 8.9 Le Guichet — `/guichet`
+
+Le **guichet des avis** : ce que le cabinet a laissé au joueur, dans une salle unique. Elle
+appartient à la coquille (`components/layout/`), pas à une fonctionnalité : la cloche vit dans le
+rail (§9.1) et dans l'en-tête mobile (§9.2), la salle en est la destination.
+
+- **La cloche suit le serveur, jamais un compteur local.** `notification-bell.tsx` lit
+  `GET /api/v1/notifications/unread-count` (`sondage 60 s` + `refetchOnWindowFocus`) et rend
+  `unread` tel quel. Aucun `useState`, aucun décrément optimiste, aucune mémoire locale : un
+  rechargement de page ne peut pas afficher un chiffre que le serveur n'a pas donné. La
+  pastille affiche la valeur **plafonnée à 99** (`GUICHIET.bell.cap`) ; le libellé accessible et
+  la région `aria-live` annoncent la valeur exacte, la pastille ne faisant que la montrer.
+- **La pastille est en laiton, jamais une couleur de rareté.** C'est un compteur d'attention,
+  pas un palier : `bg-brass`, encre `cabinet`, mono tabulaire 9 px. Aucune teinte de métal
+  n'entre dans la cloche.
+- **Neuf `kind` groupés, un ordre fixe.** La salle liste `NOTIFICATION_KINDS` : demandes d'ami,
+  amitiés acceptées, médailles, ventes, achats, puis les quatre `TRADE_*` — déclarés et rendus
+  dès aujourd'hui, **émis par la phase du troc**. Les sections vides ne rendent rien ; un `kind`
+  hors liste tombe dans « Autres avis » au lieu de casser le rendu.
+- **Le `payload` décide de ce que dit une ligne.** Pseudo, prix, libellé de médaille, `playerId`
+  viennent de la charge utile serveur ; une clé absente ou d'un type inattendu rend le repli
+  français (« un joueur », « une médaille ») et ne lève jamais. Les `TRADE_*` se rendent sans
+  lire leur charge utile : la forme appartient à la phase suivante.
+- **L'état vide est honnête.** Un carton nomme ce que le guichet remettra — une demande d'ami,
+  une vente au Comptoir, une médaille frappée — et dit qu'il n'y a rien à dépouiller. Aucune
+  planche n'est dessinée pour meubler : le Guichet ne rend **aucune** carte.
+- **« Tout marquer comme lu »** n'apparaît qu'avec au moins un avis non lu, et son retour passe
+  par la zone `aria-live` de la salle. Chaque ligne non lue porte un point laiton et son bouton
+  **Marquer comme lu** ; le compteur affiché vient de la page serveur, jamais du nombre de
+  lignes rendues. Une action est une mutation suivie d'invalidation : la cloche et la liste se
+  relisent, aucune retouche locale.
+- **Afficher plus** suit le curseur `nextCursor` ; la pagination est un keyset, elle ne numérote
+  pas de page. Date relative sous la semaine, absolue au-delà, en mono 9 px.
+- Sans session, la salle renvoie au Seuil ; une session illisible montre `SessionUnavailable`
+  (§4.5). Cibles tactiles de 44 px, aucun défilement horizontal à 390 px.
+
 ---
 
 ## 9. Navigation
@@ -528,12 +565,15 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
 
 - Largeur 232 px, fond `cabinet-raised`, filet droit `veil`, fixe.
 - En haut : **le sceau** — un hexagone gravé de 28 px + « HEXAMAP » en mono 11 px
-  lettres espacées, puis « Cabinet de cartographie » en Fraunces italique 12 px.
+  lettres espacées, puis « Cabinet de cartographie » en Fraunces italique 12 px. À droite du
+  sceau, **la cloche du Guichet** (§8.9) : elle appartient à l'en-tête du rail, pas à la liste.
 - Entrées principales, avec un glyphe SVG de 16 px et un libellé :
   **Le Relevé** `/`, **Le Cadastre** `/collection`, **La Planche** `/tableau`,
   **Le Comptoir** `/market`.
 - Entrées secondaires, plus petites, séparées par un filet :
-  **Les Planches** `/tableaux`, **Les Amis** `/friends`, **Mes Offres** `/market/mine`.
+  **Le Guichet** `/guichet`, **Les Planches** `/tableaux`, **Les Amis** `/friends`,
+  **Mes Offres** `/market/mine`. Le Guichet ouvre la liste : c'est la salle qu'on vient
+  consulter, pas celle où l'on travaille, et la cloche qui la signale est juste au-dessus.
 - État actif : fond `cabinet`, filet gauche de laiton de 2 px, libellé en `vellum`.
   `aria-current="page"`.
 - En bas : la **bourse** (pièce de laiton + « 1 250 écus » en mono) et l'**usager**
@@ -542,7 +582,7 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
 ### 9.2 Barre de salle — mobile
 
 - En-tête collant de 56 px : sceau + nom de la salle courante en Fraunces 17 px, à droite
-  la bourse compacte. `pt-[env(safe-area-inset-top)]`, et
+  **la cloche du Guichet** puis la bourse compacte. `pt-[env(safe-area-inset-top)]`, et
   `pl-[max(1rem,env(safe-area-inset-left))]` sur la rangée.
 - Barre basse de 64 px, **cinq cibles** de 44 px minimum, glyphe + libellé court : les
   quatre salles principales (`Relevé`, `Cadastre`, `Planche`, `Comptoir`) et le contrôle
@@ -553,7 +593,13 @@ tuiles, meilleur tableau (score et `×N`), médailles en clés nues, annonces et
   `aria-modal="true"`, recouvre la barre, `rounded-t-panel`, `bg-cabinet-raised`, poignée,
   titre « Autres salles », les entrées de `SECONDARY_NAV` à `min-h-[44px]`,
   `aria-current="page"` sur la salle courante seulement. Fermeture par Échap, par le voile
-  et par le bouton ; le focus revient au contrôle.
+  et par le bouton ; le focus revient au contrôle. **Le Guichet y figure par construction** :
+  la feuille lit `SECONDARY_NAV`, où la salle est la première entrée (§9.1), donc aucune
+  seconde liste n'est à tenir.
+- **La cloche vit dans l'en-tête mobile, pas dans un sixième onglet.** La barre basse garde
+  ses quatre salles principales et le contrôle `Plus` : un onglet de plus aurait réduit chaque
+  cible sous 44 px et fait du Guichet une salle de travail. La cloche de l'en-tête porte le
+  compteur, le `Plus` porte la salle.
 - **Le contrôle `Plus` n'apparaît qu'avec une session ouverte**, comme le bloc de
   navigation du rail : les salles secondaires vivent dans le rail sur bureau (§9.1) et
   dans la feuille sur mobile.
@@ -680,7 +726,7 @@ Les titres de salle sont des noms, pas des verbes. « Le Cadastre », pas « Ma 
 | `apps/web/src/routes/*` | les salles |
 
 Ordre de livraison : jetons et polices → coquille → planches → Le Relevé → Le Cadastre →
-La Planche → Le Comptoir → Le Seuil.
+La Planche → Le Comptoir → Le Guichet → Le Seuil.
 
 ---
 
