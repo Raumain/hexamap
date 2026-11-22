@@ -50,8 +50,9 @@ avant d'être codée, pour que l'ordre des phases soit une décision et non une 
 
 Par ordre de dépendance :
 
-1. **Track A2 de `ROADMAP.md`** — importer le référentiel en production. Sans lui, la phase 33
-   n'a rien à projeter et la carte rend une image vide chez le joueur réel.
+1. **Track A2 — levé le 2026-11-22.** Référentiel importé manuellement en production (déclaration
+   du titulaire, non revérifiée depuis cette machine). Il reste que la donnée vit dans les volumes :
+   un volume neuf exige un réimport.
 2. **Pages légales** — `LEGAL_PAGES_ENABLED = true` avec le texte définitif avant la phase 37 : on
    ne publie pas une suppression de compte dont la politique de confidentialité répond `404`.
 3. **Phase 32 — Le Socle** : découpage par route, fermeture de BUG-001, BUG-002 et BUG-003,
@@ -73,9 +74,9 @@ docker compose --profile tools run --rm dev bun run ci:check
   ✓ 4/4 Spécifications  343 pass, 0 fail, 18 fichiers
 ```
 
-Trois passages consécutifs ont rendu **1 977**, **1 983** puis **1 986** `expect()` pour 343 tests
-et 18 fichiers : le compte d'assertions n'est pas un invariant, certaines vivant dans une boucle sur
-le référentiel. Les chiffres stables sont **343 spécifications** et **18 fichiers**.
+Quatre passages consécutifs ont rendu **1 977**, **1 983**, **1 986** puis **1 982** `expect()` pour
+343 tests et 18 fichiers : le compte d'assertions n'est pas un invariant, certaines vivant dans une
+boucle sur le référentiel. Les chiffres stables sont **343 spécifications** et **18 fichiers**.
 
 ```
 docker compose -f docker-compose.e2e.yml up -d --build db api proxy
@@ -121,10 +122,11 @@ dont personne n'a besoin pour jouer. La v2.0 s'arrête donc au Guichet (phases 3
 porte l'échange (phases 40 à 43).
 
 **Les deux bloqueurs, écrits pour ne pas être découverts en cours de route.** Le track A2 — le
-référentiel importé en production — reste ouvert : sans lui, la carte est vide chez le joueur réel,
-quelle que soit la qualité de la phase 35. Et les pages légales répondent `404` depuis
-`chore/retrait-boutique-et-pages-legales`, donc la phase 37 ne peut pas publier de suppression de
-compte avant le texte définitif.
+référentiel importé en production — est **levé le 2026-11-22** : le titulaire déclare l'avoir
+importé manuellement en production ; non revérifié depuis cette machine. La donnée vit dans les
+volumes, pas dans l'image, donc un volume neuf exige un réimport. Reste les pages légales, qui
+répondent `404` depuis `chore/retrait-boutique-et-pages-legales` : la phase 37 ne peut pas publier
+de suppression de compte avant le texte définitif.
 
 **Ce que cette session a mesuré, et ce qu'elle n'a pas prouvé.** Aucun fichier de `apps/`, de
 `packages/spec` ni de migration n'a été modifié ; seul le cas E2E de la boutique retirée a changé,
@@ -138,10 +140,19 @@ Aucun build n'a été mesuré pendant cette session : les chiffres de bundle du 
 route restent ceux du dépôt au 2026-11-22. La branche `v2` est créée localement depuis `main` et
 n'a pas été poussée.
 
-**Portée** : `.docs/07-roadmap-v2.md` (nouveau), `AGENTS.md`, `ROADMAP.md`,
+**Portée** : `.docs/07-roadmap-v2.md` (nouveau), `AGENTS.md`, `ROADMAP.md`, `.docs/05-deploiement.md`,
 `packages/e2e/tests/mobile.spec.ts` (le cas de la boutique retirée, réécrit) et ce fichier. Aucune
 migration, aucun changement de schéma ni de contrat d'API, aucune dépendance nouvelle, aucun
 fichier de `apps/` ni de `packages/spec` touché.
+
+**Mise à jour du 2026-11-22 — A2 levé.** Le titulaire déclare avoir importé le référentiel
+manuellement en production ; non revérifié depuis cette machine. La phase 33 n'est donc plus
+bloquée : son audit porte sur la **qualité** des `geom` (couverture, `null`, taille, outre-mer), pas
+sur leur présence. La donnée vit dans les volumes `blasons` et dans la base, jamais dans l'image :
+un volume neuf ou une restauration exige un réimport, et `scripts/backup.sh` (A5) couvre déjà ces
+volumes. Ports et zones réseau inchangés. Aucun fichier d'exécution touché, aucun banc rejoué : un
+document ne change pas un comportement observable. `ci:check` rejoué après ces corrections : vert
+(**343 spécifications, 18 fichiers, 0 échec**).
 
 ---
 

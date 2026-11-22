@@ -255,7 +255,8 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 
 ## 7. Produit et légal
 
-- [ ] **[hôte]** Référentiel importé (**A2**) : `ref_regions`, `ref_departements`, `ref_communes`,
+- [x] **[hôte]** Référentiel importé (**A2**) — *fait le 2026-11-22, déclaration du titulaire* :
+      `ref_regions`, `ref_departements`, `ref_communes`,
       `ref_odonymes`, `commune_odonymes`. Sans lui, la génération d'un ticket répond
       `503 REFERENCE_DATA_MISSING` — et, par construction, la charge n'est pas consommée. Le
       constat A2 n'est pas un défaut : le référentiel n'est pas dans l'image, c'est volontaire.
@@ -551,7 +552,11 @@ un redémarrage ne casse rien.
       healthcheck en échec ne redémarre pas le conteneur sous Docker ; c'est la plateforme qui
       décide de le remplacer.
 
-### 8.6 Le référentiel (A2) — le vrai bloquant
+### 8.6 Le référentiel (A2) — levé, mais hors de l'image
+
+Import réalisé en production le 2026-11-22 (déclaration du titulaire ; non revérifié depuis cette
+machine). L'image ne contient toujours aucune donnée : un volume neuf, une restauration ou un
+changement d'hôte exige `scripts/import` avant d'ouvrir, et la sauvegarde couvre déjà ces volumes.
 
 Sans référentiel, la génération d'un ticket répond `503 REFERENCE_DATA_MISSING` et, par
 construction, la charge n'est **pas** consommée. La commande de §7
@@ -728,7 +733,7 @@ ces deux variables sont déjà posées par le `Dockerfile:62-65`.
 
 L'ouverture est verte quand :
 
-1. le référentiel et les blasons sont importés sur l'hôte (A2) ;
+1. le référentiel et les blasons sont importés sur l'hôte (A2) — fait le 2026-11-22 ;
 2. A3 est **vérifié sur l'hôte** — `session.ipAddress` non vide derrière le proxy ;
 3. A4, A8, A9 sont tranchés sur l'hôte ou juridiquement ;
 4. A6 et A7 sont en place (code livré, `docker compose config` le montre) ;

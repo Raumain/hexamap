@@ -61,12 +61,14 @@ Ce qui suit est vérifié dans le code, pas supposé.
 - **Migrations.** `0013_shop` est la dernière appliquée ; aucune table n'est au statut
   **Contrat**.
 
-**Deux bloqueurs explicites.** Le premier est le track A2 de `ROADMAP.md` : le référentiel n'est
-pas importé en production, donc la carte rendrait une image vide chez le joueur réel — la phase 33
-ne peut pas être mise en ligne avant lui. Le second est le retrait des pages légales
+**Un bloqueur explicite, et un constat levé.** Le bloqueur restant est le retrait des pages légales
 (`LEGAL_PAGES_ENABLED = false` dans `apps/web/src/content/legal.ts`, boutique éteinte par
 `SHOP_ENABLED = false`) : tant que la politique de confidentialité répond `404`, aucune phase ne
-peut publier une suppression de compte.
+peut publier une suppression de compte. Le track A2 de `ROADMAP.md` est levé : le référentiel est
+importé en production — déclaré par le titulaire le 2026-11-22 ; non revérifié depuis cette machine.
+La nuance demeure, et elle n'est pas mineure : cette donnée vit dans les volumes `blasons` et dans
+la base, **pas dans l'image**. Un volume neuf ou une restauration repart donc sans données et exige
+un réimport ; la sauvegarde `scripts/backup.sh` (A5) couvre déjà ces volumes.
 
 ---
 
@@ -132,7 +134,10 @@ navigation du banc (un écran qui n'est plus monté au même instant).
 **Objectif.** Produire les chemins SVG de toutes les entités françaises au moment de l'import, de
 sorte que le navigateur n'ait jamais à projeter ni à simplifier une géométrie. `geom jsonb` est
 trop lourd pour être envoyé par requête, et l'image PostgreSQL ne contient pas PostGIS : la
-projection est une promesse faite à l'import, pas un calcul de rendu.
+projection est une promesse faite à l'import, pas un calcul de rendu. La donnée existe désormais en
+production — déclaration du titulaire du 2026-11-22, non revérifiée depuis cette machine — : l'audit
+de cette phase porte donc sur la **qualité** des `geom` (couverture, `null`, taille, outre-mer), pas
+sur leur présence.
 
 **Étapes.**
 
@@ -560,10 +565,11 @@ branche, donc une PR vers `v2` est vérifiée, tandis qu'un `push` direct sur `v
 (le déclencheur `push` est limité à `main`).
 
 **Les deux bloqueurs, écrits pour ne pas être découverts en phase 33.** Le track A2 de
-`ROADMAP.md` — le référentiel importé en production — reste ouvert : sans lui, la carte rend une
-image vide chez le joueur réel. Et les pages légales répondent `404`
-(`LEGAL_PAGES_ENABLED = false`), donc la phase 37 ne peut pas publier de suppression de compte
-avant que le texte définitif soit en place.
+`ROADMAP.md` — le référentiel importé en production — est **levé le 2026-11-22** : le titulaire
+déclare l'avoir importé manuellement en production ; non revérifié depuis cette machine. La donnée
+vit dans les volumes, pas dans l'image, donc un volume neuf exige un réimport. Reste les pages
+légales, qui répondent `404` (`LEGAL_PAGES_ENABLED = false`) : la phase 37 ne peut pas publier de
+suppression de compte avant que le texte définitif soit en place.
 
 **Ce que cette session ne prouve pas.** Aucun fichier de `apps/`, de `packages/spec` ni de
 migration n'a été modifié. Les vérifications ont été jouées après l'écriture du document :
