@@ -110,7 +110,12 @@ test('atlas — la commune mène au Cadastre', async ({ page }) => {
     .first()
     .click();
 
-  await expect(page).toHaveURL(/\/collection\?commune=E2E-C-[^&]+$/);
+  // `commune` est un point d'entrée du Cadastre : il est consommé à l'arrivée et
+  // remplacé par `q`. Le code INSEE doit donc survivre dans la recherche.
+  await expect(page).toHaveURL(/\/collection\?q=E2E-C-[^&]+$/);
+  const code = new URL(page.url()).searchParams.get('q') ?? '';
+  expect(code, 'Le code INSEE a disparu de la requête').toMatch(/^E2E-C-/);
+  await expect(page.getByRole('searchbox', { name: 'Recherche' })).toHaveValue(code);
 });
 
 test('atlas — le département mène au Cadastre', async ({ page }) => {
@@ -122,7 +127,12 @@ test('atlas — le département mène au Cadastre', async ({ page }) => {
   await expect(row).toHaveCount(1);
   await row.getByRole('link', { name: /Voir les cartes au Cadastre/ }).click();
 
-  await expect(page).toHaveURL(/\/collection\?departement=E2E-D1$/);
+  // `E2E-D1` n'est pas un code de département français : le validateur du contrat
+  // du Cadastre (`^(\d{2,3}|2[AB])$`) l'écarte par construction, donc l'arrivée est
+  // le Cadastre nu. Ce n'est pas une régression — ne pas « corriger » cette URL
+  // vers `?departement=E2E-D1`.
+  await expect(page).toHaveURL(/\/collection$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Ma collection' })).toBeVisible();
 });
 
 test('atlas — /assemblage redirige vers /atlas en gardant la recherche', async ({ page }) => {
