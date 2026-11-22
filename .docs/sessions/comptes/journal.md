@@ -153,3 +153,45 @@ déjà présents restent verts sans retouche.
 
 Rejoué après correctif : `ci:check` vert (**394 spécifications, 21 fichiers, 0 échec**) et banc
 E2E complet **82 passés, 0 échoué, 0 ignoré**.
+
+## 8. Rejeu de vérification par la session de livraison
+
+Les chiffres ci-dessus n'ont pas été repris sur parole : ils ont été **rejoués** depuis la pointe
+de la branche, sur une pile neuve, avant de considérer la phase livrée.
+
+`ci:check` sur `postgres://hexamap:hexamap@db:5432/hexamap_test_37` :
+
+```text
+✓ 1/4 Lint · ✓ 2/4 Typecheck (6 workspaces) · ✓ 3/4 Base de données joignable
+✓ 4/4 Spécifications  394 pass · 0 fail · 2395 expect() calls · 21 fichiers
+✓ Gatekeeper vert.
+```
+
+Le nombre d'`expect()` diffère de celui du §5 (2395 contre 2406) : certaines assertions vivent dans
+une boucle sur le référentiel, le compte d'assertions n'est pas un invariant. Les deux chiffres
+stables — **394 spécifications, 21 fichiers** — sont identiques.
+
+Banc E2E complet (`docker-compose.e2e.yml`, `db` + `api` + `proxy` reconstruits) :
+**82 exécutés, 82 passés, 0 échoué, 0 ignoré** (2,6 min).
+
+Le fichier de la phase rejoué seul, puisque c'est lui qui porte le critère 7 :
+
+```text
+tests/account.spec.ts — 7 passed (8.7s) [chromium]
+  ✓ unicité du pseudo — la collision à la casse près est refusée
+  ✓ changement de pseudo — accepté, puis relu par la session
+  ✓ mot de passe — sans le mot de passe actuel, le changement est refusé
+  ✓ export — six familles exactes et un téléchargement
+  ✓ suppression — cascade réelle, session morte, second compte intact
+  ✓ surface fermée — /compte renvoie au Seuil et n'est liée nulle part sans session
+  ✓ compte — la salle s'ouvre, annonce son état réel et n'écrit aucune erreur
+```
+
+**Contrôles de périmètre, faits sur le diff `origin/feat/v2-wave-2...HEAD`** : aucun fichier
+interdit touché — `ROADMAP.md`, `.docs/01-architecture.md`, `.docs/02-database.md`,
+`.docs/03-active-task.md`, `packages/db/src/migrator.ts` et `types.generated.ts` sont absents du
+diff, ce qui est cohérent avec la décision « aucune migration ». `apps/web/src/routeTree.gen.ts`
+apparaît, mais uniquement comme sortie du générateur (enregistrement de la route `/compte`) :
+`bun run --cwd apps/web typecheck` le régénère, il n'a pas été écrit à la main. `apps/api/package.json`
+ne gagne **aucune dépendance** : seule une entrée `exports` (`./lib/*`) est ajoutée pour que
+`packages/spec` importe le transport de courriel.
