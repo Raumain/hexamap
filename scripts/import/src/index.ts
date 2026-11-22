@@ -1,5 +1,6 @@
 import type { Database, Rarity } from '@hexamap/db';
-import { rueRarity, rueScore } from '@hexamap/shared';
+import { pruneUnreferencedReferenceRows, type ReferenceScope } from '@hexamap/db';
+import { isFrenchRegionCode, rueRarity, rueScore } from '@hexamap/shared';
 import type { Kysely } from 'kysely';
 import { BAN_CSV_DIR, blasonsUsage, parseArgs, parseBlasonArgs, usage } from './args';
 import { type BanCollectResult, type BanSource, type BanStats, collectOdonymes } from './ban';
@@ -27,6 +28,43 @@ function log(message: string): void {
   console.log(`[import] ${message}`);
 }
 
+/**
+ * BUG-003 — garde sur `ref_regions.code`.
+ *
+ * Une table de référentiel n'a aucune protection structurelle : BUG-001 est resté
+ * invisible des mois parce qu'une région inventée était « structurellement
+ * acceptable ». Un `CHECK` de table est impossible ici (les fixtures de spec et le
+ * banc E2E sèment volontairement des codes synthétiques) : la validation vit donc
+ * à la frontière, et **échoue avant d'écrire la moindre ligne**.
+ */
+function assertFrenchRegionCodes(rows: readonly RefRegionRow[]): void {
+  const invalid = rows.filter((row) => !isFrenchRegionCode(row.code));
+
+  if (invalid.length === 0) return;
+
+  const list = invalid.map((row) => `« ${row.code} »`).join(', ');
+  throw new Error(
+    `REFERENCE_CODE_INVALID : ${list} n'est pas un code de région français. ` +
+      'Le référentiel source est corrompu ; aucune ligne de région n’a été écrite.',
+  );
+}
+
+/**
+ * Élague les lignes périmées d'un niveau, sans jamais supprimer une ligne citée
+ * par une carte. C'est la procédure de réimport exigée par BUG-002.
+ */
+async function pruneReference(
+  db: Kysely<Database>,
+  scope: ReferenceScope,
+  keep: readonly string[],
+): Promise<void> {
+  const result = await pruneUnreferencedReferenceRows(db, scope, keep);
+  log(
+    `Élagage ${scope} — ${result.deleted.toLocaleString('fr-FR')} supprimée(s) · ` +
+      `${result.preserved.toLocaleString('fr-FR')} conservée(s) car citée(s) par une carte`,
+  );
+}
+
 function logStats(stats: BanStats, uniqueOdonymes: number): void {
   log(
     `BAN — ${stats.lines.toLocaleString('fr-FR')} lignes lues · ` +
@@ -35,24 +73,78 @@ function logStats(stats: BanStats, uniqueOdonymes: number): void {
   );
 }
 
-async function insertRegions(db: Kysely<Database>, rows: readonly RefRegionRow[]): Promise<void> {
+/**
+ * `merge` = réimport non destructeur (BUG-002). Les colonnes d'assets
+ * (`blason_url`, `contour_url`, `blason_credit`) et `geom` ne sont **jamais**
+ * réécrites ici : elles appartiennent aux étapes blasons et atlas, et un
+ * `excluded.…` nul les effacerait.
+ */
+async function insertRegions(
+  db: Kysely<Database>,
+  rows: readonly RefRegionRow[],
+  merge: boolean,
+): Promise<void> {
   for (const chunk of chunkArray(rows, INSERT_CHUNK_SIZE)) {
-    await db.insertInto('ref_regions').values(chunk).execute();
+    const query = db.insertInto('ref_regions').values(chunk);
+    if (!merge) {
+      await query.execute();
+      continue;
+    }
+    await query
+      .onConflict((oc) => oc.column('code').doUpdateSet((eb) => ({ nom: eb.ref('excluded.nom') })))
+      .execute();
   }
 }
 
 async function insertDepartements(
   db: Kysely<Database>,
   rows: readonly RefDepartementRow[],
+  merge: boolean,
 ): Promise<void> {
   for (const chunk of chunkArray(rows, INSERT_CHUNK_SIZE)) {
-    await db.insertInto('ref_departements').values(chunk).execute();
+    const query = db.insertInto('ref_departements').values(chunk);
+    if (!merge) {
+      await query.execute();
+      continue;
+    }
+    await query
+      .onConflict((oc) =>
+        oc.column('code').doUpdateSet((eb) => ({
+          nom: eb.ref('excluded.nom'),
+          code_region: eb.ref('excluded.code_region'),
+          population: eb.ref('excluded.population'),
+        })),
+      )
+      .execute();
   }
 }
 
-async function insertCommunes(db: Kysely<Database>, rows: readonly RefCommuneRow[]): Promise<void> {
+async function insertCommunes(
+  db: Kysely<Database>,
+  rows: readonly RefCommuneRow[],
+  merge: boolean,
+): Promise<void> {
   for (const chunk of chunkArray(rows, INSERT_CHUNK_SIZE)) {
-    await db.insertInto('ref_communes').values(chunk).execute();
+    const query = db.insertInto('ref_communes').values(chunk);
+    if (!merge) {
+      await query.execute();
+      continue;
+    }
+    await query
+      .onConflict((oc) =>
+        oc.column('code_insee').doUpdateSet((eb) => ({
+          nom: eb.ref('excluded.nom'),
+          code_departement: eb.ref('excluded.code_departement'),
+          code_region: eb.ref('excluded.code_region'),
+          population: eb.ref('excluded.population'),
+          latitude: eb.ref('excluded.latitude'),
+          longitude: eb.ref('excluded.longitude'),
+          rarete: eb.ref('excluded.rarete'),
+          score_base: eb.ref('excluded.score_base'),
+          draw_bucket: eb.ref('excluded.draw_bucket'),
+        })),
+      )
+      .execute();
   }
 }
 
@@ -79,6 +171,7 @@ async function insertOdonymes(
   db: Kysely<Database>,
   collected: BanCollectResult,
   progress?: ImportProgressWriter,
+  merge = false,
 ): Promise<OdonymeInsertResult> {
   const keys = [...collected.odonymeCommunes.keys()];
   const result: OdonymeInsertResult = { odonymes: 0, links: 0 };
@@ -106,11 +199,21 @@ async function insertOdonymes(
 
     if (values.length === 0) continue;
 
-    const inserted = await db
-      .insertInto('ref_odonymes')
-      .values(values)
-      .returning(['id', 'nom_normalise'])
-      .execute();
+    const odonymeQuery = db.insertInto('ref_odonymes').values(values);
+    const inserted = merge
+      ? await odonymeQuery
+          .onConflict((oc) =>
+            oc.column('nom_normalise').doUpdateSet((eb) => ({
+              nom_affichage: eb.ref('excluded.nom_affichage'),
+              nb_communes: eb.ref('excluded.nb_communes'),
+              rarete: eb.ref('excluded.rarete'),
+              score_base: eb.ref('excluded.score_base'),
+              draw_bucket: eb.ref('excluded.draw_bucket'),
+            })),
+          )
+          .returning(['id', 'nom_normalise'])
+          .execute()
+      : await odonymeQuery.returning(['id', 'nom_normalise']).execute();
 
     result.odonymes += inserted.length;
 
@@ -129,7 +232,14 @@ async function insertOdonymes(
     }
 
     for (const linkChunk of chunkArray(links, INSERT_CHUNK_SIZE)) {
-      await db.insertInto('commune_odonymes').values(linkChunk).execute();
+      const linkQuery = db.insertInto('commune_odonymes').values(linkChunk);
+      if (merge) {
+        await linkQuery
+          .onConflict((oc) => oc.columns(['code_insee', 'odonyme_id']).doNothing())
+          .execute();
+      } else {
+        await linkQuery.execute();
+      }
       result.links += linkChunk.length;
     }
 
@@ -290,15 +400,16 @@ export async function main(argv: readonly string[]): Promise<void> {
       );
     }
 
-    if (options.skipGouv) {
+    if (options.merge) {
+      log('Mode fusion (--merge) : aucun vidage, upsert puis élagage des lignes non citées');
+      progress.log('Mode fusion : upsert puis élagage des lignes non citées');
+    } else if (options.skipGouv) {
       await truncateOdonymeTables(db);
       progress.set(0, 'Tables d’odonymes vidées');
-    } else {
-      await truncateReferenceTables(db);
-      log('Tables de référence vidées (TRUNCATE ... RESTART IDENTITY CASCADE)');
-      progress.set(0, 'Tables de référence vidées');
-      progress.log('Tables de référence vidées');
     }
+    // Le vidage du référentiel n'a pas lieu ici : il attend que la source soit
+    // chargée **et validée**, sinon une source corrompue détruirait le
+    // référentiel avant d'échouer (voir le bloc API Gouv ci-dessous).
 
     let communeCodes: Set<string>;
     let departementCodes: string[];
@@ -329,15 +440,46 @@ export async function main(argv: readonly string[]): Promise<void> {
           `${gouv.communes.length.toLocaleString('fr-FR')} communes`,
       );
 
-      await insertRegions(db, gouv.regions);
-      await insertDepartements(db, gouv.departements);
-      await insertCommunes(db, gouv.communes);
+      assertFrenchRegionCodes(gouv.regions);
+
+      // Vidage seulement une fois la source validée : une source corrompue ne
+      // doit pas laisser un référentiel vide derrière elle.
+      if (!options.merge) {
+        await truncateReferenceTables(db);
+        log('Tables de référence vidées (TRUNCATE ... RESTART IDENTITY CASCADE)');
+        progress.set(gouv.communes.length, 'Tables de référence vidées');
+        progress.log('Tables de référence vidées');
+      }
+
+      await insertRegions(db, gouv.regions, options.merge);
+      await insertDepartements(db, gouv.departements, options.merge);
+      await insertCommunes(db, gouv.communes, options.merge);
       log('Régions, départements et communes insérés');
       progress.set(gouv.communes.length, 'Régions, départements et communes insérés');
       progress.log('Régions, départements et communes insérés');
 
       communeCodes = new Set(gouv.communes.map((commune) => commune.code_insee));
       departementCodes = gouv.departements.map((departement) => departement.code);
+
+      if (options.merge) {
+        // Ordre imposé par les clés étrangères : une commune cite son département,
+        // qui cite sa région.
+        await pruneReference(
+          db,
+          'COMMUNE',
+          gouv.communes.map((commune) => commune.code_insee),
+        );
+        await pruneReference(
+          db,
+          'DEPARTEMENT',
+          gouv.departements.map((departement) => departement.code),
+        );
+        await pruneReference(
+          db,
+          'REGION',
+          gouv.regions.map((region) => region.code),
+        );
+      }
     }
 
     if (options.skipBan) {
@@ -383,11 +525,15 @@ export async function main(argv: readonly string[]): Promise<void> {
           `${collected.odonymeCommunes.size.toLocaleString('fr-FR')} odonymes uniques`,
       );
 
-      const inserted = await insertOdonymes(db, collected, progress);
+      const inserted = await insertOdonymes(db, collected, progress, options.merge);
       log(
         `Odonymes insérés : ${inserted.odonymes.toLocaleString('fr-FR')} · ` +
           `liens : ${inserted.links.toLocaleString('fr-FR')}`,
       );
+
+      if (options.merge) {
+        await pruneReference(db, 'RUE', [...collected.odonymeCommunes.keys()]);
+      }
     }
 
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
