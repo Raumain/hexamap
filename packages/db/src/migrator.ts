@@ -13,6 +13,7 @@ import * as friendships from '../migrations/0010_friendships';
 import * as achievements from '../migrations/0011_achievements';
 import * as profiles from '../migrations/0012_profiles';
 import * as shop from '../migrations/0013_shop';
+import * as refIntegrity from '../migrations/0014_ref_integrity';
 import type { Database } from './index';
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -31,6 +32,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '0011_achievements': achievements,
       '0012_profiles': profiles,
       '0013_shop': shop,
+      '0014_ref_integrity': refIntegrity,
     };
   }
 }

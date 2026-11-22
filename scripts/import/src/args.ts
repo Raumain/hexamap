@@ -17,6 +17,12 @@ export interface CliOptions {
   skipGouv: boolean;
   skipBan: boolean;
   ifEmpty: boolean;
+  /**
+   * Réimport non destructeur : upsert puis élagage des seules lignes qu'aucune
+   * carte ne cite. Sans ce drapeau, l'import repart d'un référentiel vide, ce
+   * qu'un `TRUNCATE` gardé refuse dès qu'une collection cite une ligne.
+   */
+  merge: boolean;
   help: boolean;
 }
 
@@ -30,6 +36,8 @@ Options :
   --skip-ban             N'importe que les régions, départements et communes.
   --skip-gouv            N'importe que les odonymes (communes déjà en base).
   --if-empty             Ne fait rien si le référentiel demandé est déjà complet.
+  --merge                Réimport non destructeur : met à jour les lignes existantes et
+                         n'élague que celles qu'aucune carte ne cite (préserve les collections).
   --help                 Affiche cette aide.`;
 
 export function parseArgs(argv: readonly string[]): CliOptions {
@@ -42,6 +50,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     skipGouv: false,
     skipBan: false,
     ifEmpty: false,
+    merge: false,
     help: false,
   };
 
@@ -62,6 +71,10 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     }
     if (arg === '--if-empty') {
       options.ifEmpty = true;
+      continue;
+    }
+    if (arg === '--merge') {
+      options.merge = true;
       continue;
     }
     if (arg === '--help' || arg === '-h') {
