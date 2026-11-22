@@ -51,9 +51,10 @@ test.describe('La salle introuvable', () => {
       page.getByRole('heading', { level: 1, name: 'Conditions générales de vente' }),
     ).toBeVisible();
 
-    // Le bandeau provisoire reste visible tant que l'identité de l'éditeur n'est
-    // pas renseignée : la page ne doit pas se faire passer pour définitive.
-    await expect(page.getByText(/Texte provisoire/)).toBeVisible();
+    // Le document publie l'identité du vendeur, et plus aucun bandeau provisoire
+    // ne le précède : ce qui est en ligne est ce qui engage l'éditeur.
+    await expect(page.getByRole('heading', { name: 'Identité du vendeur' })).toBeVisible();
+    await expect(page.getByText(/Texte provisoire/)).toHaveCount(0);
 
     // Ce n'est plus une salle introuvable.
     await expect(page.getByRole('heading', { level: 1, name: TITLE })).toHaveCount(0);

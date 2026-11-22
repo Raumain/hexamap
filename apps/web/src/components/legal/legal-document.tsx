@@ -1,23 +1,13 @@
 import type { LegalDocument } from '../../content/legal';
 
 /**
- * Rend un document légal : bandeau facultatif, puis une section par entrée.
- * Le bandeau n'est porté que par les documents dont les mentions d'identité
- * restent à compléter.
+ * Rend un document légal : un en-tête, puis une section par entrée. Aucun
+ * bandeau provisoire : le document publié est celui qui engage l'éditeur.
  */
 export function LegalDocumentPage({ document }: { document: LegalDocument }) {
   return (
     <section>
-      {document.banner ? (
-        <p
-          role="note"
-          className="inline-flex max-w-full rounded-[2px] border border-danger/40 bg-cabinet-sunk px-3 py-2 font-mono text-[10px] leading-relaxed tracking-[0.12em] uppercase text-danger"
-        >
-          {document.banner}
-        </p>
-      ) : null}
-
-      <header className="mt-6">
+      <header>
         <p className="salon-eyebrow">{document.eyebrow}</p>
         <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-vellum md:text-5xl">
           {document.title}

@@ -11,10 +11,9 @@ export const PUBLISHER = {
   email: 'nd',
 } as const;
 
-// Les trois documents sont rédigés et versionnés ; cet interrupteur les publie.
-// L'identité de l'éditeur est renseignée dans `PUBLISHER`, mais le domicile, le
-// téléphone et l'adresse électronique restent à compléter : `LEGAL_BANNER`
-// l'annonce en tête de chaque page, et la page ne se présente pas comme définitive.
+// Les trois documents sont rédigés, versionnés et publiés ; cet interrupteur les
+// sert ou les retire du site. Aucun bandeau provisoire ne les précède : le texte
+// est celui qui engage l'éditeur.
 export const LEGAL_PAGES_ENABLED = true;
 
 const CONSUMER_MEDIATOR = '[MÉDIATEUR DE LA CONSOMMATION À COMPLÉTER — nom, adresse et site]';
@@ -22,9 +21,6 @@ const CONSUMER_MEDIATOR = '[MÉDIATEUR DE LA CONSOMMATION À COMPLÉTER — nom,
 const LAST_UPDATED = '21 novembre 2026';
 
 const EDITOR = `${PUBLISHER.firstName} ${PUBLISHER.name}`;
-
-export const LEGAL_BANNER =
-  'Texte provisoire — les mentions d’identité (nom, prénoms, domicile, téléphone, adresse électronique) seront complétées avant la mise en vente.';
 
 export interface LegalSegment {
   readonly heading: string;
@@ -35,7 +31,6 @@ export interface LegalDocument {
   readonly eyebrow: string;
   readonly title: string;
   readonly subtitle: string;
-  readonly banner?: string;
   readonly segments: readonly LegalSegment[];
 }
 
@@ -52,7 +47,6 @@ export const CGV_LEGAL: LegalDocument = {
   title: 'Conditions générales de vente',
   subtitle:
     'Les conditions ci-dessous s’appliquent à l’achat de packs d’écus dans La Boutique. Aucun écu n’est vendu séparément d’un pack.',
-  banner: LEGAL_BANNER,
   segments: [
     {
       heading: 'Objet et champ d’application',
@@ -148,7 +142,6 @@ export const MENTIONS_LEGALES: LegalDocument = {
   eyebrow: 'Le cabinet · Le Seuil',
   title: 'Mentions légales',
   subtitle: 'Les informations d’identification exigées pour un service en ligne édité en France.',
-  banner: LEGAL_BANNER,
   segments: [
     {
       heading: 'Éditeur du site',
