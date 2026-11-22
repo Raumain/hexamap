@@ -1,5 +1,5 @@
 /**
- * Contrat de lecture de l'atlas (salle L'Assemblage).
+ * Contrat de lecture de l'atlas (salle L'Atlas).
  *
  * Module pur : aucune dépendance, aucun accès à `process.env`, aucun accès
  * réseau. Le `viewBox` est une chaîne SVG, partagée par l'API et la salle pour
