@@ -9,14 +9,16 @@
 
 ## Statut
 
-- **Phase** : v2.0 et v2.1 — les douze phases (32 à 43) sont implémentées
-- **État** : livrée sur **huit branches d'accumulation poussées**, **non fusionnée dans `v2`** ;
-  douze pull requests **en brouillon** ouvertes, aucune fusionnée, aucune fusionnée automatiquement
+- **Phase** : v2.0 et v2.1 — les douze phases (32 à 43) sont **fusionnées dans `v2`**
+- **État** : `v2` est poussée à `9f8bf9c` et **vérifiée sur place** — `ci:check` vert
+  (**548 spécifications**, 28 fichiers, 0 échec) et banc E2E complet (**106 cas**). Aucune pull
+  request ouverte. Les huit vagues sont fusionnées (#71, #72, #76, #77, #78) ou fermées avec
+  explication (#73, #74, #75, dont le contenu est arrivé par `feat/v2-wave-8`).
 - **Priorité** : P1
 - **Mis à jour** : 2026-11-22
-- **Branche** : `v2` (arbre principal, ne contient encore **rien** de la v2)
-- **Accumulation** : `feat/v2-wave-1` … `feat/v2-wave-8` ; **`feat/v2-wave-8` porte les douze
-  phases** et leurs journaux
+- **Branche** : `v2` — c'est elle qui porte la v2 ; `main` n'a rien reçu
+- **Accumulation** : `feat/v2-wave-1` … `feat/v2-wave-8` ; `feat/v2-wave-8` porte les douze
+  phases et a été fusionnée dans `v2` (`ca0d0d0`)
 
 ## Objectif
 
@@ -98,10 +100,11 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 ## Ce qui reste à faire
 
-1. **Relire les douze pull requests brouillon et les fusionner dans l'ordre des vagues** — la 32
-   d'abord, jamais une phase avant la branche qu'elle présuppose.
-2. **Fusionner `feat/v2-wave-8` dans `v2`** — **jamais `main` directement** ; `main` ne reçoit
-   qu'un merge de release, sur demande explicite.
+1. **Relire `v2`** — c'est l'état de référence désormais, et il a été mesuré sur place, pas sur
+   une branche. Les douze pull requests de phase sont fusionnées ou fermées ; les branches de
+   phase ont été supprimées sur l'origine après fusion.
+2. **`main` n'a rien reçu** : une release fusionne `v2` dans `main`, sur demande explicite,
+   jamais automatiquement.
 3. **`GET /tableaux` recalcule encore le score** alors que `tableaux.score` existe depuis `0019` :
    deux surfaces, deux valeurs possibles pour le même tableau. Le Palmarès ne lit que la colonne
    figée ; unifier demanderait de toucher une attente gelée de `packages/spec/src/tableaux.spec.ts`.
@@ -312,3 +315,41 @@ la phase 43. C'est la preuve que la porte verte ne suffisait pas.
 **Portée de cette consolidation.** Aucun fichier de `apps/`, de `packages/spec` ni de migration n'a
 été touché ; aucune branche n'a été fusionnée ni poussée. Cette entrée est écrite sur `v2`, qui ne
 contient encore aucun code de la v2 : elle décrit ce que porte `feat/v2-wave-8`.
+
+### 2026-11-22 — Fusion des huit vagues dans `v2`, et trois défauts attrapés au passage
+
+**Ce qui a été fusionné.** Les huit vagues sont arrivées dans `v2` par `feat/v2-wave-8`
+(`ca0d0d0`), qui porte les douze phases. Les pull requests de vague #71, #72, #76, #77 et #78 ont
+été fusionnées ; #73, #74 et #75, dont le contenu était déjà passé par la vague 8, ont été
+**fermées avec explication** plutôt que laissées en conflit — une PR ouverte qui ne peut plus
+fusionner laisse croire qu'elle attend encore une action.
+
+**Pourquoi les PR ne suffisaient pas.** Fusionner une PR met à jour sa **base**, jamais sa tête :
+après #71–#78, les branches de vague avaient divergé les unes des autres, et `v2` n'aurait
+contenu que la vague 1. Les vagues sont cumulatives par construction ; la seule intégration juste
+est la dernière branche, fusionnée une fois.
+
+**Décisions du titulaire sur l'identité légale.** Le SIREN est retiré des trois documents — avec
+lui la qualité de micro-entrepreneur et la mention « TVA non applicable, article 293 B du CGI »,
+qui tombent ensemble : un éditeur non professionnel ne les porte pas. Le domicile, le téléphone et
+l'adresse électronique restent `nd` et seront publiés tels quels, par décision explicite. Le
+bandeau provisoire est **retiré** : il promettait une complétion qui n'aura pas lieu. La fermeture
+de compte est ouverte par `.env.example` (`ACCOUNT_DELETION_ENABLED=true`), le défaut du code
+restant `false` parce qu'une spécification exerce les deux états en supprimant la variable.
+
+**Trois défauts attrapés, tous par un contrôle différent de celui qu'on attendait.**
+1. `web-push`, dépendance ajoutée par la phase 43, manquait dans `node_modules` : la fusion
+   manuelle avait omis l'étape que le lanceur fait désormais tout seul. Typecheck rouge.
+2. Une résolution de conflit a **dupliqué** `export const PUBLISHER = {` — la ligne était en
+   contexte, hors des marqueurs. Fichier syntaxiquement invalide.
+3. Et le plus instructif : **les 106 cas E2E passaient sur ce fichier cassé**, alors que le lint
+   a vu l'erreur en 180 ms. Une suite de navigateur teste un produit qui démarre ; elle ne dit
+   rien de la validité de tous les fichiers. C'est exactement pourquoi la porte a quatre étapes
+   et s'arrête à la première.
+
+**Ce qui n'est pas prouvé.** Aucune poussée de notification réelle (pas de service de push dans
+le banc). `GET /tableaux` recalcule encore son total alors que `tableaux.score` existe. Sur une
+route appariée qui lève `notFound()`, la page française s'affiche **sans `<main>`**, alors qu'une
+URL inconnue en rend un : défaut de structure préexistant, consigné dans le cas E2E et **non
+figé** par une assertion. Enfin `market — un double-appui n'achète qu'une fois` a vacillé deux
+fois sur les huit passages de la vague 8, sans explication.
