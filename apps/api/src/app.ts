@@ -9,6 +9,7 @@ import { db } from './db';
 import { env } from './env';
 import { compressionPlugin } from './lib/compression-plugin';
 import { authPlugin } from './middleware/auth';
+import { accountRoutes } from './routes/account';
 import { achievementRoutes } from './routes/achievements';
 import { atlasRoutes } from './routes/atlas';
 import { blasonRoutes } from './routes/blasons';
@@ -60,6 +61,7 @@ function buildProtectedRoutes(provider: PaymentProvider) {
       .use(friendRoutes)
       .use(achievementRoutes)
       .use(profileRoutes)
+      .use(accountRoutes)
       // Suivi d'import : la charge utile expose des erreurs brutes et un journal
       // qui peut contenir chemins, DSN et URL amont. Réservé aux sessions ouvertes.
       .use(importStatusRoutes)
