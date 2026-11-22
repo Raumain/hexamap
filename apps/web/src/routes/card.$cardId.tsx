@@ -4,6 +4,7 @@ import { createFileRoute, Link, Navigate, useRouter } from '@tanstack/react-rout
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
+import { ProposeTrade } from '../components/trade/propose-trade';
 import { outlineButtonClass, primaryButtonClass } from '../components/ui/button-classes';
 import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
@@ -385,7 +386,12 @@ function OfferSheet({ card, isOwn }: OfferSheetProps) {
     return <BuyPanel card={card} listing={listing} />;
   }
 
-  return null;
+  // Une carte verrouillée est en vente : le troc la refuse (`409 CARD_LOCKED`),
+  // donc aucun bouton n'est offert. Reste le cas où la carte est visible parce
+  // qu'une offre ouverte engage le visiteur : il peut contre-proposer.
+  if (card.locked) return null;
+
+  return <ProposeTrade requestedCardId={card.id} requestedCardName={card.nom} />;
 }
 
 function SellForm({ card, onListed }: { card: CardDetail; onListed: () => void }) {

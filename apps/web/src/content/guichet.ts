@@ -54,9 +54,10 @@ export const GUICHIET = {
       price === null
         ? 'Vous avez acheté une carte au Comptoir.'
         : `Vous avez acheté une carte au Comptoir pour ${price} écus.`,
-    TRADE_OFFER: 'Une proposition d’échange vous attend.',
+    TRADE_OFFER: (pseudo: string) => `${pseudo} vous propose un échange.`,
     TRADE_ACCEPTED: 'Votre échange a été accepté.',
     TRADE_DECLINED: 'Votre échange a été refusé.',
+    TRADE_WITHDRAWN: 'L’auteur a retiré sa proposition d’échange.',
     TRADE_EXPIRED: 'Votre échange a expiré sans réponse.',
     unknown: 'Un avis est arrivé au guichet.',
   },
