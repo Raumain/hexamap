@@ -297,6 +297,19 @@ launch() {
   log "session $phase ($slug) → $logfile"
   ( cd "$wt" && timeout "$SESSION_TIMEOUT" opencode "${args[@]}" "$(cat "$prompt")" ) \
     >"$logfile" 2>&1
+
+  # Une session peut se terminer sans rien livrer : `opencode run` rend la main quand le tour
+  # s'achève, y compris quand l'agent vient de déléguer à un sous-agent et attend son verdict.
+  # La phase 35 de la vague 4 s'est arrêtée ainsi, branche strictement inchangée ; `ci:check`
+  # étant vert sur une branche vide, la porte la validait et la vague perdait L'Atlas sans un
+  # mot. On refuse donc une phase qui n'a produit aucun commit au-delà de sa base.
+  local commits
+  commits=$(git -C "$ROOT" rev-list --count "$parent..$branch" 2>/dev/null || printf '0')
+  if [ "${commits:-0}" -eq 0 ]; then
+    warn "phase $phase : aucun commit au-delà de $parent — la session n'a rien livré"
+    return 1
+  fi
+  log "phase $phase : $commits commit(s) au-delà de $parent"
 }
 
 # ---------------------------------------------------------------- PR de phase
