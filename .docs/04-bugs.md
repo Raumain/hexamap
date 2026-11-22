@@ -7,8 +7,8 @@ de la PR qui la ferme.
 | ID | Titre | Gravité | Statut |
 | :--- | :--- | :--- | :--- |
 | BUG-001 | Données de test de `packages/spec` présentes dans la base de développement | Haute | Ouvert — cause corrigée, données à nettoyer |
-| BUG-002 | Une carte de collection peut référencer un référentiel inexistant | Moyenne | Ouvert |
-| BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Ouvert |
+| BUG-002 | Une carte de collection peut référencer un référentiel inexistant | Moyenne | Corrigé (branche `feat/v2-32-socle`) |
+| BUG-003 | `ref_regions` n'a aucune protection contre une donnée non réelle | Basse | Corrigé (branche `feat/v2-32-socle`) |
 | BUG-004 | La modale de trouvaille ne se ferme jamais et recouvre Le Relevé | Haute | Corrigé — PR à ouvrir sur `feat/phase-15-cartel` |
 | BUG-005 | Sur mobile, Les Planches et Mes Offres sont inatteignables | Moyenne | Corrigé — PR à ouvrir sur `fix/bug-005-salles-secondaires-mobile` |
 | BUG-006 | Les planches sont illisibles en petit format (case grattée, Cadastre) | Moyenne | Corrigé — branche fix/bug-006-plates-illegibles |
@@ -109,9 +109,9 @@ select count(*) from ref_odonymes     where nom_affichage ~ '^[0-9a-f]{8} Rue';
 ## BUG-002 — Une carte de collection peut référencer un référentiel inexistant
 
 - **Gravité** : Moyenne
-- **Statut** : Ouvert
+- **Statut** : Corrigé (branche `feat/v2-32-socle`)
 - **Constaté le** : 2026-11-18
-- **Zone** : `packages/db` (schéma), `apps/api/src/services/draw.ts`
+- **Zone** : `packages/db` (schéma), `scripts/import`, `apps/api/src/services/draw.ts`
 
 ### Description
 
@@ -140,14 +140,58 @@ Conséquences :
 La première option est la plus sûre pour l'intégrité des collections ; la seconde
 est moins invasive. Décision à prendre avant d'écrire la migration.
 
+### Correction livrée (2026-11-22)
+
+**La clé étrangère `(category, ref_code)` a été écartée, et la raison est mesurée, pas
+supposée.** Elle est inatteignable dans le périmètre de la phase, parce que la suite de
+spécifications est gelée et fabrique volontairement des données hors référentiel :
+
+| Fixture existante | Ce qu'elle fait | Ce qu'une FK lui ferait |
+| :--- | :--- | :--- |
+| `achievements.spec.ts:295-306` | carte `COMMUNE` avec `ref_code = '<préfixe>-<uuid8>'`, **sans aucun référentiel semé** | rejet `23503` à l'insertion |
+| `cards.spec.ts:97`, `charges.spec.ts:128`, `market.spec.ts:78`, `tableaux.spec.ts:134,184`, `tickets.spec.ts:219,997` | sèment des `ref_regions` aux codes `<préfixe>-R1` | rejet `23514` par le `CHECK` de BUG-003 |
+| `tickets.spec.ts:345-363` et `afterAll` équivalents | suppriment les `ref_*` **avant** `"user"`, donc pendant que des cartes les citent | rejet `23503` → chaque nettoyage en échec |
+
+Réécrire ces fixtures est interdit (`.docs/01-architecture.md` §4.8). La correction porte donc
+sur **les deux chemins qui produisent réellement l'orphelin** :
+
+1. **Le chemin destructeur est fermé.** `packages/db/migrations/0014_ref_integrity.ts` pose
+   `ref_truncate_guard()` et trois triggers `BEFORE TRUNCATE` : vider `ref_regions`,
+   `ref_departements` ou `ref_communes` lève `23503` dès qu'une carte de la catégorie
+   correspondante existe. C'était exactement l'opération de l'import
+   (`truncateReferenceTables`). **`ref_odonymes` n'est pas gardée** : deux cas gelés de
+   `tickets.spec.ts` la vident volontairement pour éprouver la robustesse du tirage ; les cartes
+   de rue ne sont donc protégées que par le point 2.
+2. **Le réimport ne casse plus une collection.** `scripts/import` gagne `--merge` : upsert
+   (`on conflict … do update set`) puis élagage par
+   `pruneUnreferencedReferenceRows` (`packages/db/src/reference-integrity.ts`), qui ne supprime
+   une ligne périmée que si **aucune** carte ne la cite. Le mode sans `--merge` reste la remise à
+   zéro d'un référentiel vierge, et bute désormais sur la garde s'il y a des collections.
+3. **L'orphelin devient visible.** `orphan_user_cards()` rend les cartes sans référentiel, là où
+   `apps/api/src/routes/cards.ts:114` les affichait sans nom sans que rien ne puisse les compter.
+
+**Preuve, rouge avant et verte après** — `packages/spec/src/ref-integrity.spec.ts` :
+
+- `attemptTruncateRegions()` rendait `'VIDAGE_ACCEPTE'` avant la migration, rend `'23503'` après ;
+- `orphanUserCards(db)` rend la carte fabriquée hors référentiel ;
+- `pruneUnreferencedReferenceRows(db, 'REGION', keep)` supprime la ligne périmée
+  (`deleted = 1`) et **conserve** celle qu'une carte cite (`preserved = 1`).
+
+**Ce qui reste ouvert, et qui est écrit ici plutôt que passé sous silence.** Une insertion
+directe en SQL d'une carte pointant vers un code inexistant reste acceptée : `ref_code` n'a
+toujours pas de clé étrangère. Aucun chemin applicatif ne peut la produire (`drawRegion`,
+`drawDepartement`, `drawCommune`, `drawRue` lisent tous leur `ref_code` dans la table qu'ils
+citent), mais le verrou n'est pas déclaratif. `orphan_user_cards()` est le filet qui rend une
+telle ligne trouvable au lieu de la laisser s'afficher sans nom.
+
 ---
 
 ## BUG-003 — `ref_regions` n'a aucune protection contre une donnée non réelle
 
 - **Gravité** : Basse
-- **Statut** : Ouvert
+- **Statut** : Corrigé (branche `feat/v2-32-socle`)
 - **Constaté le** : 2026-11-18
-- **Zone** : `scripts/import`, `packages/db`
+- **Zone** : `scripts/import`, `packages/shared`, `packages/db`
 
 ### Description
 
@@ -161,6 +205,31 @@ invisible : la donnée de test était structurellement acceptable.
 Contrainte `CHECK` sur le format du code, ou validation dans le pipeline d'import
 (`scripts/import`) avec échec explicite. À faire en même temps que BUG-002, dans
 la même migration.
+
+### Correction livrée (2026-11-22)
+
+**La seconde voie a été retenue, et c'est le bug lui-même qui l'autorisait.** Un `CHECK` de
+table sur `ref_regions.code` est incompatible avec les fixtures que cette phase n'a pas le droit
+de réécrire : cinq fichiers de `packages/spec` sèment des régions aux codes `<préfixe>-R1` et
+`scripts/import/src/e2e-seed.ts` sème `E2E-R1` / `E2E-R2`. Le `CHECK` aurait rendu la suite de
+spécifications et le banc entier rouges.
+
+1. **`packages/shared/src/reference-codes.ts`** porte la seule autorité : `FRENCH_REGION_CODES`
+   (les 18 codes officiels — métropole et outre-mer) et `isFrenchRegionCode()`. Le domaine est
+   partagé, donc la spec et l'import regardent la même liste.
+2. **`scripts/import` refuse avant d'écrire.** `assertFrenchRegionCodes()` s'exécute juste après
+   `loadGouvReferenceData` et avant `insertRegions` : un code hors liste lève
+   `REFERENCE_CODE_INVALID` en nommant les codes fautifs, et **aucune ligne de région n'est
+   écrite**. La garde est donc plus tôt que le `CHECK` (rien n'entre, même transitoirement).
+3. **Preuve** — `packages/spec/src/ref-integrity.spec.ts` : les 18 codes officiels sont acceptés,
+   et `'99'`, `'2A'`, `'R1'`, `'E2E-R1'`, `'<préfixe>-R1'`, `''`, `'53 '` (espace final) et
+   `'53\n'` sont refusés. Le cas nomme explicitement `E2E-R1` et le préfixe de spec : si
+   quelqu'un réintroduit un référentiel synthétique dans l'import, le refus est visible.
+
+**Écart assumé, écrit ici.** La table elle-même n'a toujours pas de contrainte : c'est une garde
+de frontière, pas un verrou déclaratif. Elle couvre le seul chemin qui écrit `ref_regions` en
+masse ; elle ne couvre pas un `INSERT` manuel. Le prix d'un `CHECK` de table était la réécriture
+de sept fixtures gelées, et il a été jugé plus élevé que ce qu'il apportait.
 
 ---
 

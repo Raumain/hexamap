@@ -5,6 +5,7 @@ import type { Database } from './schema';
 
 export { sql } from 'kysely';
 export { runMigrations } from './migrator';
+export * from './reference-integrity';
 export * from './schema';
 
 export function createDb(connectionString: string): Kysely<Database> {
