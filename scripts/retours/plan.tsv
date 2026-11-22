@@ -5,7 +5,12 @@
 # Une vague = un retour, sauf la vague 1 qui porte R-001, R-003 et R-004 : trois
 # changements d'interface sur des fichiers disjoints, accumulés en une seule branche.
 # Une seule migration sur toute la campagne : `0021_view_box`, portée par R-006.
-1	44	compte-sans-verification	feat/v2-44-compte-sans-verification	-	ready
+#
+# R-001 (phase 44) a été livré puis replié dans `chore/v2-retours-campagne` avant la
+# reprise : la porte ci:check s'était arrêtée sur la mesure de charge de l'Atlas
+# (semis de 2 000 cartes dans le budget de 5 s, sous contention), pas sur ce retour.
+# Le correctif de mesure est entré en même temps. La vague 1 ne rejoue donc que 45 et
+# 46 ; la phase 44 reste livrée sur sa branche et dans la base.
 1	45	vitrine-depuis-amis	feat/v2-45-vitrine-depuis-amis	-	ready
 1	46	retrait-cgv	feat/v2-46-retrait-cgv	-	ready
 2	47	exemplaires-multiples	feat/v2-47-exemplaires-multiples	-	ready
