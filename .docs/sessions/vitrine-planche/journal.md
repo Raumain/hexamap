@@ -75,3 +75,25 @@ ajoute cinq, tous dans `profile.spec.ts`.
   et la forme demandée par le brief (R-3).
 - Aucune vérification visuelle humaine hors Playwright : la preuve navigateur est le banc, capture
   `vitrine-planches` attachée au cas de budget.
+
+## 2026-11-22 — Reprise de session : preuves rejouées, plan clos
+
+La phase était déjà implémentée, commitée et poussée sur `feat/v2-38-vitrine-planche`
+(`1cec509`, `d7c6bb3`, `95913fc`, `ab75603`, `2612070`), et la PR **#60** était déjà ouverte en
+brouillon vers `feat/v2-wave-1`. Cette reprise n'a donc rien réécrit du code : elle a rejoué les
+preuves dans cet environnement, puis corrigé la seule incohérence documentaire — `plan.md` était
+resté en `status: pending`.
+
+| Preuve | Résultat mesuré dans cette session |
+| :--- | :--- |
+| `ci:check` (Docker, `TEST_DATABASE_URL=…hexamap_test_38`) | **353 spécifications, 19 fichiers, 0 échec, 2 090 assertions** |
+| Banc E2E complet (`docker-compose.e2e.yml`) | **75 passés, 0 échoué, 0 ignoré** (2,5 min) |
+| `vitrine.spec.ts` seul | **3 passés** — quatre planches, tableau troué, budget DOM |
+| Banc E2E déjà monté | bundlé depuis ce code : `showcase_slots` dans `/app/dist/index.js`, « Les quatre planches » dans `players._playerId-*.js` |
+
+Le compte d'assertions diffère de celui consigné plus haut (2 091) : comme le note
+`.docs/03-active-task.md` §Vérification, ce nombre n'est pas un invariant — certaines assertions
+vivent dans une boucle sur le référentiel. Les invariants sont **353 spécifications / 19 fichiers**
+et **75 cas E2E**, tous verts.
+
+Aucune spécification existante n'a été modifiée, aucun `skip` ajouté, aucun délai relâché.

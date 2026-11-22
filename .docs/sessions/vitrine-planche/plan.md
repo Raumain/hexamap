@@ -1,6 +1,6 @@
 ---
 objective: "La vitrine publique expose les quatre planches du meilleur tableau, en identité seule, résolues en une seule instruction SQL, sans aucune donnée privée."
-status: pending
+status: done
 ---
 
 # Plan : La Vitrine, la planche montrée (phase 38)
