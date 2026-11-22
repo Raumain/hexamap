@@ -101,6 +101,7 @@ export interface TableauTable {
   departement_card_id: string | null;
   commune_card_id: string | null;
   rue_card_id: string | null;
+  score: Generated<number>;
   created_at: Generated<Date>;
 }
 
