@@ -215,8 +215,15 @@ prepare_worktree() {
   if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
     log "branche $branch déjà présente : reprise"
     if [ "$DRY_RUN" -eq 0 ]; then
-      git -C "$ROOT" worktree add -q "$wt" "$branch" 2>/dev/null \
-        || git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$base"
+      # `--keep` laisse les worktrees en place : une relance retrouve le chemin occupé
+      # et `git worktree add` échoue en `fatal: already used by worktree`. On réutilise
+      # l'arbre s'il est déjà monté sur la bonne branche, sans le recréer.
+      if [ -d "$wt" ] && [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$branch" ]; then
+        log "worktree existant réutilisé : $wt"
+      else
+        git -C "$ROOT" worktree add -q "$wt" "$branch" 2>/dev/null \
+          || git -C "$ROOT" worktree add -q -B "$branch" "$wt" "$base"
+      fi
     fi
   else
     log "worktree + branche $branch depuis $base"
@@ -378,6 +385,17 @@ build_wave() {
       fi
     fi
   done
+
+  # Une fusion peut changer les `package.json` et le `bun.lock` : la phase 33 a ajouté
+  # `@hexamap/import` aux dépendances de `packages/spec`, et `seed_worktree` a installé
+  # AVANT la fusion. Sans ce second `bun install`, `packages/spec/node_modules` n'a pas le
+  # lien, et le typecheck échoue en TS2307 sur un arbre pourtant complet (vague 2).
+  log "installation des dépendances fusionnées dans $wt"
+  if ! ( cd "$wt" && dc --profile tools run --rm dev bun install --frozen-lockfile ) \
+        >>"$LOGDIR/install.log" 2>&1; then
+    warn "bun install --frozen-lockfile échoue après fusion : bun.lock ne correspond plus aux package.json fusionnés (voir $LOGDIR/install.log)"
+    return 1
+  fi
 
   log "ci:check sur $branch (${branches[*]})"
   if ! ( cd "$wt" && dc --profile tools run --rm -e "TEST_DATABASE_URL=$(db_url "hexamap_test_wave$wave")" \
