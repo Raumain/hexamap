@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-22.
+> Dernière mise à jour : 2026-11-22 (troc — `trade_offers`).
 
 ---
 
@@ -38,6 +38,7 @@
 | Gardes d'intégrité du référentiel : `ref_truncate_guard()` (3 triggers `BEFORE TRUNCATE`), `orphan_user_cards()` | **Migrée** | `packages/db/migrations/0014_ref_integrity.ts` |
 | `path_d text` sur `ref_regions`, `ref_departements` et `ref_communes` | **Migrée** (2026-11-22) | `packages/db/migrations/0015_atlas_paths.ts` |
 | `notifications` | **Migrée** | `packages/db/migrations/0016_notifications.ts` |
+| `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -460,6 +461,74 @@ Il identifie de quoi rebondir (lien vers `/players/:id` quand il porte un `playe
 **à la lecture de la salle** (`GET /api/v1/notifications`), borné à l'utilisateur qui lit :
 `delete … where user_id = ? and created_at < now() - interval '90 days'`. Aucun ordonnanceur,
 aucune dépendance, et un compte ne purge jamais les lignes d'un autre.
+
+### 4.11 Troc — offres d'échange
+
+```sql
+create table if not exists trade_offers (
+  id uuid primary key default gen_random_uuid(),
+  proposer_id text not null references "user" ("id") on delete cascade,
+  receiver_id text not null references "user" ("id") on delete cascade,
+  offered_card_id uuid not null references user_cards (id) on delete cascade,
+  requested_card_id uuid not null references user_cards (id) on delete cascade,
+  status text not null default 'PENDING'
+    check (status in ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  expires_at timestamptz not null,
+  check (proposer_id <> receiver_id),
+  check (offered_card_id <> requested_card_id)
+);
+
+create index if not exists trade_offers_receiver_idx
+  on trade_offers (receiver_id, status, created_at desc);
+create index if not exists trade_offers_proposer_idx
+  on trade_offers (proposer_id, status, created_at desc);
+
+-- Une carte engagée ne se repropose pas, et ne se revend pas.
+create unique index if not exists trade_offers_offered_pending_idx
+  on trade_offers (offered_card_id) where status = 'PENDING';
+-- Une carte demandée n'est l'objet que d'une seule offre ouverte : c'est cette
+-- unicité qui rend l'acceptation décidable, et elle interdit aussi qu'une même
+-- carte soit demandée par deux propositions simultanées.
+create unique index if not exists trade_offers_requested_pending_idx
+  on trade_offers (requested_card_id) where status = 'PENDING';
+```
+
+- **Le troc est 1 ↔ 1 et rien d'autre.** `offered_card_id` et `requested_card_id` suffisent :
+  aucune table de jonction, aucun lot, aucun prix, aucun écu. Le N ↔ N est hors périmètre.
+- **Cinq statuts seulement** : `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELLED`, `EXPIRED`.
+  `PENDING` est le seul état ouvert ; les quatre autres sont terminaux et ne se rouvrent pas.
+  La liste fermée vit dans `packages/shared/src/trade.ts` (`TRADE_STATUSES`,
+  `canTransitionTrade`), et le `CHECK` de la table n'en accepte aucune autre valeur.
+- **`responded_at` est l'instant où l'offre a quitté `PENDING`**, quelle qu'en soit la cause :
+  acceptation, refus, annulation, ou constat d'expiration par le balayage paresseux. Il reste
+  `NULL` tant que l'offre est ouverte.
+- **`expires_at` est écrit à la proposition** (`TRADE_OFFER_TTL_MS`, 7 jours) : la durée vit dans
+  `packages/shared`, jamais dans une valeur par défaut de colonne, pour qu'un réglage de jeu ne
+  demande pas une migration.
+- **`locked` reste réservé à la vente.** Le troc ne pose jamais `locked = true` ; il vérifie
+  `locked = false` à la proposition. Une carte ne peut donc être à la fois en vente et en troc :
+  proposer une carte verrouillée répond `409 CARD_LOCKED`, et mettre en vente une carte engagée
+  répond `409 CARD_IN_TRADE`. Aucune colonne partagée ne porte cette exclusivité, deux gardes
+  symétriques suffisent.
+- **Les deux index partiels portent l'exclusivité**, pas une vérification applicative seule : deux
+  propositions simultanées sur la même carte voient l'une et l'autre « libre », la base n'en
+  garde qu'une, et le conflit est traduit en `409 CARD_ALREADY_IN_TRADE`.
+- **L'acceptation est atomique** : `SELECT … FOR UPDATE` sur la ligne d'offre puis sur les deux
+  `user_cards` (dans l'ordre de leur identifiant), vérification que chaque carte appartient
+  toujours au camp qui l'a engagée, transfert des deux `user_cards.user_id`, statut `ACCEPTED`,
+  `responded_at`, notifications — une seule transaction. Une carte vendue entre-temps répond
+  `409 TRADE_CARD_MOVED` et rien ne bouge.
+- **Aucune table de journalisation anti-collusion.** `trade_offers` est elle-même le registre :
+  la paire de comptes, les deux cartes et les deux horodatages. C'est une limite assumée, écrite
+  au journal de la phase : on relit *qui* a échangé *quoi* avec *qui* et *quand*, on ne détecte
+  pas un schéma de comptes secondaires. Le troc n'écrit **jamais** dans `currency_ledger`.
+- **L'expiration est paresseuse et bornée à l'utilisateur.** Aucun ordonnanceur n'existe dans le
+  runtime : `expireOffersForUser` s'exécute à la lecture des offres, à la proposition, à
+  l'acceptation et à la mise en vente d'une carte. Le coût est O(offres de cet utilisateur) ; une
+  offre morte ne bloque donc jamais un tiers, seulement une partie, et la mise en vente d'une
+  carte balaie d'abord les offres du vendeur.
 
 ---
 

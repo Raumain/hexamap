@@ -241,6 +241,20 @@ export interface NotificationTable {
   read_at: Date | null;
 }
 
+export type TradeStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED' | 'EXPIRED';
+
+export interface TradeOfferTable {
+  id: Generated<string>;
+  proposer_id: string;
+  receiver_id: string;
+  offered_card_id: string;
+  requested_card_id: string;
+  status: Generated<TradeStatus>;
+  created_at: Generated<Date>;
+  responded_at: Date | null;
+  expires_at: Date;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -265,4 +279,5 @@ export interface Database {
   blocks: BlockTable;
   user_profiles: UserProfileTable;
   notifications: NotificationTable;
+  trade_offers: TradeOfferTable;
 }
