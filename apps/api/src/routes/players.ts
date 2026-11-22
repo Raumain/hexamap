@@ -10,6 +10,41 @@ const categorySchema = t.Union([
   t.Literal('RUE'),
 ]);
 
+const raritySchema = t.Union([
+  t.Literal('COMMUNE'),
+  t.Literal('INHABITUELLE'),
+  t.Literal('RARE'),
+  t.Literal('EPIQUE'),
+  t.Literal('LEGENDAIRE'),
+  t.Literal('MYTHIQUE'),
+]);
+
+const bestTableauSlotSchema = t.Object(
+  {
+    category: categorySchema,
+    refCode: t.String(),
+    rarity: raritySchema,
+    score: t.Integer(),
+    nom: t.String(),
+    blasonUrl: t.Union([t.String(), t.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * Quatre emplacements, tuple plutôt que `t.Array` : la position est le contrat
+ * (`index = slot`), et Elysia 1.4 rejette en `422` un item `null` d'un tableau
+ * de réponse déclaré `t.Array(t.Union([objet, t.Null()]))` — mesuré sur le
+ * tableau troué, dont trois emplacements valent `null`. Le tuple de quatre
+ * `anyOf` passe et dit exactement « quatre positions ».
+ */
+const bestTableauSlotsSchema = t.Tuple([
+  t.Union([bestTableauSlotSchema, t.Null()]),
+  t.Union([bestTableauSlotSchema, t.Null()]),
+  t.Union([bestTableauSlotSchema, t.Null()]),
+  t.Union([bestTableauSlotSchema, t.Null()]),
+]);
+
 const completenessSchema = t.Object(
   { category: categorySchema, owned: t.Integer(), total: t.Integer() },
   { additionalProperties: false },
@@ -22,6 +57,7 @@ const bestTableauSchema = t.Object(
     score: t.Integer(),
     multiplier: t.Number(),
     links: t.Integer(),
+    slots: bestTableauSlotsSchema,
   },
   { additionalProperties: false },
 );
