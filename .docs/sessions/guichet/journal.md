@@ -165,3 +165,36 @@ ses deux cas sans `skip`, `only` ni `fixme`.
   cloche et la salle ; mais personne n'a regardé une capture.
 - La charge utile d'un `TRADE_*` n'existe pas encore : la salle les rend par un repli défensif
   (libellé + date), et la phase 40 décidera de ce qu'elle y met.
+
+## Reprise — banc E2E rejoué le 2026-11-22
+
+La reprise précédente avait laissé le banc E2E non rejoué, la pile partagée `hexamap-e2e` étant
+occupée. Cette session l'a donc exécuté sur le **projet isolé** `hexamap-e2e-39` (surcharge
+`/tmp/opencode/e2e39-compose.yml` : tag `hexamap-e2e-api:39`, volume `hexamap_e2e_pgdata_39`,
+aucun réglage du banc modifié). Aucune pile d'une autre phase n'a été touchée.
+
+```
+docker compose -p hexamap-e2e-39 -f docker-compose.e2e.yml -f /tmp/opencode/e2e39-compose.yml \
+  up -d --build db api proxy
+docker compose -p hexamap-e2e-39 -f docker-compose.e2e.yml -f /tmp/opencode/e2e39-compose.yml \
+  run --rm playwright npx --no-install playwright test
+
+84 passed (2.6m) — 0 échoué, 0 ignoré
+chromium 37 · pwa 7 · Pixel 7 20 · iPhone 13 20
+```
+
+`ci:check` rejoué dans la même session, base `hexamap_test_39` :
+
+```
+✓ 1/4 Lint          ✓ 2/4 Typecheck
+✓ 3/4 Base de données
+✓ 4/4 Spécifications   418 pass, 0 fail, 2 636 expect(), 23 fichiers
+```
+
+Les deux chiffres confirment ceux de la session d'origine (418 spécifications, 84 E2E) ; la seule
+variation est le nombre d'`expect()` (2 636 contre 2 635/2 640), qui n'est pas un invariant —
+certaines assertions vivent dans une boucle sur le référentiel. Les dix cas de
+`packages/spec/src/notifications.spec.ts` passent, dont le rejeu (cas 3), le refus d'un `kind`
+inconnu (cas 2) et la purge à 90 jours (cas 7). Les deux cas de
+`packages/e2e/tests/guichet.spec.ts` sont verts, sans `skip`, `only` ni `fixme` : demande d'ami →
+cloche allumée → lecture → cloche éteinte, et salle fermée sans session.
