@@ -686,14 +686,19 @@ describe('La Sonnette — l’ordonnanceur', () => {
     expect(await readSubscription(subscriptionId)).toBeUndefined();
   });
 
-  it('garde l’abonnement quand le service de push échoue autrement', async () => {
+  it('garde l’abonnement quand le service de push échoue, sans le réessayer sans fin', async () => {
     const { subscriptionId } = await seedDrainedUser();
-    const { sender } = recordingSender('FAILED');
+    const { sender, calls } = recordingSender('FAILED');
 
-    const result = await runPushSweep({ db, now: NOW, sender });
-
-    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    const first = await runPushSweep({ db, now: NOW, sender });
+    expect(first.skipped).toBeGreaterThanOrEqual(1);
     expect(await readSubscription(subscriptionId)).toBeDefined();
+
+    // Un envoi tenté compte pour le jour : sans cela, un abonnement durablement
+    // cassé serait réessayé toutes les soixante secondes, indéfiniment.
+    const second = await runPushSweep({ db, now: new Date(NOW.getTime() + 60_000), sender });
+    expect(second.sent).toBe(0);
+    expect(calls).toHaveLength(1);
   });
 
   it('n’envoie rien à un carnet plein', async () => {
@@ -758,5 +763,17 @@ describe('La Sonnette — les routes', () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  it('borne les heures calmes dans la route, sans attendre la contrainte SQL', async () => {
+    const { cookie } = await signUp();
+
+    const response = await authFetch('/api/v1/push/preferences', {
+      method: 'PUT',
+      cookie,
+      body: JSON.stringify({ quietStart: 24, quietEnd: 8 }),
+    });
+
+    expect(response.status).toBe(422);
   });
 });

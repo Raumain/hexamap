@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-22 (Palmarès — `tableaux.score`).
+> Dernière mise à jour : 2026-11-22 (La Sonnette — `push_subscriptions`, `push_preferences`).
 
 ---
 
@@ -41,8 +41,8 @@
 | `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
 | `user_cards.source` élargi à `CRAFT` | **Migrée** (2026-11-22) | `packages/db/migrations/0018_card_source.ts` |
 | Colonne `tableaux.score` | **Migrée** (2026-11-22) | `packages/db/migrations/0019_tableau_score.ts` |
-| `push_subscriptions`, `push_preferences` | **Contrat** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
-| Index `user_scratch_charges_empty_idx` | **Contrat** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| `push_subscriptions`, `push_preferences` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| Index `user_scratch_charges_empty_idx` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -1156,6 +1156,21 @@ export interface Database {
 - **Le balayage à 90 jours ne supprime que les lignes plus anciennes que la rétention, et jamais
   celles d'un autre compte** : `delete … where user_id = ? and created_at < now() - interval
   '90 days'` s'exécute à la lecture de la salle, sans ordonnanceur.
+- **Un `endpoint` de poussée est unique globalement** : se réabonner depuis le même navigateur
+  réassigne la ligne, il n'en crée pas une seconde. Deux lignes pour un même appareil
+  enverraient deux notifications pour une seule charge.
+- **Le quota de poussée est porté par `push_subscriptions.last_sent_on`**, jamais par un cache
+  mémoire : un redémarrage de l'API ne peut pas doubler l'envoi. Il est écrit **au moment d'un
+  envoi tenté** — accepté ou refusé —, ce qui borne à un par jour les réessais sur un abonnement
+  durablement cassé.
+- **Le même instant de régénération n'est jamais annoncé deux fois** :
+  `last_notified_charge_at` retient l'instant annoncé, et un échec d'envoi ne le consomme pas.
+- **Les heures calmes reportent, elles ne consomment rien.** La décision ne lit que des données,
+  et l'écriture du quota n'a lieu qu'après une tentative : une plage calme laisse
+  `last_sent_on` intact et l'envoi part à la première heure autorisée.
+- **Un désabonnement supprime la ligne de `push_subscriptions` et laisse `push_preferences`
+  intacte** : réactiver la sonnette ne remet pas les heures calmes par défaut.
+- **Un `404` ou un `410` du service de push supprime la ligne.** Tout autre échec la conserve.
 
 ### 7.2 Tirage d'une carte d'un palier
 

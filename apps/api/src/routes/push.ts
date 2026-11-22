@@ -23,7 +23,13 @@ const configSchema = t.Object(
 );
 
 const preferencesSchema = t.Object(
-  { quietStart: t.Integer(), quietEnd: t.Integer() },
+  {
+    // Les bornes sont validées **ici** : la table les borne aussi (`check between
+    // 0 and 23`), mais une violation de contrainte remonterait en `500` alors que
+    // la faute est dans le corps de la requête.
+    quietStart: t.Integer({ minimum: 0, maximum: 23 }),
+    quietEnd: t.Integer({ minimum: 0, maximum: 23 }),
+  },
   { additionalProperties: false },
 );
 

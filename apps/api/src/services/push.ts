@@ -235,6 +235,17 @@ async function sweep(
     }
 
     if (outcome !== 'SENT') {
+      // Un envoi **tenté** compte pour le jour. Sans cela, un abonnement
+      // durablement cassé (clé refusée, `400` permanent) serait réessayé toutes
+      // les 60 s, indéfiniment — une boucle qu'aucun opérateur ne verrait. Le
+      // quota est consommé, l'anti-doublon ne l'est pas : le même instant de
+      // charge redevient éligible le lendemain, quand le quota se remet à zéro.
+      await connection
+        .updateTable('push_subscriptions')
+        .set({ last_sent_on: utcDay(now), last_sent_at: now })
+        .where('id', '=', candidate.id)
+        .execute();
+
       skipped += 1;
       continue;
     }
