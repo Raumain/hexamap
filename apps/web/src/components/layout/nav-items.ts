@@ -6,6 +6,7 @@ export type SalonPath =
   | '/tableau'
   | '/tableaux'
   | '/friends'
+  | '/guichet'
   | '/market'
   | '/market/mine'
   | '/achievements'
@@ -52,6 +53,12 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 
 /** Les salles secondaires, avant l'interrupteur de la boutique. */
 const SECONDARY_NAV_BASE: readonly NavItem[] = [
+  {
+    to: '/guichet',
+    label: 'Le Guichet',
+    short: 'Guichet',
+    glyph: 'M12 3a5 5 0 0 1 5 5v4l2 3H5l2-3V8a5 5 0 0 1 5-5M10 18a2 2 0 0 0 4 0',
+  },
   {
     to: '/tableaux',
     label: 'Les Planches',
@@ -110,6 +117,7 @@ const SALON_TITLES: Record<string, string> = {
   '/tableau': 'La Planche',
   '/tableaux': 'Les Planches',
   '/friends': 'Les Amis',
+  '/guichet': 'Le Guichet',
   '/market': 'Le Comptoir',
   '/market/mine': 'Mes Offres',
   '/achievements': 'Les Médailles',
