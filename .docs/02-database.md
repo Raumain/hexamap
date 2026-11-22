@@ -41,6 +41,8 @@
 | `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
 | `user_cards.source` élargi à `CRAFT` | **Migrée** (2026-11-22) | `packages/db/migrations/0018_card_source.ts` |
 | Colonne `tableaux.score` | **Migrée** (2026-11-22) | `packages/db/migrations/0019_tableau_score.ts` |
+| `push_subscriptions`, `push_preferences` | **Contrat** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| Index `user_scratch_charges_empty_idx` | **Contrat** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -352,6 +354,19 @@ create table user_scratch_charges (
   reste fractionnaire du compte à rebours.
 - Un ticket n'existe pas sans charge dépensée ; l'index unique partiel
   `tickets_one_active_per_user` est conservé tel quel.
+- **Index de balayage de La Sonnette (migration `0020_push`).** L'ordonnanceur de la
+  poussée (`.docs/01-architecture.md` §4.10) cherche les seuls carnets **vides** dont
+  la prochaine charge est atteinte. Il lit donc :
+
+  ```sql
+  create index if not exists user_scratch_charges_empty_idx
+    on user_scratch_charges (last_regen_at) where charges = 0;
+  ```
+
+  L'index est **partiel sur `charges = 0`** : au repos, la quasi-totalité des lignes
+  en sont exclues, et un battement à vide ne lit aucune ligne de cette table. Le
+  balayage conduit ensuite la jointure vers `push_subscriptions` par `user_id`, servie
+  par `push_subscriptions_user_idx`. Aucune colonne nouvelle : l'index seul est ajouté.
 
 ### 4.8 Médailles
 
@@ -552,6 +567,74 @@ create unique index if not exists trade_offers_requested_pending_idx
   l'acceptation et à la mise en vente d'une carte. Le coût est O(offres de cet utilisateur) ; une
   offre morte ne bloque donc jamais un tiers, seulement une partie, et la mise en vente d'une
   carte balaie d'abord les offres du vendeur.
+
+### 4.12 La Sonnette — abonnements et préférences
+
+```sql
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references "user" ("id") on delete cascade,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  last_sent_on text check (last_sent_on is null or last_sent_on ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'),
+  last_notified_charge_at timestamptz,
+  last_sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Un point de terminaison désigne un navigateur, pas un compte : il est unique,
+-- et se réabonner depuis le même navigateur avec un autre compte le transfère.
+create unique index if not exists push_subscriptions_endpoint_idx
+  on push_subscriptions (endpoint);
+create index if not exists push_subscriptions_user_idx
+  on push_subscriptions (user_id);
+
+create table if not exists push_preferences (
+  user_id text primary key references "user" ("id") on delete cascade,
+  quiet_start smallint not null default 22 check (quiet_start between 0 and 23),
+  quiet_end smallint not null default 8 check (quiet_end between 0 and 23),
+  updated_at timestamptz not null default now()
+);
+```
+
+- **Deux tables, et la séparation est le contrat.** Le désabonnement **supprime** la
+  ligne de `push_subscriptions` — c'est ce que demande le service de push quand il
+  répond `404` ou `410`, et c'est la seule façon d'arrêter réellement l'envoi. Une
+  préférence posée sur cette ligne disparaîtrait donc avec elle, et le joueur qui
+  réactive retrouverait les heures calmes par défaut **sans l'avoir demandé**.
+  `push_preferences` est donc une table distincte, clé `user_id`, qui **survit** au
+  désabonnement.
+- **`endpoint` est unique globalement**, pas par couple `(user_id, endpoint)`. Un
+  abonnement est un navigateur ; deux comptes sur le même navigateur ne doivent pas
+  produire deux lignes, sinon une seule charge enverrait deux notifications au même
+  appareil. L'abonnement est un `on conflict (endpoint) do update set user_id = …` :
+  se connecter avec un autre compte sur le même navigateur réassigne l'abonnement,
+  il ne le duplique pas.
+- **`p256dh` et `auth`** sont les deux secrets du chiffrement `aes128gcm` fournis par
+  le navigateur (`PushSubscription.getKey`). Ils sont stockés tels quels, en `text`
+  base64url ; ils ne sont **jamais** rendus par une route.
+- **`last_sent_on` porte le quota quotidien**, et c'est un `text` `YYYY-MM-DD` **à dessein**.
+  `date` serait relu par le driver `pg` en `Date` à minuit **local** du serveur : la
+  comparaison avec le jour UTC dériverait d'un jour aux bords, exactement là où le quota
+  compte. La colonne porte donc le jour UTC tel que `utcDay()` de `packages/shared` le
+  produit, et le `CHECK` fige le format. Au plus une notification par jour et par
+  abonnement. La colonne vit en base, jamais dans un cache mémoire : un redémarrage de
+  l'API ne peut pas doubler l'envoi.
+- **`last_notified_charge_at timestamptz` porte l'anti-doublon par charge.** Il vaut
+  l'instant de régénération annoncé (`last_regen_at + SCRATCH_REGEN_MS`). Un battement
+  qui revoit le même instant ne réannonce rien, même le lendemain : le quota
+  quotidien et cette colonne sont deux gardes distinctes, la première contre le
+  harcèlement, la seconde contre le doublon.
+- **L'heure est UTC.** Les heures calmes sont des heures UTC, pas locales : aucun
+  fuseau n'est stocké, aucune dépendance de fuseau horaire n'entre dans le domaine.
+  `quiet_start > quiet_end` décrit une plage qui passe minuit (22 → 8), et
+  `quiet_start === quiet_end` désactive les heures calmes.
+- **Aucune clé `game_config` nouvelle.** Les heures calmes par défaut (`22` → `8`)
+  vivent dans `packages/shared/src/push.ts` et dans les défauts SQL de la table ;
+  aucune n'est un réglage de jeu qu'un écran d'administration modifierait.
+- **Rien n'est jamais poussé hors du retour de charge.** Une vente, une médaille ou une
+  offre de troc restent dans Le Guichet : la poussée ne double pas la salle.
 
 ---
 
@@ -960,6 +1043,27 @@ export interface CommuneOdonymeTable {
   odonyme_id: string;
 }
 
+export interface PushSubscriptionTable {
+  id: Generated<string>;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  /** Jour UTC du dernier envoi, `YYYY-MM-DD` ; `null` tant qu'aucun envoi n'a eu lieu. */
+  last_sent_on: string | null;
+  /** Instant de régénération annoncé, pour ne pas réannoncer la même charge. */
+  last_notified_charge_at: Date | null;
+  last_sent_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface PushPreferencesTable {
+  user_id: string;
+  quiet_start: Generated<number>;
+  quiet_end: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   user: UserTable;
   session: SessionTable;
@@ -983,6 +1087,8 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  push_subscriptions: PushSubscriptionTable;
+  push_preferences: PushPreferencesTable;
   notifications: NotificationTable;
 }
 ```
