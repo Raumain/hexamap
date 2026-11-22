@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AssemblageRouteImport } from './routes/assemblage'
+import { Route as AtlasRouteImport } from './routes/atlas'
 import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as CompteRouteImport } from './routes/compte'
@@ -44,6 +45,11 @@ const AchievementsRoute = AchievementsRouteImport.update({
 const AssemblageRoute = AssemblageRouteImport.update({
   id: '/assemblage',
   path: '/assemblage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtlasRoute = AtlasRouteImport.update({
+  id: '/atlas',
+  path: '/atlas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CgvRoute = CgvRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
+  '/atlas': typeof AtlasRoute
   '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
     | '/compte'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
     | '/compte'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/'
     | '/achievements'
     | '/assemblage'
+    | '/atlas'
     | '/cgv'
     | '/collection'
     | '/compte'
@@ -283,6 +295,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AchievementsRoute: typeof AchievementsRoute
   AssemblageRoute: typeof AssemblageRoute
+  AtlasRoute: typeof AtlasRoute
   CgvRoute: typeof CgvRoute
   CollectionRoute: typeof CollectionRoute
   CompteRoute: typeof CompteRoute
@@ -324,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/assemblage'
       fullPath: '/assemblage'
       preLoaderRoute: typeof AssemblageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/atlas': {
+      id: '/atlas'
+      path: '/atlas'
+      fullPath: '/atlas'
+      preLoaderRoute: typeof AtlasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cgv': {
@@ -459,6 +479,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AchievementsRoute: AchievementsRoute,
   AssemblageRoute: AssemblageRoute,
+  AtlasRoute: AtlasRoute,
   CgvRoute: CgvRoute,
   CollectionRoute: CollectionRoute,
   CompteRoute: CompteRoute,
