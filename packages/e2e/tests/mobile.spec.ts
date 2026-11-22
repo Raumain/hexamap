@@ -829,20 +829,19 @@ test('mobile — « Les Planches » ne s’allume pas sur La Planche', async ({ 
   );
 });
 
-test("mobile — la salle de l'Assemblage annonce sa venue", async ({ page }) => {
+test("mobile — l'ancienne salle de l'Assemblage mène à L'Atlas", async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
   await openMoreSheet(page);
   const sheet = page.getByRole('dialog', { name: MORE_SHEET });
+  // Le libellé du lien appartient à `nav-items.ts` : la phase 35 ne le renomme
+  // pas, elle rouvre seulement la salle qu'il annonçait.
   await sheet.getByRole('link', { name: "L'Assemblage" }).click();
 
-  await expect(page).toHaveURL(/\/assemblage$/);
-  await expect(page.getByRole('heading', { name: "L'Assemblage" })).toBeVisible();
-  await expect(page.getByText('Bientôt disponible')).toBeVisible();
-
-  // L'aperçu est un contour vide : le cas ne vérifie que sa présence et son nom.
-  await expect(page.getByRole('img', { name: /Carte de France, encore vide/ })).toBeVisible();
+  // `/assemblage` ne rend plus de teaser : la route redirige vers la salle réelle.
+  await expect(page).toHaveURL(/\/atlas$/);
+  await expect(page.getByRole('heading', { level: 1, name: "L'Atlas" })).toBeVisible();
 });
 
 test('mobile — la feuille se ferme par Échap et rend le focus', async ({ page }) => {
