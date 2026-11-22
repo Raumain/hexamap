@@ -1,5 +1,6 @@
 export * from './account';
 export * from './achievements';
+export * from './atelier';
 export * from './atlas';
 export * from './charges';
 export * from './notifications';
