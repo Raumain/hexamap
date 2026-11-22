@@ -829,17 +829,16 @@ test('mobile — « Les Planches » ne s’allume pas sur La Planche', async ({ 
   );
 });
 
-test("mobile — l'ancienne salle de l'Assemblage mène à L'Atlas", async ({ page }) => {
+test("mobile — la salle de L'Atlas s'ouvre depuis la feuille", async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
   await openMoreSheet(page);
   const sheet = page.getByRole('dialog', { name: MORE_SHEET });
-  // Le libellé du lien appartient à `nav-items.ts` : la phase 35 ne le renomme
-  // pas, elle rouvre seulement la salle qu'il annonçait.
-  await sheet.getByRole('link', { name: "L'Assemblage" }).click();
+  // Le lien porte le nom de la salle : `nav-items.ts` a suivi le renommage.
+  // La redirection de l'ancienne adresse est couverte par `atlas.spec.ts`.
+  await sheet.getByRole('link', { name: "L'Atlas" }).click();
 
-  // `/assemblage` ne rend plus de teaser : la route redirige vers la salle réelle.
   await expect(page).toHaveURL(/\/atlas$/);
   await expect(page.getByRole('heading', { level: 1, name: "L'Atlas" })).toBeVisible();
 
