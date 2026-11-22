@@ -379,6 +379,17 @@ build_wave() {
     fi
   done
 
+  # Une fusion peut changer les `package.json` et le `bun.lock` : la phase 33 a ajouté
+  # `@hexamap/import` aux dépendances de `packages/spec`, et `seed_worktree` a installé
+  # AVANT la fusion. Sans ce second `bun install`, `packages/spec/node_modules` n'a pas le
+  # lien, et le typecheck échoue en TS2307 sur un arbre pourtant complet (vague 2).
+  log "installation des dépendances fusionnées dans $wt"
+  if ! ( cd "$wt" && dc --profile tools run --rm dev bun install --frozen-lockfile ) \
+        >>"$LOGDIR/install.log" 2>&1; then
+    warn "bun install --frozen-lockfile échoue après fusion : bun.lock ne correspond plus aux package.json fusionnés (voir $LOGDIR/install.log)"
+    return 1
+  fi
+
   log "ci:check sur $branch (${branches[*]})"
   if ! ( cd "$wt" && dc --profile tools run --rm -e "TEST_DATABASE_URL=$(db_url "hexamap_test_wave$wave")" \
         dev bun run ci:check ); then
