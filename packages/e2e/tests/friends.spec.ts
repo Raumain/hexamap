@@ -103,6 +103,11 @@ test('le pseudo d’un ami mène à sa vitrine quand elle est publique, et reste
     await expect(privateRow).toBeVisible();
     await expect(privateRow.getByRole('link', { name: pseudo, exact: true })).toHaveCount(0);
     await expect(privateRow.getByText(pseudo, { exact: true })).toBeVisible();
+
+    // 5. La relation est retirée : le banc ne laisse pas une amitié de plus à chaque
+    //    exécution sur le compte principal, et la ligne disparaît de la salle.
+    await privateRow.getByRole('button', { name: 'Retirer' }).click();
+    await expect(privateRow).toHaveCount(0);
   } finally {
     await other.close();
   }
