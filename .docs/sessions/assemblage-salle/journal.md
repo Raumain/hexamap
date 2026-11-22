@@ -109,3 +109,38 @@ avant la première assertion —, il est prouvé par le typecheck et par le chem
 volume entre tous les worktrees : une session sœur avait appliqué la migration `0016_notifications`
 à la même base, ce qui faisait sortir l'API de cette branche en `corrupted migrations`. La pile a
 été remise à zéro (`down -v` puis `up --build`) et le banc rejoué deux fois de suite, vert.
+
+## Reprise — audit du travail récupéré et rejeu des vérifications
+
+Le code de cette phase a été écrit par deux sessions interrompues avant de vérifier et de
+committer. Une reprise a donc relu l'ensemble contre le brief 35 et contre
+`.docs/07-roadmap-v2.md` §4, puis rejoué les deux preuves. Aucune assertion de `packages/spec`
+n'a été touchée, aucun cas E2E n'a été supprimé, aucun `skip` ajouté.
+
+**Le cas E2E mobile, avant et après.** L'ancien cas (URL `/assemblage`, titre « L'Assemblage »,
+« Bientôt disponible », image « Carte de France, encore vide ») devient
+`mobile — l'ancienne salle de l'Assemblage mène à L'Atlas` : même clic depuis la feuille, puis URL
+`/atlas`, titre de niveau 1 « L'Atlas », **table équivalente « Table équivalente de la carte »
+visible**, et **absence** de « Bientôt disponible ». Le cas asserte donc le remplacement, et
+conserve la preuve que le teaser a disparu — il n'est ni supprimé, ni affaibli.
+
+**Rejeu, après reconstruction de la pile.** Le banc servait encore un bundle antérieur aux dernières
+écritures web : l'image a été reconstruite depuis le worktree, le conteneur `api` recréé de force
+(`--force-recreate`), et la fraîcheur du bundle vérifiée dans `/app/public/assets` (« Ouvrir les
+communes de », `data-entity-code`). Le référentiel E2E a été resemmé, puis :
+
+- `ci:check` (base `hexamap_test_35`) : **408 spécifications, 22 fichiers, 0 échec**, deux
+  passages consécutifs ;
+- banc complet : **90 exécutés, 90 passés, 0 échoué, 0 ignoré** (2,6 min) ;
+- après renforcement du cas mobile, rejeu ciblé : **3 passés** (chromium : la redirection ;
+  Pixel 7 et iPhone 13 : le cas mobile).
+
+**Deux notes de reprise.**
+
+1. `apps/web/src/routes/atlas.tsx` portait un nom de classe `atlas-entity` qu'aucune règle de
+   `styles.css` ne définit. Le fichier restait sous un bail d'édition d'une session antérieure au
+   moment de la reprise ; la classe est inerte et a été laissée en place plutôt que de forcer le
+   bail. Aucun comportement n'en dépend.
+2. `packages/shared/src/atlas.ts` ne portait plus qu'une référence textuelle morte à l'ancien nom
+   (« salle L'Assemblage »), dans son commentaire de tête : corrigée en « salle L'Atlas », sans
+   toucher au contrat.
