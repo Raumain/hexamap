@@ -10,4 +10,5 @@ export * from './rarity';
 export * from './reference-codes';
 export * from './scoring';
 export * from './tableau';
+export * from './trade';
 export * from './ui';

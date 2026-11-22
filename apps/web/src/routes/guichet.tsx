@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
+import { TradeOffersPanel } from '../components/trade/trade-offers-panel';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { GUICHIET } from '../content/guichet';
 import {
@@ -144,6 +145,8 @@ function GuichetBody() {
       >
         {notice?.message ?? ''}
       </p>
+
+      <TradeOffersPanel />
 
       {items.length === 0 ? (
         <section className="rounded-sheet border border-veil bg-cabinet-raised p-6">
@@ -298,8 +301,8 @@ function numberField(payload: Record<string, unknown>, key: string): number | nu
 }
 
 /**
- * Les `TRADE_*` sont rendus sans lire leur charge utile : la phase 40 en décide
- * la forme. Une clé inconnue ne produit jamais d'exception.
+ * Les `TRADE_*` lisent désormais leur charge utile : `TRADE_OFFER` porte le
+ * pseudo du proposant, `TRADE_DECLINED` distingue un refus d'un retrait.
  */
 function describeNotification(item: NotificationItem): string {
   const { payload } = item;
@@ -328,6 +331,18 @@ function describeNotification(item: NotificationItem): string {
       );
     case 'MARKET_BOUGHT':
       return GUICHIET.descriptions.MARKET_BOUGHT(numberField(payload, 'price'));
+    case 'TRADE_OFFER':
+      return GUICHIET.descriptions.TRADE_OFFER(
+        stringField(payload, 'pseudo') ?? GUICHIET.unknownPseudo,
+      );
+    case 'TRADE_ACCEPTED':
+      return GUICHIET.descriptions.TRADE_ACCEPTED;
+    case 'TRADE_DECLINED':
+      return payload.withdrawn === true
+        ? GUICHIET.descriptions.TRADE_WITHDRAWN
+        : GUICHIET.descriptions.TRADE_DECLINED;
+    case 'TRADE_EXPIRED':
+      return GUICHIET.descriptions.TRADE_EXPIRED;
     default:
       return GUICHIET.descriptions[item.kind];
   }
