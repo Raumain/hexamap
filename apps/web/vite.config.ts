@@ -49,6 +49,36 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
+  build: {
+    // La découpe des routes est déjà portée par `autoCodeSplitting` : ce qui
+    // reste dans le chunk d'entrée est du code fournisseur, isolé ici par famille.
+    rollupOptions: {
+      output: {
+        manualChunks: (id: string): string | undefined => {
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/scheduler/')
+          ) {
+            return 'vendor-react';
+          }
+          if (id.includes('/node_modules/@tanstack/')) {
+            return 'vendor-tanstack';
+          }
+          if (
+            id.includes('/node_modules/@elysia/eden/') ||
+            id.includes('/node_modules/better-auth/') ||
+            id.includes('/node_modules/@better-auth/')
+          ) {
+            return 'vendor-eden';
+          }
+          return undefined;
+        },
+      },
+    },
+    // Plafond d'acceptation de la phase : aucun chunk ne doit le dépasser.
+    chunkSizeWarningLimit: 500,
+  },
   resolve: {
     tsconfigPaths: true,
   },
