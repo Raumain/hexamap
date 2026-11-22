@@ -297,7 +297,8 @@ La monnaie du jeu s'appelle l'**écu** (pluriel : écus). C'est un **nom d'affic
 - Tests statistiques : RNG injecté et seedé pour être déterministes.
 - Tests d'intégration : vrai PostgreSQL, schéma isolé par worker.
 - E2E : Playwright, sélecteurs par rôle et libellés français.
-- **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db ping`, dossier `packages/db/src/ping.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
+- **Garde-fou unique : `bun run ci:check`** (`scripts/ci-check.ts`). Quatre étapes séquentielles, arrêt à la première en échec : `1/4 Lint` (`biome check .`), `2/4 Typecheck`, `3/4 Base de données` (`bun run --cwd packages/db prepare`, dossier `packages/db/src/prepare.ts`), `4/4 Spécifications` (`bun test packages/spec`). C'est la commande de la CI et la seule case de la pull request : aucune vérification ne se fait « à la main ».
+- **La base de test est préparée avant les workers, et les migrations sont sérialisées.** `bun test` exécute les fichiers en parallèle et douze d'entre eux appellent `runMigrations` sur la même base : `runMigrations` prend donc un verrou consultatif PostgreSQL (`pg_advisory_lock`, tenu sur une seule connexion par `db.connection()`) autour de `migrateToLatest`, sans quoi deux migrateurs liraient le même état « rien n'est appliqué » et écriraient une liste entrelacée. L'étape `3/4` applique en plus les migrations **une seule fois, sérialement**, avant les spécifications (`packages/db/src/prepare.ts`) : elle reconstruit le schéma public d'une base dont `kysely_migration` n'est pas le préfixe de l'ordre du code, état hérité d'un ancien worktree qui rendait toutes les spécifications rouges en `corrupted migrations`. Une base de test est jetable par contrat, et `ci:check` refuse déjà `NODE_ENV=production` et `TEST_DATABASE_URL === DATABASE_URL`.
 - **Base de test dédiée, imposée par le garde-fou.** `ci:check` exige `TEST_DATABASE_URL` et refuse de démarrer si elle est absente, si elle égale `DATABASE_URL`, ou si `NODE_ENV=production`. La suite de spécifications ne touche donc jamais les référentiels importés en développement. `packages/db` réexporte `sql` de Kysely pour que les specs puissent lancer du SQL brut sans dépendance propre.
 - **Banc E2E — HTTPS.** `docker-compose.e2e.yml` termine TLS sur une bordure Caddy et une AC
   interne, parce qu'un service worker ne s'enregistre que dans un contexte sécurisé : en HTTP,
@@ -511,7 +512,7 @@ docker compose --profile tools run --rm dev bun run ci:check
 
 Services : web `http://localhost:5174` (ou `http://<IP-LAN>:5174`, l'API étant alors relayée par Vite), API `http://localhost:3000`, OpenAPI `http://localhost:3000/api/docs`. En production, une seule origine : `http://localhost:${WEB_HOST_PORT:-8080}`.
 
-`ci:check` enchaîne lint, typecheck, ping PostgreSQL et spécifications ; il exige
+`ci:check` enchaîne lint, typecheck, préparation de la base PostgreSQL (migrations sérialisées) et spécifications ; il exige
 `TEST_DATABASE_URL` et refuse `NODE_ENV=production` (voir §4.8).
 
 ### 6.1 Topologie réseau Docker (durcissement)

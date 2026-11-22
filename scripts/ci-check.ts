@@ -13,7 +13,10 @@ const steps: readonly Step[] = [
   { label: 'Typecheck', command: ['bun', 'run', 'typecheck'], testDatabase: false },
   {
     label: 'Base de données',
-    command: ['bun', 'run', '--cwd', 'packages/db', 'ping'],
+    // `prepare` remplace `ping` : il sonde la base **et** applique les migrations
+    // une seule fois, sérialement, avant que les fichiers de spécification ne
+    // tournent en parallèle sur la même base (`.docs/01-architecture.md` §4.8).
+    command: ['bun', 'run', '--cwd', 'packages/db', 'prepare'],
     testDatabase: true,
   },
   { label: 'Spécifications', command: ['bun', 'test', 'packages/spec'], testDatabase: true },
