@@ -460,18 +460,24 @@ test.describe('Le registre, session ouverte', () => {
     await expect(page.getByLabel('Biographie')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Télécharger mes données' })).toBeVisible();
 
-    // 3. Le badge du courriel dit son état réel — l’un des deux, jamais aucun.
-    await expect(page.getByText(/^(Vérifiée|Non vérifiée)$/)).toHaveCount(1);
+    // 3. Plus aucune pastille d'état : R-001 ne demande plus de confirmer
+    // l'adresse, donc l'écran ne reproche plus rien.
+    await expect(page.getByText(/^(Vérifiée|Non vérifiée)$/)).toHaveCount(0);
 
     // 4. Le banc allume la suppression et n’a aucun transport de courriel : la
     // zone de fermeture est donc là (elle dépend des capacités lues au serveur),
-    // et le changement d’adresse est annoncé indisponible plutôt que tenté.
+    // et le champ du courriel reste éditable en permanence — ni texte
+    // d’indisponibilité, ni désactivation, et la saisie est réellement acceptée.
     await expect(page.getByRole('heading', { level: 2, name: 'Fermer le compte' })).toBeVisible();
     await expect(
       page.getByRole('button', { name: /Supprimer définitivement mon compte/ }),
     ).toBeVisible();
-    await expect(page.getByLabel('Nouvelle adresse')).toBeDisabled();
-    await expect(page.getByText(/Le changement d’adresse n’est pas encore ouvert/)).toBeVisible();
+    const newEmail = page.getByLabel('Nouvelle adresse');
+    await expect(newEmail).toBeEnabled();
+    await expect(page.getByText(/Le changement d’adresse n’est pas encore ouvert/)).toHaveCount(0);
+    await newEmail.fill('sans-verification@hexamap.test');
+    await expect(newEmail).toHaveValue('sans-verification@hexamap.test');
+    await expect(page.getByRole('button', { name: 'Changer d’adresse' })).toBeEnabled();
 
     // 5. Aucune erreur console, aucune exception de page sur tout le parcours.
     expect(consoleErrors, `erreurs console : ${consoleErrors.join(' | ')}`).toHaveLength(0);

@@ -248,9 +248,7 @@ function EmailSection({ user }: { user: SessionUser }) {
 
   return (
     <AccountSection title={ACCOUNT_ROOM.email.title} description={ACCOUNT_ROOM.email.description}>
-      <div className="space-y-2">
-        <CurrentValue label={ACCOUNT_ROOM.email.currentLabel} value={user.email} />
-      </div>
+      <CurrentValue label={ACCOUNT_ROOM.email.currentLabel} value={user.email} />
 
       <form
         noValidate
