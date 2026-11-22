@@ -94,6 +94,8 @@ Si une phase n'a pas de branche annoncée, la créer avec le même format.
 - Utiliser `.ignore` et `.gitignore` pour exclure ces fichiers de la recherche.
 - Préférer `rg`/recherche ciblée et les fichiers de mémoire `.docs` aux explorations larges.
 - Ne pas dupliquer dans le contexte ce qui est déjà dans `.docs` : y référer.
+- `.docs/08-journal.md` ne se lit pas en début de session : c'est une archive, on y va par
+  recherche ciblée.
 
 ## Mise à jour de la mémoire
 
@@ -102,6 +104,7 @@ Si une phase n'a pas de branche annoncée, la créer avec le même format.
 | Décision durable, règle de jeu, stack | `.docs/01-architecture.md` |
 | Table, colonne, index, type Kysely | `.docs/02-database.md` |
 | Tâche du jour, statut, journal | `.docs/03-active-task.md` |
+| Historique des sessions, entrées archivées | `.docs/08-journal.md` |
 | Feuille de route v2, jalons, phases | `.docs/07-roadmap-v2.md` |
 | Règle locale d'un dossier | `AGENTS.md` du dossier |
 | Comportement attendu | `packages/spec` |

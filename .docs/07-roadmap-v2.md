@@ -110,7 +110,7 @@ les notifications ne peuvent être prouvés en navigateur.
       145,61 Ko gzip**.
 - [ ] Fermer BUG-001 (nettoyage des données de test fuitées : script de réparation et
       vérifications préalables), BUG-002 (intégrité `user_cards.ref_code`) et BUG-003 (garde sur
-      `ref_regions.code`) ; BUG-002 et BUG-003 portent la même migration.
+      `ref_regions.code`) ; BUG-002 et BUG-003 portent la même migration, `0014` (nom indicatif).
 - [ ] Fixture E2E de second compte : elle débloque le cas de double-appui laissé en attente et
       sert de base aux cas amis, troc et notifications.
 - [ ] Mettre à jour `.docs/03-active-task.md` et `ROADMAP.md` §1.
@@ -146,7 +146,7 @@ sur leur présence.
       médiane. Le résultat va dans le journal de la phase, pas dans le dépôt.
 - [ ] `.docs/02-database.md` **d'abord** : colonne `path_d text` sur les trois tables de
       référentiel, statut **Contrat**.
-- [ ] Migration `0014` (nom indicatif) : `path_d text` sur `ref_regions`, `ref_departements` et
+- [ ] Migration `0015` (nom indicatif) : `path_d text` sur `ref_regions`, `ref_departements` et
       `ref_communes`, en `add column if not exists`.
 - [ ] `scripts/import` : projection vers un `viewBox` partagé, simplification (Douglas-Peucker),
       arrondi des coordonnées, écriture idempotente. Aucun calcul de géométrie au runtime.
@@ -330,7 +330,7 @@ notifications du jeu — une salle, une cloche, un compteur de non-lues.
 **Étapes.**
 
 - [ ] `.docs/02-database.md` **d'abord** : table `notifications`, statut **Contrat**.
-- [ ] Migration `0015` (nom indicatif) : `notifications (id, user_id, kind, dedupe_key, payload,
+- [ ] Migration `0016` (nom indicatif) : `notifications (id, user_id, kind, dedupe_key, payload,
       created_at, read_at)`, unicité `(user_id, dedupe_key)`, index partiel sur les non-lues.
 - [ ] Émission **dans les transactions existantes** : demande d'ami, acceptation, médaille, vente,
       achat, troc (phase 40). Jamais dans une seconde transaction après coup.
@@ -363,7 +363,7 @@ contre une carte, avec acceptation atomique.
 **Étapes.**
 
 - [ ] `.docs/02-database.md` **d'abord** : table `trade_offers`, statut **Contrat**.
-- [ ] Migration `0016` (nom indicatif) : `trade_offers (id, proposer_id, receiver_id,
+- [ ] Migration `0017` (nom indicatif) : `trade_offers (id, proposer_id, receiver_id,
       offered_card_id, requested_card_id, status, created_at, responded_at, expires_at)`, statut
       parmi `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELLED`, `EXPIRED`.
 - [ ] Une carte engagée dans une offre `PENDING` ne peut être ni vendue ni proposée ailleurs :
@@ -399,7 +399,7 @@ ce qui donne aux doublons une valeur et une raison de revenir.
       GDD interdit de vendre des tickets, et la formulation doit le dire.
 - [ ] `.docs/02-database.md` **d'abord** : `user_cards.source` gagne `CRAFT`, contrainte `CHECK`
       à modifier.
-- [ ] Migration `0017` (nom indicatif) : contrainte `source` élargie.
+- [ ] Migration `0018` (nom indicatif) : contrainte `source` élargie.
 - [ ] Refus de fusion d'une carte engagée dans un tableau ou une annonce : `409`, ou règle de
       nettoyage explicite.
 - [ ] Plafond : aucune fusion vers `MYTHIQUE`.
@@ -428,7 +428,7 @@ figer un score.
 - [ ] Trancher le contrat : figer le score à la soumission (`tableaux.score`) ou une table
       d'instantanés (`tableau_scores`). Aujourd'hui le score est recalculé à la lecture, c'est
       écrit dans `.docs/01-architecture.md` §2.5.
-- [ ] `.docs/02-database.md` **d'abord**, puis migration `0018` (nom indicatif) selon la décision.
+- [ ] `.docs/02-database.md` **d'abord**, puis migration `0019` (nom indicatif) selon la décision.
 - [ ] Une seule catégorie au départ : meilleur tableau de la semaine.
 - [ ] Classement rendu par le serveur, jamais recalculé par le client.
 
@@ -456,7 +456,7 @@ dernière phase de la v2, parce qu'elle réécrit le service worker.
 - [ ] VAPID, génération et stockage des clés.
 - [ ] `.docs/02-database.md` **d'abord** : table `push_subscriptions` et préférences, statut
       **Contrat**.
-- [ ] Migration `0019` (nom indicatif).
+- [ ] Migration `0020` (nom indicatif).
 - [ ] Passer `vite.config.ts` de `generateSW` à `injectManifest`, écrire les gestionnaires `push`
       et `notificationclick`.
 - [ ] Déclencheur : charges à 0 et une charge qui arrive ; au plus une par jour ; heures calmes.
@@ -485,12 +485,13 @@ Aucune table n'est créée par cette planification : chaque phase met d'abord `.
 
 | Migration (indicative) | Objet | Phase |
 | :--- | :--- | :--- |
-| `0014` | `path_d text` sur les trois tables de référentiel | 33 |
-| `0015` | `notifications` | 39 |
-| `0016` | `trade_offers` | 40 |
-| `0017` | `user_cards.source` élargi à `CRAFT` | 41 |
-| `0018` | score de tableau figé ou table d'instantanés | 42 |
-| `0019` | `push_subscriptions` et préférences | 43 |
+| `0014` | contrainte d'intégrité de `user_cards.ref_code` (BUG-002 et BUG-003) | 32 |
+| `0015` | `path_d text` sur les trois tables de référentiel | 33 |
+| `0016` | `notifications` | 39 |
+| `0017` | `trade_offers` | 40 |
+| `0018` | `user_cards.source` élargi à `CRAFT` | 41 |
+| `0019` | score de tableau figé ou table d'instantanés | 42 |
+| `0020` | `push_subscriptions` et préférences | 43 |
 
 Les numéros sont indicatifs : `.docs/02-database.md` §1 rappelle qu'une migration livrée ne change
 plus de nom, donc le numéro réel dépend de l'ordre de livraison.
@@ -536,8 +537,8 @@ plus de nom, donc le numéro réel dépend de l'ordre de livraison.
   dit.
 - `.docs/02-database.md` mis à jour **avant** chaque migration, avec le statut qui suit
   l'application réelle.
-- Une entrée de journal par phase dans `.docs/03-active-task.md`, avec les chiffres mesurés et ce
-  qui n'est pas prouvé.
+- Une entrée de journal par phase dans `.docs/03-active-task.md` (l'entrée courante) ; les
+  entrées closes sont archivées dans `.docs/08-journal.md`.
 - Tout s'exécute dans Docker, jamais sur l'hôte.
 - Une phase se livre sur `feat/v2-…` et fusionne dans `v2` ; `main` ne reçoit qu'une release, sur
   demande explicite.
