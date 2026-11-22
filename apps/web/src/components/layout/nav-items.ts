@@ -11,6 +11,7 @@ export type SalonPath =
   | '/market/mine'
   | '/achievements'
   | '/assemblage'
+  | '/palmares'
   | '/boutique';
 
 export interface NavItem {
@@ -92,6 +93,12 @@ const SECONDARY_NAV_BASE: readonly NavItem[] = [
     glyph: 'M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2zM9 4v14M15 6v14',
   },
   {
+    to: '/palmares',
+    label: 'Le Palmarès',
+    short: 'Palmarès',
+    glyph: 'M8 21h8M12 17v4M7 4h10v3a5 5 0 0 1-10 0zM7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3',
+  },
+  {
     to: '/boutique',
     label: 'La Boutique',
     short: 'Boutique',
@@ -122,6 +129,7 @@ const SALON_TITLES: Record<string, string> = {
   '/market/mine': 'Mes Offres',
   '/achievements': 'Les Médailles',
   '/assemblage': "L'Assemblage",
+  '/palmares': 'Le Palmarès',
   '/boutique': 'La Boutique',
   '/boutique/succes': 'La Boutique',
   '/cgv': 'Conditions de vente',

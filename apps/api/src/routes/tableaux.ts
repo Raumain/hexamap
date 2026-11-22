@@ -699,6 +699,7 @@ export const tableauRoutes = new Elysia({ name: 'routes.tableaux', prefix: '/tab
               departement_card_id: body.departementCardId,
               commune_card_id: body.communeCardId,
               rue_card_id: body.rueCardId,
+              score: evaluation.total,
             })
             .returning(['id', 'name', 'created_at'])
             .executeTakeFirstOrThrow();
