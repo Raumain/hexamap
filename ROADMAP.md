@@ -1,5 +1,9 @@
 # Hexamap — Live roadmap (what is actually left)
 
+> **v2** — la feuille de route de la v2 vit dans `.docs/07-roadmap-v2.md`. Ce fichier ne suit plus
+> que les restes de la v1 (tracks A, B, C) ; le track C (L'Assemblage) y est absorbé par les
+> phases 33 à 35.
+
 **Updated:** 2026-11-20.
 **Baseline:** `main` after PR #34 (pre-deploy hardening), #36 → #42 (phase 30, economy →
 boutique front), #44 (wave 3), #45 (Stripe webhook + 5 s redirect) and #46 (wave 2).

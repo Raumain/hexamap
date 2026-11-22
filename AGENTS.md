@@ -9,8 +9,9 @@ Instructions permanentes pour tout agent travaillant sur Hexamap. Ce fichier est
 1. `.docs/03-active-task.md` — la tâche en cours (ordres du jour).
 2. `.docs/01-architecture.md` — GDD, stack et règles d'architecture.
 3. `.docs/02-database.md` — contrat SQL et types Kysely.
+4. `.docs/07-roadmap-v2.md` — la phase v2 en cours et son jalon.
 
-Ne pas commencer à coder avant d'avoir lu ces trois fichiers.
+Ne pas commencer à coder avant d'avoir lu ces quatre fichiers.
 
 ## Règles non négociables
 
@@ -76,14 +77,14 @@ docker compose up -d --build
 
 ## Git et publication
 
-Règle unique, sans exception : **une phase se livre toujours sur une branche dédiée, jamais directement sur `main`.** (Les phases 1 à 3 ont été commitées sur `main` : ce n'est plus le cas.)
+Règle unique, sans exception : **une phase se livre toujours sur une branche dédiée, jamais directement sur sa branche de base.** La branche de base de la v2 est `v2` ; `main` ne reçoit plus que des merges de release.
 
-1. Partir de `main` à jour : `git switch main && git pull`.
-2. Créer la branche annoncée dans `.docs/03-active-task.md` (`feat/phase-N-...`).
+1. Partir de `v2` à jour : `git switch v2 && git pull`.
+2. Créer la branche annoncée dans `.docs/03-active-task.md` (`feat/v2-...`).
 3. Commits atomiques, un par sujet cohérent, au format `type(scope): impératif en français` — `feat`, `fix`, `test`, `docs`, `chore`, `refactor`, `build`.
 4. Avant de pousser : `bun test packages/spec`, `bun run typecheck`, `bun run lint` dans Docker.
-5. Pousser : `git push -u origin <branche>`, puis ouvrir une PR vers `main`. Ne pas fusionner sans demande.
-6. `main` ne reçoit que des merges de PR, jamais de commit direct.
+5. Pousser : `git push -u origin <branche>`, puis ouvrir une PR vers `v2`. Ne pas fusionner sans demande.
+6. `v2` ne reçoit que des merges de PR de phase. Une release fusionne `v2` dans `main` sur demande explicite, jamais automatiquement.
 
 Si une phase n'a pas de branche annoncée, la créer avec le même format.
 
@@ -101,5 +102,6 @@ Si une phase n'a pas de branche annoncée, la créer avec le même format.
 | Décision durable, règle de jeu, stack | `.docs/01-architecture.md` |
 | Table, colonne, index, type Kysely | `.docs/02-database.md` |
 | Tâche du jour, statut, journal | `.docs/03-active-task.md` |
+| Feuille de route v2, jalons, phases | `.docs/07-roadmap-v2.md` |
 | Règle locale d'un dossier | `AGENTS.md` du dossier |
 | Comportement attendu | `packages/spec` |

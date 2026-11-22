@@ -5,6 +5,146 @@
 
 ---
 
+# La feuille de route v2
+
+## Statut
+
+- **Phase** : hors phase numérotée — planification de la v2
+- **État** : planification écrite ; aucun fichier de `apps/`, de `packages/spec` ni de migration
+  touché, seul le cas E2E de la boutique retirée a été réécrit ; `ci:check` vert et banc E2E
+  complet **68 passés, 0 échoué, 0 ignoré** ; branche `v2` créée localement, non poussée
+- **Priorité** : P1
+- **Mis à jour** : 2026-11-22
+- **Branche** : `v2`
+- **Livraison** : rien de commité
+
+## Objectif
+
+La v1 est en production et son périmètre est clos. Quatre demandes restent ouvertes côté produit —
+voir sa collection sur une carte, être prévenu de ce qui arrive, gérer son compte, échanger avec
+un autre joueur — et l'une d'elles est déjà à moitié construite : la salle `/assemblage` existe
+avec son teaser et son contour de France, sans donnée joueur derrière. La v2 est donc planifiée
+avant d'être codée, pour que l'ordre des phases soit une décision et non une conséquence.
+
+## Décisions
+
+1. **Carte à trois niveaux dès la v2.0** — régions, départements, communes —, en descente guidée,
+   sans déplacement ni zoom libre.
+2. **Notifications : cloche et salle « Le Guichet ».**
+3. **Notifications poussées en v2.1**, après le centre de notifications.
+4. **Périmètre retenu** : Le Troc, L'Atelier (fusion de doublons), les filtres du Cadastre
+   alimentés par la carte, Le Palmarès. **Écartés** : enchères, guildes, objectifs hebdomadaires,
+   partage d'image et Open Graph, rues sur la carte, comparaison inter-joueurs, chat, SSE et
+   websockets.
+
+## Ce qui a changé
+
+| Fichier | Changement |
+| :--- | :--- |
+| `.docs/07-roadmap-v2.md` | **Nouveau.** Les douze phases (32 à 43), les deux jalons, le contrat de données à venir, les décisions ouvertes, le hors-périmètre et la définition de terminé. |
+| `AGENTS.md` | La section « Git et publication » vise `v2` comme branche de base : `main` ne reçoit plus que des merges de release. `.docs/07-roadmap-v2.md` entre dans la lecture obligatoire et dans le tableau de mémoire. |
+| `ROADMAP.md` | Un renvoi en tête de fichier : la v2 vit ailleurs, ce document ne suit plus que les restes de la v1, et le track C est absorbé par les phases 33 à 35. |
+| `.docs/03-active-task.md` | Cette entrée. |
+
+## Ce qui reste
+
+Par ordre de dépendance :
+
+1. **Track A2 de `ROADMAP.md`** — importer le référentiel en production. Sans lui, la phase 33
+   n'a rien à projeter et la carte rend une image vide chez le joueur réel.
+2. **Pages légales** — `LEGAL_PAGES_ENABLED = true` avec le texte définitif avant la phase 37 : on
+   ne publie pas une suppression de compte dont la politique de confidentialité répond `404`.
+3. **Phase 32 — Le Socle** : découpage par route, fermeture de BUG-001, BUG-002 et BUG-003,
+   fixture E2E de second compte.
+4. **Phase 33 → 35 — L'Assemblage**, dans cet ordre et sans parallélisme possible.
+5. **Le Troc (phase 40) peut remonter en v2.0** si la carte et les comptes sortent tôt. C'est la
+   seule permutation prévue.
+6. **Les six décisions ouvertes** du §6 de `.docs/07-roadmap-v2.md` : nom de la salle, contenu de
+   la carte, forme du troc, Atelier aléatoire ou déterministe, Palmarès figé ou instantané, jeu de
+   caractères du pseudo.
+
+## Vérification (Docker uniquement)
+
+```
+docker compose --profile tools run --rm dev bun run ci:check
+  ✓ 1/4 Lint            253 fichiers, aucune correction
+  ✓ 2/4 Typecheck       6 workspaces
+  ✓ 3/4 Base de données joignable
+  ✓ 4/4 Spécifications  343 pass, 0 fail, 18 fichiers
+```
+
+Trois passages consécutifs ont rendu **1 977**, **1 983** puis **1 986** `expect()` pour 343 tests
+et 18 fichiers : le compte d'assertions n'est pas un invariant, certaines vivant dans une boucle sur
+le référentiel. Les chiffres stables sont **343 spécifications** et **18 fichiers**.
+
+```
+docker compose -f docker-compose.e2e.yml up -d --build db api proxy
+docker compose -f docker-compose.e2e.yml run --rm playwright npx --no-install playwright test
+  68 exécutés — 68 passés, 0 échoué, 0 ignoré
+  chromium  21 · pwa 7 · Pixel 7  20 · iPhone 13  20
+```
+
+Le cas `mobile — la boutique n'est plus offerte ni atteignable` a été **réécrit** : le produit a
+retiré la boutique (`SHOP_ENABLED = false`), donc il n'asserte plus son fonctionnement mais son
+absence — aucune entrée « La Boutique » dans la feuille, aucun titre de salle, aucun bouton
+« Acheter » ni message `SHOP_DISABLED` sur `/boutique`. Ce n'est pas un test affaibli : l'ancien
+cas exigeait quatre planches et un `503`, c'est-à-dire un produit qui n'existe plus ; le nouveau
+exige la disparition de tout cela, ce qui échoue si la boutique revient sans décision. Rejoué seul
+en `--repeat-each=3` sur les deux projets : **6/6 vert** en 25 s.
+
+Le `notFound()` de la route ne rend **aucun** composant français : `apps/web/src/main.tsx` crée le
+routeur sans `defaultNotFoundComponent`, donc c'est la page par défaut de TanStack Router, en
+anglais. Le cas n'asserte donc pas ce texte — l'écart de langue est consigné ici, pas corrigé.
+
+## Journal
+
+### 2026-11-22 — La v2 est cadrée sur le papier, pas encore dans le code
+
+**Ce qui a été vérifié dans le code, et non supposé.** Le profil public existe déjà
+(`apps/web/src/routes/players.$playerId.tsx`, `GET /api/v1/players/:id` adossé à `user_profiles`)
+et rend le score du meilleur tableau sans ses cartes — c'est ce qui fait de la phase 38 une petite
+phase et non une fonctionnalité. À l'inverse, aucune page de compte n'existe :
+`apps/api/src/routes/profile.ts` ne sait qu'écrire `bio` et `profile_public`, et il n'y a ni
+changement de pseudo, ni courriel vérifié, ni suppression. Aucun code de notification n'existe
+dans `apps/`. La carte n'a qu'un teaser : `apps/web/src/routes/assemblage.tsx` et
+`apps/web/src/lib/france-outline.ts`, aucun `path_d` nulle part, aucun endpoint d'atlas.
+
+**Le déclencheur CI, constaté et non modifié.** `.github/workflows/ci.yml` déclenche sur `push`
+limité à `branches: [main]` et sur `pull_request` **sans filtre de branche**. Une PR vers `v2` est
+donc vérifiée ; un `push` direct sur `v2` ne l'est pas. Le fichier n'a pas été touché : la
+constatation est écrite en phase 32 pour que la première livraison ne se demande pas pourquoi rien
+n'a tourné.
+
+**Pourquoi deux jalons, et pas un.** Douze phases d'un bloc auraient retardé la carte — le chemin
+critique, trois phases dépendantes qui ne se parallélisent pas — derrière le troc et le palmarès,
+dont personne n'a besoin pour jouer. La v2.0 s'arrête donc au Guichet (phases 32 à 39) et la v2.1
+porte l'échange (phases 40 à 43).
+
+**Les deux bloqueurs, écrits pour ne pas être découverts en cours de route.** Le track A2 — le
+référentiel importé en production — reste ouvert : sans lui, la carte est vide chez le joueur réel,
+quelle que soit la qualité de la phase 35. Et les pages légales répondent `404` depuis
+`chore/retrait-boutique-et-pages-legales`, donc la phase 37 ne peut pas publier de suppression de
+compte avant le texte définitif.
+
+**Ce que cette session a mesuré, et ce qu'elle n'a pas prouvé.** Aucun fichier de `apps/`, de
+`packages/spec` ni de migration n'a été modifié ; seul le cas E2E de la boutique retirée a changé,
+parce que le banc l'a trouvé faux. Aucune table n'est créée ici — le §5
+de `.docs/07-roadmap-v2.md` annonce six migrations, et `.docs/02-database.md` reste intact jusqu'à
+la phase qui les portera. Les deux vérifications ont été jouées dans Docker après l'écriture du
+document : `ci:check` vert (**343 spécifications, 18 fichiers, 0 échec**), et le banc E2E — qui a
+d'abord trouvé deux échecs réels sur le cas de la boutique, réécrit dans cette même session, voir
+la section de vérification ci-dessous — rend **68 exécutés, 68 passés, 0 échoué, 0 ignoré**.
+Aucun build n'a été mesuré pendant cette session : les chiffres de bundle du §2 de la feuille de
+route restent ceux du dépôt au 2026-11-22. La branche `v2` est créée localement depuis `main` et
+n'a pas été poussée.
+
+**Portée** : `.docs/07-roadmap-v2.md` (nouveau), `AGENTS.md`, `ROADMAP.md`,
+`packages/e2e/tests/mobile.spec.ts` (le cas de la boutique retirée, réécrit) et ce fichier. Aucune
+migration, aucun changement de schéma ni de contrat d'API, aucune dépendance nouvelle, aucun
+fichier de `apps/` ni de `packages/spec` touché.
+
+---
+
 # Le cadre juridique écrit, et les surfaces commerciales éteintes
 
 ## Statut
