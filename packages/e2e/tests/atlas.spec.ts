@@ -135,6 +135,79 @@ test('atlas — le département mène au Cadastre', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Ma collection' })).toBeVisible();
 });
 
+test('atlas — une région et un département n’ont pas le même style', async ({ page }) => {
+  await page.goto('/atlas');
+  await expect(equivalentTable(page)).toBeVisible();
+
+  const region = page.locator('svg path[data-entity-kind="region"]').first();
+  const departement = page.locator('svg path[data-entity-kind="departement"]').first();
+  await expect(region).toBeAttached();
+  await expect(departement).toBeAttached();
+
+  // Les attributs ne prouvent rien : c'est le rendu calculé qui distingue les
+  // deux niveaux, donc on lit `getComputedStyle`, pas `getAttribute`.
+  const styleOf = (locator: Locator) =>
+    locator.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        fill: style.fill,
+        fillOpacity: style.fillOpacity,
+        stroke: style.stroke,
+        strokeWidth: style.strokeWidth,
+      };
+    });
+
+  const regionStyle = await styleOf(region);
+  const departementStyle = await styleOf(departement);
+
+  // La région est un contour : aucun aplat.
+  expect(regionStyle.fill, 'Une région ne doit pas porter d’aplat').toBe('none');
+  // Le département porte un fond coloré, donc un `fill` réel et différent.
+  expect(departementStyle.fill, 'Un département doit porter un fond coloré').not.toBe('none');
+  expect(departementStyle.fill).not.toBe(regionStyle.fill);
+
+  // Les deux contours sont tracés : ni l'un ni l'autre ne disparaît.
+  expect(Number.parseFloat(regionStyle.strokeWidth)).toBeGreaterThan(0);
+  expect(Number.parseFloat(departementStyle.strokeWidth)).toBeGreaterThan(0);
+  expect(regionStyle.stroke).not.toBe('none');
+  expect(departementStyle.stroke).not.toBe('none');
+});
+
+test('atlas — le clic d’un département fait ce que fait sa ligne de table', async ({ page }) => {
+  await page.goto('/atlas');
+  const table = equivalentTable(page);
+  await expect(table).toBeVisible();
+
+  // Référence : le chemin accessible, la ligne de table.
+  await openDepartementA(page);
+  // Attendre la fin du chargement du détail : sinon le statut lu serait
+  // « Chargement des communes… », et la comparaison dépendrait d'un cache.
+  await expect(statusLine(page)).toContainText(/\b6 communes\b/);
+  const statusFromTable = ((await statusLine(page).textContent()) ?? '').trim();
+  const codesFromTable = await page
+    .locator(ENTITY_PATH)
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-entity-code')));
+  await expect(table.locator('tbody tr')).toHaveCount(6);
+
+  // Remontée, puis la même ouverture depuis la carte seule.
+  await page.getByRole('button', { name: 'Revenir à la France entière' }).click();
+  await expect(levelTitle(page)).toHaveText('La France entière');
+
+  await page.locator('svg path[data-entity-kind="departement"][data-entity-code="E2E-D1"]').click();
+
+  // Même état : même titre, même statut, mêmes communes rendues.
+  await expect(levelTitle(page)).toHaveText('Département E2E A');
+  await expect(levelTitle(page)).toBeFocused();
+  await expect(equivalentTable(page).locator('tbody tr')).toHaveCount(6);
+  await expect(statusLine(page)).toContainText(/\b6 communes\b/);
+  expect(((await statusLine(page).textContent()) ?? '').trim()).toBe(statusFromTable);
+  expect(
+    await page
+      .locator(ENTITY_PATH)
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-entity-code'))),
+  ).toEqual(codesFromTable);
+});
+
 test('atlas — /assemblage redirige vers /atlas en gardant la recherche', async ({ page }) => {
   await page.goto('/assemblage?departement=E2E-D1');
 
