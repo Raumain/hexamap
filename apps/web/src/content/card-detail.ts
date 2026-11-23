@@ -12,6 +12,7 @@ export const CARD_DETAIL = {
   acquiredLabel: 'Acquise le',
   sourceLabel: 'Provenance',
   stateLabel: 'État',
+  exemplairesLabel: 'Exemplaires',
   placeTitle: 'Le lieu',
   placeEmpty: "Aucune donnée de référence n'accompagne cette planche.",
   populationLabel: 'Population',

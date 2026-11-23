@@ -46,6 +46,13 @@ const TEMOIN_DEPARTEMENT = 'E2E-D2';
 const TEMOIN_RUE_NORMALISEE = 'e2e-rue-commune-0';
 const TEMOIN_AVANCE_MS = 10 * 60 * 1000;
 
+/**
+ * Les deux noms que `tests/palmares.spec.ts` soumet (`ALIGNE` et `DISPERSE`).
+ * Recopiés ici parce que la fixture ne peut pas importer un fichier de spec ;
+ * les renommer d'un côté sans l'autre rendrait le nettoyage inopérant.
+ */
+const PALMARES_TABLEAU_NAMES = ['Tableau aligné', 'Tableau dispersé'];
+
 interface ComboCard {
   category: CardCategory;
   ref_code: string;
@@ -123,8 +130,44 @@ export async function ensureComboCards(userId: string): Promise<void> {
     console.log(
       `[e2e] Combo de La Planche prêt pour ${userId} : ${combo.length} cartes, ${temoins.length} témoins.`,
     );
+
+    await clearPalmaresTableaux(db, userId);
   } finally {
     await db.destroy();
+  }
+}
+
+/**
+ * Efface les tableaux du Palmarès du banc, avant que le spec ne soumette.
+ *
+ * `tableaux.score` est **figé** à la soumission : un tableau homonyme laissé par
+ * un passage antérieur garde son nom et son score, et le classement `score desc`
+ * le fait passer devant la soumission du jour — le spec lirait alors l'ancienne
+ * ligne. Or `global-setup.ts` inscrit un compte neuf à chaque passage
+ * (`pseudo = e2e-<horodatage>`) : supprimer les seules lignes du compte courant
+ * laisserait classées celles du passage précédent. Le balayage est donc borné aux
+ * comptes du banc (`pseudo like 'e2e-%'`, seul préfixe que le banc sème) **et**
+ * aux deux noms que `tests/palmares.spec.ts` emploie : les tableaux de La Vitrine
+ * et des autres specs portent d'autres noms, et aucun compte réel n'est concerné.
+ */
+async function clearPalmaresTableaux(db: Db, userId: string): Promise<void> {
+  const benchAccounts = await db
+    .selectFrom('user')
+    .select('id')
+    .where('pseudo', 'like', 'e2e-%')
+    .execute();
+
+  const owners = [...new Set([userId, ...benchAccounts.map((account) => account.id)])];
+
+  const deleted = await db
+    .deleteFrom('tableaux')
+    .where('user_id', 'in', owners)
+    .where('name', 'in', PALMARES_TABLEAU_NAMES)
+    .returning('id')
+    .execute();
+
+  if (deleted.length > 0) {
+    console.log(`[e2e] ${deleted.length} tableau(x) du Palmarès effacé(s).`);
   }
 }
 

@@ -31,13 +31,21 @@ interface OpenDepartement {
   nom: string;
 }
 
+type MapEntityKind = 'region' | 'departement' | 'commune';
+
 interface MapEntity {
   key: string;
+  kind: MapEntityKind;
   code: string;
+  name: string;
   pathD: string;
-  fillOpacity: string;
+  viewBox: string;
+  coverage: number;
   possessed: boolean;
 }
+
+/** Le cadre de la carte principale, ou celui d'un encart d'outre-mer. */
+type MapFrame = 'metropole' | 'groupe';
 
 export const Route = createFileRoute('/atlas')({
   component: AtlasPage,
@@ -72,6 +80,8 @@ function AtlasPage() {
         <ul className="mt-4 space-y-1 text-xs text-vellum/60">
           <li>{ATLAS_ROOM.legendFill}</li>
           <li>{ATLAS_ROOM.legendFillet}</li>
+          <li>{ATLAS_ROOM.legendContour}</li>
+          <li>{ATLAS_ROOM.overseasLegend}</li>
         </ul>
       </header>
 
@@ -152,7 +162,7 @@ function AtlasBoard() {
 
       {summaryQuery.isPending ? (
         <div className="space-y-6">
-          <AtlasMap viewBox={FRANCE_VIEWBOX} entities={[]} />
+          <AtlasMap viewBox={FRANCE_VIEWBOX} frame="metropole" entities={[]} />
           <p className="text-sm text-vellum/70">{ATLAS_ROOM.loadingSummary}</p>
         </div>
       ) : null}
@@ -180,16 +190,16 @@ function AtlasBoard() {
 
       {summary !== undefined && !isEmptyNational ? (
         <div className="space-y-6">
-          <AtlasMap
-            viewBox={
-              showCommunes && shownDetail !== undefined ? shownDetail.viewBox : summary.viewBox
-            }
-            entities={
-              showCommunes && shownDetail !== undefined
-                ? communeMapEntities(shownDetail.communes)
-                : nationalMapEntities(summary)
-            }
-          />
+          {showCommunes && shownDetail !== undefined ? (
+            <AtlasMap
+              viewBox={shownDetail.viewBox}
+              frame={shownDetail.viewBox === summary.viewBox ? 'metropole' : 'groupe'}
+              onOpenDepartement={setOpenDepartement}
+              entities={communeMapEntities(shownDetail.communes, shownDetail.viewBox)}
+            />
+          ) : (
+            <NationalMap summary={summary} onOpenDepartement={setOpenDepartement} />
+          )}
 
           {openDepartement === null ? (
             <NationalTable summary={summary} onOpen={setOpenDepartement} />
@@ -234,12 +244,12 @@ function nationalMapEntities(summary: AtlasSummary): MapEntity[] {
     if (region.pathD === null) continue;
     entities.push({
       key: `region-${region.code}`,
+      kind: 'region',
       code: region.code,
+      name: region.nom,
       pathD: region.pathD,
-      fillOpacity: (
-        0.06 +
-        0.39 * coverageRatio(region.communesOwned, region.communesTotal)
-      ).toFixed(3),
+      viewBox: region.viewBox,
+      coverage: coverageRatio(region.communesOwned, region.communesTotal),
       possessed: region.hasRegionCard,
     });
   }
@@ -247,83 +257,254 @@ function nationalMapEntities(summary: AtlasSummary): MapEntity[] {
     if (departement.pathD === null) continue;
     entities.push({
       key: `departement-${departement.code}`,
+      kind: 'departement',
       code: departement.code,
+      name: departement.nom,
       pathD: departement.pathD,
-      fillOpacity: (
-        0.06 +
-        0.39 * coverageRatio(departement.communesOwned, departement.communesTotal)
-      ).toFixed(3),
+      viewBox: departement.viewBox,
+      coverage: coverageRatio(departement.communesOwned, departement.communesTotal),
       possessed: departement.hasDepartementCard,
     });
   }
   return entities;
 }
 
-function communeMapEntities(communes: readonly AtlasCommune[]): MapEntity[] {
+function communeMapEntities(communes: readonly AtlasCommune[], viewBox: string): MapEntity[] {
   const entities: MapEntity[] = [];
   for (const commune of communes) {
     if (commune.pathD === null) continue;
     entities.push({
       key: `commune-${commune.codeInsee}`,
+      kind: 'commune',
       code: commune.codeInsee,
+      name: commune.nom,
       pathD: commune.pathD,
-      fillOpacity: (commune.hasCommuneCard ? 0.45 : 0.06).toFixed(3),
+      viewBox,
+      coverage: 0,
       possessed: commune.hasCommuneCard,
     });
   }
   return entities;
 }
 
-interface AtlasMapProps {
-  viewBox: string;
-  entities: readonly MapEntity[];
+/** Découpe les entités nationales : métropole d'un côté, un encart par cadre de groupe. */
+function splitByFrame(entities: readonly MapEntity[], metropoleViewBox: string) {
+  const metropole: MapEntity[] = [];
+  const groups = new Map<string, MapEntity[]>();
+  for (const entity of entities) {
+    if (entity.viewBox === metropoleViewBox) {
+      metropole.push(entity);
+      continue;
+    }
+    const list = groups.get(entity.viewBox) ?? [];
+    list.push(entity);
+    groups.set(entity.viewBox, list);
+  }
+  return { metropole, groups: [...groups.entries()] };
 }
 
-function AtlasMap({ viewBox, entities }: AtlasMapProps) {
+/** Titre d'un encart : les régions du groupe, à défaut ses départements. */
+function groupTitle(entities: readonly MapEntity[]): string {
+  const regions = entities.filter((entity) => entity.kind === 'region');
+  if (regions.length > 0) return regions.map((entity) => entity.name).join(' · ');
+  return entities
+    .filter((entity) => entity.kind === 'departement')
+    .map((entity) => entity.name)
+    .join(' · ');
+}
+
+interface MapSurfaceProps {
+  viewBox: string;
+  entities: readonly MapEntity[];
+  frame: MapFrame;
+  /** Ouvre un département depuis la carte — la même action que sa ligne de table. */
+  onOpenDepartement?: (departement: OpenDepartement) => void;
+  className?: string;
+}
+
+/**
+ * La surface SVG nue, sans `<figure>`. Elle ne choisit que son cadre : le `pathD`
+ * est passé tel quel, donc aucune géométrie n'est recalculée dans le navigateur.
+ */
+function MapSurface({
+  viewBox,
+  entities,
+  frame,
+  onOpenDepartement,
+  className = 'h-auto w-full',
+}: MapSurfaceProps) {
   return (
-    <figure className="rounded-[2px] border border-veil bg-cabinet-sunk p-3 md:p-6">
-      <svg
-        viewBox={viewBox}
-        aria-hidden="true"
-        focusable="false"
-        role="presentation"
-        className="h-auto w-full"
-      >
-        {entities.length === 0 ? (
-          <>
-            <path
-              d={FRANCE_MAINLAND_PATH}
-              className="fill-vellum-2 stroke-veil-strong"
-              fillOpacity={0.06}
-              strokeWidth={0.75}
-              vectorEffect="non-scaling-stroke"
-            />
-            <path
-              d={FRANCE_CORSICA_PATH}
-              className="fill-vellum-2 stroke-veil-strong"
-              fillOpacity={0.06}
-              strokeWidth={0.75}
-              vectorEffect="non-scaling-stroke"
-            />
-          </>
-        ) : (
-          entities.map((entity) => (
+    <svg
+      viewBox={viewBox}
+      data-map-frame={frame}
+      aria-hidden="true"
+      focusable="false"
+      role="presentation"
+      className={className}
+    >
+      {entities.length === 0 ? (
+        <>
+          <path
+            d={FRANCE_MAINLAND_PATH}
+            className="fill-vellum-2 stroke-veil-strong"
+            fillOpacity={0.06}
+            strokeWidth={0.75}
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={FRANCE_CORSICA_PATH}
+            className="fill-vellum-2 stroke-veil-strong"
+            fillOpacity={0.06}
+            strokeWidth={0.75}
+            vectorEffect="non-scaling-stroke"
+          />
+        </>
+      ) : (
+        entities.map((entity) => {
+          // Le niveau décide du remplissage et du filet ; la possession ne
+          // fait plus que renforcer le filet.
+          const isRegion = entity.kind === 'region';
+          const isDepartement = entity.kind === 'departement';
+          const fillClass = isRegion
+            ? 'fill-none'
+            : isDepartement
+              ? 'fill-verdigris'
+              : 'fill-vellum-2';
+          const strokeClass = isRegion
+            ? entity.possessed
+              ? 'stroke-brass'
+              : 'stroke-foil-hi'
+            : entity.possessed
+              ? isDepartement
+                ? 'stroke-brass'
+                : 'stroke-verdigris'
+              : 'stroke-veil-strong';
+          const strokeWidth = isRegion
+            ? entity.possessed
+              ? 2
+              : 1.25
+            : entity.possessed
+              ? 2
+              : 0.75;
+          // La région ne remplit pas : c'est un contour. Le département porte
+          // la couverture, la commune possédée se lit au filet, plus à l'aplat.
+          const fillOpacity = isRegion ? 0 : isDepartement ? 0.06 + 0.39 * entity.coverage : 0.06;
+          const open = isDepartement ? onOpenDepartement : undefined;
+          return (
+            // biome-ignore lint/a11y/noStaticElementInteractions: le SVG est aria-hidden et purement décoratif ; l'ouverture du département est doublée par le bouton de la table équivalente, seul chemin accessible.
             <path
               key={entity.key}
               d={entity.pathD}
               data-entity-code={entity.code}
+              data-entity-kind={entity.kind}
               data-possession={entity.possessed ? 'true' : 'false'}
-              fillOpacity={entity.fillOpacity}
-              strokeWidth={entity.possessed ? 2 : 0.75}
+              fillOpacity={fillOpacity}
+              strokeWidth={strokeWidth}
               vectorEffect="non-scaling-stroke"
-              className={`fill-vellum-2 transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
-                entity.possessed ? 'stroke-brass' : 'stroke-veil-strong'
+              onClick={
+                open === undefined ? undefined : () => open({ code: entity.code, nom: entity.name })
+              }
+              className={`${fillClass} ${strokeClass} transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
+                open === undefined ? '' : 'cursor-pointer hover:stroke-brass'
               }`}
             />
-          ))
-        )}
-      </svg>
+          );
+        })
+      )}
+    </svg>
+  );
+}
+
+interface AtlasMapProps {
+  viewBox: string;
+  entities: readonly MapEntity[];
+  frame: MapFrame;
+  /** Ouvre un département depuis la carte — la même action que sa ligne de table. */
+  onOpenDepartement?: (departement: OpenDepartement) => void;
+}
+
+function AtlasMap({ viewBox, entities, frame, onOpenDepartement }: AtlasMapProps) {
+  return (
+    <figure className="rounded-[2px] border border-veil bg-cabinet-sunk p-3 md:p-6">
+      <MapSurface
+        viewBox={viewBox}
+        entities={entities}
+        frame={frame}
+        onOpenDepartement={onOpenDepartement}
+      />
     </figure>
+  );
+}
+
+interface OverseasGroup {
+  viewBox: string;
+  entities: readonly MapEntity[];
+  title: string;
+}
+
+interface OverseasInsetsProps {
+  groups: readonly OverseasGroup[];
+  onOpenDepartement?: (departement: OpenDepartement) => void;
+}
+
+/**
+ * Un encart par groupe d'outre-mer, à côté de la métropole. Chaque encart est un
+ * `<svg>` nu — jamais un `<figure>`, pour ne pas troubler la lecture `figure svg`
+ * du banc existant — dont le `viewBox` est celui du groupe lu dans la réponse.
+ */
+function OverseasInsets({ groups, onOpenDepartement }: OverseasInsetsProps) {
+  return (
+    <section className="rounded-[2px] border border-veil/60 p-3">
+      <p className="text-xs text-vellum/70">{ATLAS_ROOM.overseasTitle}</p>
+      <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {groups.map((group) => (
+          <div key={group.viewBox}>
+            <h3 className="text-xs font-semibold text-vellum/80">{group.title}</h3>
+            <MapSurface
+              viewBox={group.viewBox}
+              entities={group.entities}
+              frame="groupe"
+              onOpenDepartement={onOpenDepartement}
+            />
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-vellum/60">{ATLAS_ROOM.overseasCaption}</p>
+    </section>
+  );
+}
+
+interface NationalMapProps {
+  summary: AtlasSummary;
+  onOpenDepartement: (departement: OpenDepartement) => void;
+}
+
+/**
+ * Le niveau national : la métropole d'abord, puis un encart par groupe d'outre-mer.
+ * L'ordre DOM suit la lecture, et les deux parts sont découpées sur le `viewBox`
+ * lu dans la réponse — jamais sur une liste de codes.
+ */
+function NationalMap({ summary, onOpenDepartement }: NationalMapProps) {
+  const { metropole, groups } = splitByFrame(nationalMapEntities(summary), summary.viewBox);
+  return (
+    <div className="space-y-6">
+      <AtlasMap
+        viewBox={summary.viewBox}
+        frame="metropole"
+        entities={metropole}
+        onOpenDepartement={onOpenDepartement}
+      />
+      {groups.length > 0 ? (
+        <OverseasInsets
+          groups={groups.map(([viewBox, entities]) => ({
+            viewBox,
+            entities,
+            title: groupTitle(entities),
+          }))}
+          onOpenDepartement={onOpenDepartement}
+        />
+      ) : null}
+    </div>
   );
 }
 

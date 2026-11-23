@@ -12,6 +12,7 @@ import {
 } from './args';
 import { ATLAS_LEVELS, runAtlas } from './atlas';
 import { fillAtlasGeometry } from './atlas-ign';
+import { backfillOverseasFrames, type OverseasReport } from './atlas-overseas';
 import { type BanCollectResult, type BanSource, type BanStats, collectOdonymes } from './ban';
 import { type BlasonReport, importBlasons, type LevelReport } from './blasons';
 import {
@@ -391,6 +392,39 @@ async function runPathsOnly(options: CliOptions): Promise<void> {
   }
 }
 
+function formatOverseasReport(report: OverseasReport): string[] {
+  const lines = report.groups.map(
+    (group) =>
+      `Cadre ${group.regionCode} · ${group.viewBox} · ${group.rows} lignes ` +
+      `(${group.departements} départements, ${group.communes} communes) · ` +
+      `${group.pathWritten} tracés écrits · ${group.alreadySet} déjà écrits · ` +
+      `${group.framesWritten} cadres mis à jour`,
+  );
+
+  lines.push(
+    `Outre-mer : ${report.groups.length} groupe(s) · ${report.rows} lignes · ` +
+      `${report.pathWritten} tracés écrits · ${report.alreadySet} déjà écrits · ` +
+      `${report.framesWritten} cadres mis à jour · ${report.missingGeom} sans géométrie · ` +
+      `${report.invalidGeom} invalides`,
+  );
+
+  return lines;
+}
+
+/** `--overseas` : les cadres et tracés des seuls groupes d'outre-mer. */
+async function runOverseasOnly(options: CliOptions): Promise<void> {
+  const db = connectDatabase();
+
+  try {
+    const report = await backfillOverseasFrames(db, { force: options.pathsForce });
+    for (const line of formatOverseasReport(report)) {
+      log(line);
+    }
+  } finally {
+    await db.destroy();
+  }
+}
+
 export async function main(argv: readonly string[]): Promise<void> {
   if (argv.includes('--blasons')) {
     await runBlasons(argv.filter((arg) => arg !== '--blasons'));
@@ -408,6 +442,12 @@ export async function main(argv: readonly string[]): Promise<void> {
   if (options.pathsOnly) {
     log('Étape atlas seule (--paths-only)');
     await runPathsOnly(options);
+    return;
+  }
+
+  if (options.overseas) {
+    log('Cadres d’outre-mer (--overseas)');
+    await runOverseasOnly(options);
     return;
   }
 

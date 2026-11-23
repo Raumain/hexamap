@@ -1,4 +1,4 @@
-// Contenu des trois documents légaux. Les données d'identité de l'éditeur
+// Contenu des deux documents légaux. Les données d'identité de l'éditeur
 // restent des repères nommés, regroupés une seule fois dans `PUBLISHER` : le
 // titulaire du site n'a qu'un endroit à compléter. Aucun autre fait n'est
 // inventé ici.
@@ -11,7 +11,7 @@ export const PUBLISHER = {
   email: 'nd',
 } as const;
 
-// Les trois documents sont rédigés, versionnés et publiés ; cet interrupteur les
+// Les deux documents sont rédigés, versionnés et publiés ; cet interrupteur les
 // sert ou les retire du site. Aucun bandeau provisoire ne les précède : le texte
 // est celui qui engage l'éditeur.
 export const LEGAL_PAGES_ENABLED = true;
@@ -34,109 +34,14 @@ export interface LegalDocument {
   readonly segments: readonly LegalSegment[];
 }
 
-// Les trois documents ne sont pas des salles : aucun n'entre dans le rail, et
-// `nav-items.ts` reste inchangé. Ce sont des destinations de pied de page.
+// Les deux documents ne sont pas des salles : aucun n'entre dans le rail, et
+// `nav-items.ts` n'y gagne aucune entrée. Ce sont des destinations de pied de
+// page. La CGV a été retirée de l'interface avec la boutique (retour R-004) :
+// elle n'est ni publiée, ni liée, et sa route n'existe plus.
 export const LEGAL_LINKS = [
-  { to: '/cgv', label: 'CGV' },
   { to: '/mentions-legales', label: 'Mentions légales' },
   { to: '/confidentialite', label: 'Confidentialité' },
 ] as const;
-
-export const CGV_LEGAL: LegalDocument = {
-  eyebrow: 'Le cabinet · Le Seuil',
-  title: 'Conditions générales de vente',
-  subtitle:
-    'Les conditions ci-dessous s’appliquent à l’achat de packs d’écus dans La Boutique. Aucun écu n’est vendu séparément d’un pack.',
-  segments: [
-    {
-      heading: 'Objet et champ d’application',
-      paragraphs: [
-        'Les présentes conditions générales régissent l’achat de packs d’écus auprès de l’éditeur d’Hexamap, dans La Boutique du jeu. Elles s’appliquent à toute personne qui passe une commande depuis un compte Hexamap.',
-        'Le jeu est intégralement jouable sans rien acheter. Les tickets à gratter sont gratuits et restent la seule source de cartes : aucun ticket n’est vendu, et l’achat d’écus ne donne accès qu’à la monnaie interne du jeu.',
-        'Les présentes conditions ne régissent pas les transactions que les joueurs concluent entre eux sur le marché. Ces transactions portent sur des écus déjà détenus et ne donnent lieu à aucun paiement en euros.',
-      ],
-    },
-    {
-      heading: 'Identité du vendeur',
-      paragraphs: [
-        `Le vendeur est ${EDITOR}, éditeur non professionnel du jeu Hexamap.`,
-        `Domicile : ${PUBLISHER.address}. Téléphone : ${PUBLISHER.phone}. Adresse électronique : ${PUBLISHER.email}.`,
-      ],
-    },
-    {
-      heading: 'Prix',
-      paragraphs: [
-        'Les prix sont indiqués en euros, toutes taxes comprises, avant la validation du paiement. Le prix applicable est celui affiché au moment de la commande.',
-        'Le vendeur peut modifier ses prix à tout moment. Une modification ne remet pas en cause une commande déjà payée.',
-      ],
-    },
-    {
-      heading: 'Commande',
-      paragraphs: [
-        'L’acheteur choisit un pack d’écus, puis est redirigé vers la page de paiement sécurisée de Stripe pour régler par carte bancaire.',
-        'La commande n’est formée qu’à l’encaissement effectif du paiement. Un paiement resté en attente ne crédite aucun écu et ne crée aucune obligation de livraison.',
-      ],
-    },
-    {
-      heading: 'Livraison des écus',
-      paragraphs: [
-        'Les écus sont crédités immédiatement sur le compte du joueur après confirmation de l’encaissement par le prestataire de paiement. La livraison ne comporte aucun support physique.',
-        `Si un incident technique empêche le crédit après un encaissement, l’acheteur écrit à ${PUBLISHER.email} et le crédit est régularisé.`,
-      ],
-    },
-    {
-      heading: 'Droit de rétractation',
-      paragraphs: [
-        'Le délai légal de rétractation est de quatorze jours.',
-        'Les écus constituent un contenu numérique fourni immédiatement. En validant le paiement, l’acheteur renonce expressément à son droit de rétractation, conformément à l’article L. 221-28, 13° du code de la consommation. Ce renoncement est recueilli et mentionné au moment du paiement.',
-        `L’acheteur peut néanmoins demander l’annulation d’un achat avant d’avoir utilisé les écus achetés, en écrivant à ${PUBLISHER.email}. La demande est alors étudiée gratuitement.`,
-      ],
-    },
-    {
-      heading: 'Nature des écus',
-      paragraphs: [
-        'L’écu est la monnaie interne du jeu. Il n’a aucune valeur monétaire, n’est pas convertible en euros et n’est pas remboursable en numéraire. Il ne peut pas être transféré hors du jeu.',
-        'Les écus ne constituent ni un titre financier, ni un avoir, ni un dépôt.',
-      ],
-    },
-    {
-      heading: 'Compte et usage',
-      paragraphs: [
-        'Un compte correspond à une personne. L’usage du compte est strictement personnel.',
-        'Il est interdit de revendre des écus ou un compte contre de l’argent réel en dehors du jeu, comme de recourir à une manipulation technique du service.',
-        'Un manquement peut être sanctionné de façon proportionnée : avertissement, suspension ou fermeture du compte. En cas de fermeture pour manquement, les écus non dépensés sont perdus, sans remboursement.',
-      ],
-    },
-    {
-      heading: 'Garanties légales',
-      paragraphs: [
-        'L’acheteur bénéficie de la garantie légale de conformité prévue aux articles L. 217-3 et suivants du code de la consommation, ainsi que de la garantie des vices cachés prévue aux articles 1641 et suivants du code civil.',
-        'Ces garanties s’appliquent indépendamment de toute garantie commerciale qui serait consentie en plus.',
-      ],
-    },
-    {
-      heading: 'Réclamations et médiation',
-      paragraphs: [
-        `Toute réclamation s’adresse par écrit à ${PUBLISHER.email}. Une réponse est apportée sous quinze jours.`,
-        `À défaut de solution amiable, l’acheteur peut recourir gratuitement au médiateur de la consommation : ${CONSUMER_MEDIATOR}. Ce recours suppose une réclamation écrite préalable auprès du vendeur. Les conditions et modalités de saisine sont celles publiées par le médiateur.`,
-      ],
-    },
-    {
-      heading: 'Droit applicable et litiges',
-      paragraphs: [
-        'Les présentes conditions sont soumises au droit français. En cas de litige, les parties recherchent d’abord une solution amiable avant toute action.',
-        'À défaut d’accord, le litige relève de la juridiction compétente de droit commun. Lorsque l’acheteur est un consommateur, les règles de compétence qui le protègent restent applicables.',
-      ],
-    },
-    {
-      heading: 'Modifications',
-      paragraphs: [
-        `Dernière mise à jour : ${LAST_UPDATED}.`,
-        'Les conditions applicables à une commande sont celles en vigueur au jour de cette commande.',
-      ],
-    },
-  ],
-};
 
 export const MENTIONS_LEGALES: LegalDocument = {
   eyebrow: 'Le cabinet · Le Seuil',

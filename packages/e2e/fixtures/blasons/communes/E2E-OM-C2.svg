@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="64" height="72" role="img" aria-label="Blason de test">
+  <path d="M4 6h56v34c0 14-14 22-28 26C18 62 4 54 4 40V6Z" fill="#8fbfa5" stroke="#3d5c4d" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M32 14v40M14 32h36" stroke="#f2f0e6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M20 18 32 30 44 18" stroke="#f2f0e6" stroke-width="1.5" fill="none"/>
+</svg>

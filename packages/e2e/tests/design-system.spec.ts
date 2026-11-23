@@ -100,8 +100,31 @@ test('planche du Cartel — le blason ne recouvre jamais la gravure', async ({ p
     'La commune du référentiel E2E doit porter un blason servi sous /blasons.',
   ).toBeVisible();
 
-  const engravingBox = await engraving.boundingBox();
-  const blasonBox = await blason.boundingBox();
+  // `toBeVisible()` ne prouve qu'une boîte non vide : la géométrie du blason est
+  // posée par le CSS (`h-full w-full` dans un carré), donc elle existe avant que
+  // la bitmap ne soit décodée, et `card-blason.tsx` retire l'`<img>` au premier
+  // `onError`. `decode()` est la seule attente qui dise « l'image est chargée et
+  // prête à peindre » ; elle rejette si le fichier n'arrive pas, au lieu de
+  // laisser la mesure porter sur un blason disparu.
+  await blason.evaluate((img: HTMLImageElement) => img.decode());
+
+  // Les deux rectangles sont relevés dans **un seul** `evaluate` : deux
+  // `boundingBox()` successifs traversent deux images de rendu, et un défilement
+  // ou une reprise de mise en page entre les deux rendrait les deux repères
+  // incompatibles — le faux recouvrement observé sous charge.
+  const boxes = await plate.evaluate((node) => {
+    const engravingNode = node.querySelector('svg');
+    const blasonNode = node.querySelector('img');
+    if (!engravingNode || !blasonNode) return null;
+    const rect = (element: Element) => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    return { engraving: rect(engravingNode), blason: rect(blasonNode) };
+  });
+
+  const engravingBox = boxes?.engraving ?? null;
+  const blasonBox = boxes?.blason ?? null;
   expect(engravingBox, 'La gravure doit avoir une boîte mesurable.').not.toBeNull();
   expect(blasonBox, 'Le blason doit avoir une boîte mesurable.').not.toBeNull();
   if (!engravingBox || !blasonBox) return;

@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AssemblageRouteImport } from './routes/assemblage'
 import { Route as AtlasRouteImport } from './routes/atlas'
-import { Route as CgvRouteImport } from './routes/cgv'
 import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as CompteRouteImport } from './routes/compte'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
@@ -52,11 +51,6 @@ const AssemblageRoute = AssemblageRouteImport.update({
 const AtlasRoute = AtlasRouteImport.update({
   id: '/atlas',
   path: '/atlas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CgvRoute = CgvRouteImport.update({
-  id: '/cgv',
-  path: '/cgv',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollectionRoute = CollectionRouteImport.update({
@@ -160,7 +154,6 @@ export interface FileRoutesByFullPath {
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
   '/atlas': typeof AtlasRoute
-  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -186,7 +179,6 @@ export interface FileRoutesByTo {
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
   '/atlas': typeof AtlasRoute
-  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -213,7 +205,6 @@ export interface FileRoutesById {
   '/achievements': typeof AchievementsRoute
   '/assemblage': typeof AssemblageRoute
   '/atlas': typeof AtlasRoute
-  '/cgv': typeof CgvRoute
   '/collection': typeof CollectionRoute
   '/compte': typeof CompteRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -241,7 +232,6 @@ export interface FileRouteTypes {
     | '/achievements'
     | '/assemblage'
     | '/atlas'
-    | '/cgv'
     | '/collection'
     | '/compte'
     | '/confidentialite'
@@ -267,7 +257,6 @@ export interface FileRouteTypes {
     | '/achievements'
     | '/assemblage'
     | '/atlas'
-    | '/cgv'
     | '/collection'
     | '/compte'
     | '/confidentialite'
@@ -293,7 +282,6 @@ export interface FileRouteTypes {
     | '/achievements'
     | '/assemblage'
     | '/atlas'
-    | '/cgv'
     | '/collection'
     | '/compte'
     | '/confidentialite'
@@ -320,7 +308,6 @@ export interface RootRouteChildren {
   AchievementsRoute: typeof AchievementsRoute
   AssemblageRoute: typeof AssemblageRoute
   AtlasRoute: typeof AtlasRoute
-  CgvRoute: typeof CgvRoute
   CollectionRoute: typeof CollectionRoute
   CompteRoute: typeof CompteRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
@@ -370,13 +357,6 @@ declare module '@tanstack/react-router' {
       path: '/atlas'
       fullPath: '/atlas'
       preLoaderRoute: typeof AtlasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cgv': {
-      id: '/cgv'
-      path: '/cgv'
-      fullPath: '/cgv'
-      preLoaderRoute: typeof CgvRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/collection': {
@@ -520,7 +500,6 @@ const rootRouteChildren: RootRouteChildren = {
   AchievementsRoute: AchievementsRoute,
   AssemblageRoute: AssemblageRoute,
   AtlasRoute: AtlasRoute,
-  CgvRoute: CgvRoute,
   CollectionRoute: CollectionRoute,
   CompteRoute: CompteRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,

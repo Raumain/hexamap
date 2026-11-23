@@ -158,7 +158,7 @@ async function writeBatch(
  * texte reste lisible au lieu d'être classée invalide. Un texte illisible devient
  * `{}`, que la classification compte comme `invalid`.
  */
-function readGeometry(raw: unknown): unknown {
+export function readGeometry(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
 
   try {

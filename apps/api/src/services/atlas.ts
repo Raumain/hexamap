@@ -12,9 +12,10 @@ import type { Kysely } from 'kysely';
  * Agrégats de l'atlas.
  *
  * Chaque fonction émet **une seule** instruction : deux CTE pour le résumé, un
- * `json_build_object` pour la charge. Le `viewBox` est ajouté en TypeScript, et
- * chaque CTE qui lit `user_cards` porte son filtre `user_id` — sans lui, un
- * voisin lirait les cartes d'autrui.
+ * `json_build_object` pour la charge. Le `viewBox` de tête du résumé reste
+ * `ATLAS_VIEWBOX`, tandis que celui du détail et celui de chaque entité viennent
+ * du groupe lu en base ; chaque CTE qui lit `user_cards` porte son filtre
+ * `user_id` — sans lui, un voisin lirait les cartes d'autrui.
  */
 
 type SummaryPayload = {
@@ -22,7 +23,7 @@ type SummaryPayload = {
   departements: AtlasSummaryDepartement[];
 };
 
-type DepartementPayload = Omit<AtlasDepartementDetail, 'viewBox'>;
+type DepartementPayload = AtlasDepartementDetail;
 
 export async function loadAtlasSummary(
   database: Kysely<Database>,
@@ -71,6 +72,7 @@ export async function loadAtlasSummary(
               'code', r.code,
               'nom', r.nom,
               'pathD', r.path_d,
+              'viewBox', r.view_box,
               'hasRegionCard', rc.code is not null,
               'communesOwned', coalesce(ro.communes_owned, 0),
               'communesTotal', coalesce(rt.communes_total, 0)
@@ -86,6 +88,7 @@ export async function loadAtlasSummary(
               'nom', d.nom,
               'codeRegion', d.code_region,
               'pathD', d.path_d,
+              'viewBox', d.view_box,
               'hasDepartementCard', dc.code is not null,
               'communesOwned', coalesce(dop.communes_owned, 0),
               'communesTotal', coalesce(dt.communes_total, 0)
@@ -122,6 +125,7 @@ export async function loadAtlasDepartement(
         )
         select json_build_object(
           'code', d.code,
+          'viewBox', d.view_box,
           'nom', d.nom,
           'communesOwned', (
             select count(*)::int
@@ -139,6 +143,7 @@ export async function loadAtlasDepartement(
               'codeInsee', c.code_insee,
               'nom', c.nom,
               'pathD', c.path_d,
+              'viewBox', c.view_box,
               'ownedCards', coalesce(o.owned_cards, 0),
               'hasCommuneCard', coalesce(o.owned_cards, 0) > 0
             ) order by c.nom, c.code_insee)
@@ -159,5 +164,5 @@ export async function loadAtlasDepartement(
   // La sous-requête rend une ligne nulle quand le code est inconnu ou hors carte.
   if (!payload) return null;
 
-  return { viewBox: ATLAS_VIEWBOX, ...payload };
+  return payload;
 }
