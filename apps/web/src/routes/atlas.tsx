@@ -31,11 +31,15 @@ interface OpenDepartement {
   nom: string;
 }
 
+type MapEntityKind = 'region' | 'departement' | 'commune';
+
 interface MapEntity {
   key: string;
+  kind: MapEntityKind;
   code: string;
+  name: string;
   pathD: string;
-  fillOpacity: string;
+  coverage: number;
   possessed: boolean;
 }
 
@@ -72,6 +76,7 @@ function AtlasPage() {
         <ul className="mt-4 space-y-1 text-xs text-vellum/60">
           <li>{ATLAS_ROOM.legendFill}</li>
           <li>{ATLAS_ROOM.legendFillet}</li>
+          <li>{ATLAS_ROOM.legendContour}</li>
         </ul>
       </header>
 
@@ -184,6 +189,7 @@ function AtlasBoard() {
             viewBox={
               showCommunes && shownDetail !== undefined ? shownDetail.viewBox : summary.viewBox
             }
+            onOpenDepartement={setOpenDepartement}
             entities={
               showCommunes && shownDetail !== undefined
                 ? communeMapEntities(shownDetail.communes)
@@ -234,12 +240,11 @@ function nationalMapEntities(summary: AtlasSummary): MapEntity[] {
     if (region.pathD === null) continue;
     entities.push({
       key: `region-${region.code}`,
+      kind: 'region',
       code: region.code,
+      name: region.nom,
       pathD: region.pathD,
-      fillOpacity: (
-        0.06 +
-        0.39 * coverageRatio(region.communesOwned, region.communesTotal)
-      ).toFixed(3),
+      coverage: coverageRatio(region.communesOwned, region.communesTotal),
       possessed: region.hasRegionCard,
     });
   }
@@ -247,12 +252,11 @@ function nationalMapEntities(summary: AtlasSummary): MapEntity[] {
     if (departement.pathD === null) continue;
     entities.push({
       key: `departement-${departement.code}`,
+      kind: 'departement',
       code: departement.code,
+      name: departement.nom,
       pathD: departement.pathD,
-      fillOpacity: (
-        0.06 +
-        0.39 * coverageRatio(departement.communesOwned, departement.communesTotal)
-      ).toFixed(3),
+      coverage: coverageRatio(departement.communesOwned, departement.communesTotal),
       possessed: departement.hasDepartementCard,
     });
   }
@@ -265,9 +269,11 @@ function communeMapEntities(communes: readonly AtlasCommune[]): MapEntity[] {
     if (commune.pathD === null) continue;
     entities.push({
       key: `commune-${commune.codeInsee}`,
+      kind: 'commune',
       code: commune.codeInsee,
+      name: commune.nom,
       pathD: commune.pathD,
-      fillOpacity: (commune.hasCommuneCard ? 0.45 : 0.06).toFixed(3),
+      coverage: 0,
       possessed: commune.hasCommuneCard,
     });
   }
@@ -277,9 +283,11 @@ function communeMapEntities(communes: readonly AtlasCommune[]): MapEntity[] {
 interface AtlasMapProps {
   viewBox: string;
   entities: readonly MapEntity[];
+  /** Ouvre un département depuis la carte — la même action que sa ligne de table. */
+  onOpenDepartement?: (departement: OpenDepartement) => void;
 }
 
-function AtlasMap({ viewBox, entities }: AtlasMapProps) {
+function AtlasMap({ viewBox, entities, onOpenDepartement }: AtlasMapProps) {
   return (
     <figure className="rounded-[2px] border border-veil bg-cabinet-sunk p-3 md:p-6">
       <svg
@@ -307,20 +315,58 @@ function AtlasMap({ viewBox, entities }: AtlasMapProps) {
             />
           </>
         ) : (
-          entities.map((entity) => (
-            <path
-              key={entity.key}
-              d={entity.pathD}
-              data-entity-code={entity.code}
-              data-possession={entity.possessed ? 'true' : 'false'}
-              fillOpacity={entity.fillOpacity}
-              strokeWidth={entity.possessed ? 2 : 0.75}
-              vectorEffect="non-scaling-stroke"
-              className={`fill-vellum-2 transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
-                entity.possessed ? 'stroke-brass' : 'stroke-veil-strong'
-              }`}
-            />
-          ))
+          entities.map((entity) => {
+            // Le niveau décide du remplissage et du filet ; la possession ne
+            // fait plus que renforcer le filet.
+            const isRegion = entity.kind === 'region';
+            const isDepartement = entity.kind === 'departement';
+            const fillClass = isRegion
+              ? 'fill-none'
+              : isDepartement
+                ? 'fill-verdigris'
+                : 'fill-vellum-2';
+            const strokeClass = isRegion
+              ? entity.possessed
+                ? 'stroke-brass'
+                : 'stroke-foil-hi'
+              : entity.possessed
+                ? isDepartement
+                  ? 'stroke-brass'
+                  : 'stroke-verdigris'
+                : 'stroke-veil-strong';
+            const strokeWidth = isRegion
+              ? entity.possessed
+                ? 2
+                : 1.25
+              : entity.possessed
+                ? 2
+                : 0.75;
+            // La région ne remplit pas : c'est un contour. Le département porte
+            // la couverture, la commune possédée se lit au filet, plus à l'aplat.
+            const fillOpacity = isRegion ? 0 : isDepartement ? 0.06 + 0.39 * entity.coverage : 0.06;
+            const open = isDepartement ? onOpenDepartement : undefined;
+            return (
+              // biome-ignore lint/a11y/noStaticElementInteractions: le SVG est aria-hidden et purement décoratif ; l'ouverture du département est doublée par le bouton de la table équivalente, seul chemin accessible.
+              <path
+                key={entity.key}
+                d={entity.pathD}
+                data-entity-code={entity.code}
+                data-entity-kind={entity.kind}
+                data-possession={entity.possessed ? 'true' : 'false'}
+                fillOpacity={fillOpacity}
+                strokeWidth={strokeWidth}
+                vectorEffect="non-scaling-stroke"
+                onClick={
+                  open === undefined
+                    ? undefined
+                    : () => open({ code: entity.code, nom: entity.name })
+                }
+                className={`${fillClass} ${strokeClass} transition-[fill-opacity,stroke] duration-300 motion-reduce:transition-none ${
+                  open === undefined ? '' : 'cursor-pointer hover:stroke-brass'
+                }`}
+              />
+            );
+          })
         )}
       </svg>
     </figure>

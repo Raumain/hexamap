@@ -11,8 +11,9 @@ export const ATLAS_ROOM = {
   title: "L'Atlas",
   subtitle:
     'La carte se dessine depuis vos propres cartes, et la descente est guidée : de la France entière au département, puis à la commune.',
-  legendFill: 'Remplissage : part des communes couvertes.',
+  legendFill: 'Remplissage vert : part des communes couvertes de chaque département.',
   legendFillet: 'Filet de laiton : carte de Région ou de Département possédée.',
+  legendContour: 'Contour clair : limite de région ; contour vert : commune possédée.',
   nationalTitle: 'La France entière',
   tableCaption: 'Table équivalente de la carte',
   columnEntity: 'Entité',
