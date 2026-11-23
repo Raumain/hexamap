@@ -54,9 +54,23 @@ export const COLLECTION_FILTERED_EMPTY = {
   description: 'Modifiez ou réinitialisez les filtres pour retrouver votre collection.',
 } as const;
 
-/** Le compte filtré dit la même chose que le compte brut, sur le total de la collection. */
-export function filteredCardsLabel(shown: number, total: number): string {
-  return cardsShownLabel(shown, total);
+/** Marque d'un groupe d'exemplaires : jamais affichée pour un groupe d'un seul. */
+export function exemplairesMark(count: number): string {
+  return `×${count}`;
+}
+
+export function exemplairesCountLabel(count: number): string {
+  if (count === 0) return 'Aucun exemplaire';
+  return count === 1 ? '1 exemplaire' : `${count} exemplaires`;
+}
+
+export function collectionGroupsLabel(
+  shownCards: number,
+  groups: number,
+  totalCards: number,
+): string {
+  const groupsText = groups === 1 ? '1 groupe' : `${groups} groupes`;
+  return `${cardsShownLabel(shownCards, totalCards)} · ${groupsText}`;
 }
 
 export const ATELIER = {
