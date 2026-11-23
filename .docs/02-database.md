@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-22 (La Sonnette — `push_subscriptions`, `push_preferences`).
+> Dernière mise à jour : 2026-11-23 (Phase 50 — `view_box` sur les trois tables de référentiel).
 
 ---
 
@@ -43,6 +43,7 @@
 | Colonne `tableaux.score` | **Migrée** (2026-11-22) | `packages/db/migrations/0019_tableau_score.ts` |
 | `push_subscriptions`, `push_preferences` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
 | Index `user_scratch_charges_empty_idx` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| Colonne `view_box` sur `ref_regions`, `ref_departements`, `ref_communes` | **Migrée** (2026-11-23) | `packages/db/migrations/0021_view_box.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -648,7 +649,8 @@ create table ref_regions (
   blason_url text,
   contour_url text,
   blason_credit text,
-  path_d text
+  path_d text,
+  view_box text not null default '0 0 1000 1000'
 );
 
 create table ref_departements (
@@ -660,7 +662,8 @@ create table ref_departements (
   blason_url text,
   contour_url text,
   blason_credit text,
-  path_d text
+  path_d text,
+  view_box text not null default '0 0 1000 1000'
 );
 
 create index ref_departements_region_idx on ref_departements (code_region);
@@ -682,7 +685,8 @@ create table ref_communes (
   blason_url text,
   contour_url text,
   blason_credit text,
-  path_d text
+  path_d text,
+  view_box text not null default '0 0 1000 1000'
 );
 
 create index ref_communes_rarete_bucket_idx on ref_communes (rarete, draw_bucket);
@@ -725,6 +729,8 @@ est unique et partagé par les trois tables : **Mercator sphérique (EPSG:3857)*
 cadré sur l'emprise métropolitaine lon `[−5,5 ; 9,9]` / lat `[41,2 ; 51,3]`, rendu dans le
 `viewBox` **`0 0 1000 1000`** avec `y` inversé, échelle uniforme et centrage. Aucun index : la
 colonne se lit par clé primaire, elle ne se filtre pas.
+
+**`view_box` — le cadre d'affichage.** `view_box` est le `viewBox` SVG de l'entité, tel qu'il s'écrit dans l'attribut (`'0 0 1000 1000'`), donc consommable sans transformation par le composant qui le reçoit. Il porte le cadre du **groupe** auquel l'entité appartient — la région, son département et ses communes portent la **même** valeur. Un cadre par DROM (5 au total), calculé sur la bbox de l'ensemble du groupe. La métropole garde `0 0 1000 1000`, **valeur par défaut de la colonne** : les ~35 000 lignes métropolitaines ne sont jamais réécrites. `path_d` est exprimé **dans** le repère nommé par `view_box` de sa propre ligne : c'est ce qui fait qu'une commune de DROM s'assemble avec ses voisines. Il n'est **jamais** calculé au runtime (ni API ni navigateur) : il est écrit une fois, par le script de backfill `scripts/import/src/atlas-overseas.ts`.
 
 ### 5.1 Intégrité du référentiel (migration `0014_ref_integrity`)
 
@@ -996,6 +1002,7 @@ export interface RefRegionTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefDepartementTable {
@@ -1008,6 +1015,7 @@ export interface RefDepartementTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefCommuneTable {
@@ -1026,6 +1034,7 @@ export interface RefCommuneTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefOdonymeTable {
@@ -1171,6 +1180,9 @@ export interface Database {
 - **Un désabonnement supprime la ligne de `push_subscriptions` et laisse `push_preferences`
   intacte** : réactiver la sonnette ne remet pas les heures calmes par défaut.
 - **Un `404` ou un `410` du service de push supprime la ligne.** Tout autre échec la conserve.
+- `view_box` appartient au **groupe** (le DROM) et se recopie à l'identique sur la région, son département et ses communes ; un `view_box` dérivé par entité empêcherait les communes de s'assembler.
+- Toute ligne métropolitaine garde `view_box = '0 0 1000 1000'` ; le backfill d'outre-mer ne l'écrit jamais.
+- `path_d` est exprimé dans le repère de `view_box` de sa ligne, et n'est jamais recalculé au runtime.
 
 ### 7.2 Tirage d'une carte d'un palier
 

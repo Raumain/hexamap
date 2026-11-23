@@ -132,6 +132,7 @@ export interface RefRegionTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefDepartementTable {
@@ -144,6 +145,7 @@ export interface RefDepartementTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefCommuneTable {
@@ -162,6 +164,7 @@ export interface RefCommuneTable {
   contour_url: string | null;
   blason_credit: string | null;
   path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefOdonymeTable {
