@@ -1,4 +1,11 @@
-import { CATEGORY, type Category, RARITY, RARITY_LABELS } from '@hexamap/shared';
+import {
+  CATEGORY,
+  type Category,
+  type ExemplaireGroup,
+  groupExemplaires,
+  RARITY,
+  RARITY_LABELS,
+} from '@hexamap/shared';
 import { useQuery } from '@tanstack/react-query';
 import {
   createFileRoute,
@@ -30,8 +37,9 @@ import {
   COLLECTION,
   COLLECTION_FILTERED_EMPTY,
   COLLECTION_FILTERS,
+  collectionGroupsLabel,
   collectionTotalLabel,
-  filteredCardsLabel,
+  exemplairesMark,
 } from '../content/collection';
 import { CATEGORY_LABELS } from '../content/tickets';
 import { atlasSummaryQueryOptions } from '../lib/atlas';
@@ -66,7 +74,9 @@ const features = tableFeatures({
   },
 });
 
-const columnHelper = createColumnHelper<typeof features, CollectionCard>();
+type CollectionRow = CollectionCard & { exemplaireCount: number };
+
+const columnHelper = createColumnHelper<typeof features, CollectionRow>();
 
 const columns = columnHelper.columns([
   columnHelper.accessor('nom', {
@@ -93,6 +103,11 @@ const columns = columnHelper.columns([
               className="w-[120px] shrink-0 md:w-[140px]"
             />
           </CardLink>
+          {card.exemplaireCount > 1 ? (
+            <span className="shrink-0 rounded-[2px] border border-brass/40 bg-brass/10 px-1.5 py-px font-mono text-[11px] tracking-[0.12em] text-brass">
+              {exemplairesMark(card.exemplaireCount)}
+            </span>
+          ) : null}
           <div className="min-w-0 md:hidden">
             <p className="font-display text-[15px] font-semibold leading-tight text-vellum line-clamp-2">
               {card.nom}
@@ -241,6 +256,7 @@ function CollectionBody({ search }: { search: CollectionSearchWire }) {
   const items = collectionQuery.data?.items ?? EMPTY_ITEMS;
   const total = collectionQuery.data?.total ?? 0;
   const visible = useMemo(() => filterCollectionCards(items, filters), [items, filters]);
+  const groups = useMemo(() => groupExemplaires(visible), [visible]);
 
   const commitFilters = useCallback<CommitFilters>(
     (next, options) => {
@@ -341,6 +357,7 @@ function CollectionBody({ search }: { search: CollectionSearchWire }) {
             filters={filters}
             total={total}
             visibleCount={visible.length}
+            groupCount={groups.length}
             isDesktop={isDesktop}
             onCommit={commitFilters}
           />
@@ -361,7 +378,7 @@ function CollectionBody({ search }: { search: CollectionSearchWire }) {
               </button>
             </div>
           ) : (
-            <CollectionTable items={visible} total={total} isDesktop={isDesktop} />
+            <CollectionTable groups={groups} total={total} isDesktop={isDesktop} />
           )}
         </div>
       )}
@@ -373,6 +390,7 @@ interface CollectionFiltersPanelProps {
   filters: CollectionFilters;
   total: number;
   visibleCount: number;
+  groupCount: number;
   isDesktop: boolean;
   onCommit: CommitFilters;
 }
@@ -381,6 +399,7 @@ function CollectionFiltersPanel({
   filters,
   total,
   visibleCount,
+  groupCount,
   isDesktop,
   onCommit,
 }: CollectionFiltersPanelProps) {
@@ -418,7 +437,7 @@ function CollectionFiltersPanel({
   return (
     <div className="space-y-3">
       <p aria-live="polite" className="font-mono text-[11px] text-vellum/60">
-        {filteredCardsLabel(visibleCount, total)}
+        {collectionGroupsLabel(visibleCount, groupCount, total)}
       </p>
       <details open={isDesktop} className="rounded-sheet border border-veil bg-cabinet-raised">
         <summary className="cursor-pointer px-4 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-brass md:px-5">
@@ -581,18 +600,23 @@ function CollectionCounters({ items }: { items: CollectionCard[] }) {
 }
 
 interface CollectionTableProps {
-  items: CollectionCard[];
+  groups: ExemplaireGroup<CollectionCard>[];
   total: number;
   isDesktop: boolean;
 }
 
-function CollectionTable({ items, total, isDesktop }: CollectionTableProps) {
+function CollectionTable({ groups, total, isDesktop }: CollectionTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  const rowsData = useMemo<CollectionRow[]>(
+    () => groups.map((group) => ({ ...group.representative, exemplaireCount: group.count })),
+    [groups],
+  );
 
   const table = useTable({
     features,
     columns,
-    data: items,
+    data: rowsData,
     state: { sorting },
     onSortingChange: setSorting,
   });

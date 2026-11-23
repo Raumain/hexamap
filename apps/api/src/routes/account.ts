@@ -1,7 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { accountDeletionEnabled } from '../lib/account-switch';
 import { HttpError } from '../lib/http-error';
-import { mailTransportConfigured } from '../lib/mailer';
 import { authPlugin } from '../middleware/auth';
 import {
   buildAccountExport,
@@ -226,7 +225,12 @@ export const accountRoutes = new Elysia({ name: 'routes.account' })
         return unauthorized;
       }
 
-      return { deletion: accountDeletionEnabled(), emailVerification: mailTransportConfigured() };
+      // R-001 : aucune confirmation d'adresse n'est demandée au joueur. La clé
+      // reste dans la charge utile — un écran ne doit pas apprendre son absence
+      // par un champ manquant — mais elle est éteinte pour de bon : aucun
+      // transport de courriel n'existe, `MAIL_OUTBOX_DIR` n'étant qu'un témoin
+      // d'écriture pour le banc. Elle vaut donc `false`, toujours.
+      return { deletion: accountDeletionEnabled(), emailVerification: false };
     },
     {
       response: {

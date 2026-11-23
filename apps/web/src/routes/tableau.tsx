@@ -1,5 +1,7 @@
 import type { TableauAlignment, TableauSlot } from '@hexamap/shared';
 import {
+  craftGroupKey,
+  groupExemplaires,
   rankCardsByCompatibility,
   slotMatchesCategory,
   TABLEAU_SLOT_LABELS,
@@ -18,6 +20,7 @@ import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { OverlayPortal } from '../components/ui/overlay-portal';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
+import { exemplairesMark } from '../content/collection';
 import {
   compatibilityReason,
   drawerTitleLabel,
@@ -494,6 +497,11 @@ function CardDrawer({
   }, [items, slot, search]);
 
   const compatibleSet = useMemo(() => new Set(compatibleIds), [compatibleIds]);
+  const groups = useMemo(() => groupExemplaires(items), [items]);
+  const countsByKey = useMemo(
+    () => new Map(groups.map((group) => [group.key, group.count])),
+    [groups],
+  );
   const ranked = useMemo(
     () => rankCardsByCompatibility(eligible, compatibleSet),
     [eligible, compatibleSet],
@@ -589,6 +597,7 @@ function CardDrawer({
                 {virtualItems.map((virtualItem) => {
                   const card = ranked[virtualItem.index];
                   if (!card) return null;
+                  const exemplaireCount = countsByKey.get(craftGroupKey(card)) ?? 1;
                   return (
                     <button
                       key={card.id}
@@ -618,6 +627,11 @@ function CardDrawer({
                           <p className="min-w-0 truncate font-mono text-[9px] uppercase tracking-[0.12em] text-vellum/60">
                             {CATEGORY_LABELS[card.category]} · {card.refCode}
                           </p>
+                          {exemplaireCount > 1 ? (
+                            <span className="shrink-0 rounded-[2px] border border-brass/40 bg-brass/10 px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.12em] text-brass">
+                              {exemplairesMark(exemplaireCount)}
+                            </span>
+                          ) : null}
                           {compatibleSet.has(card.id) ? (
                             <span
                               title={reason}

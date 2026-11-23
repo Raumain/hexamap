@@ -3,6 +3,7 @@ export * from './achievements';
 export * from './atelier';
 export * from './atlas';
 export * from './charges';
+export * from './exemplaires';
 export * from './notifications';
 export * from './packs';
 export * from './palmares';

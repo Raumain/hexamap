@@ -1,7 +1,7 @@
-import { RARITY_LABELS } from '@hexamap/shared';
+import { craftGroupKey, groupExemplaires, RARITY_LABELS } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate, useRouter } from '@tanstack/react-router';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { FormError } from '../components/form-error';
 import { TextField } from '../components/text-field';
 import { ProposeTrade } from '../components/trade/propose-trade';
@@ -10,6 +10,7 @@ import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { CARD_DETAIL, CARD_SOURCE_LABELS, stateLabel } from '../content/card-detail';
+import { exemplairesCountLabel } from '../content/collection';
 import { CURRENCY } from '../content/market';
 import { CATEGORY_LABELS } from '../content/tickets';
 import {
@@ -18,7 +19,7 @@ import {
   cardDetailQueryKey,
   cardDetailQueryOptions,
 } from '../lib/card-detail';
-import { collectionQueryKey } from '../lib/collection';
+import { collectionQueryKey, collectionQueryOptions } from '../lib/collection';
 import {
   buyListing,
   createListing,
@@ -78,6 +79,14 @@ interface CardDetailViewProps {
 function CardDetailView({ cardId, viewerId }: CardDetailViewProps) {
   const router = useRouter();
   const detailQuery = useQuery(cardDetailQueryOptions(cardId));
+  const collectionQuery = useQuery(collectionQueryOptions);
+
+  const exemplaireCount = useMemo(() => {
+    const card = detailQuery.data;
+    if (!card) return 0;
+    const groups = groupExemplaires(collectionQuery.data?.items ?? []);
+    return groups.find((group) => group.key === craftGroupKey(card))?.count ?? 0;
+  }, [collectionQuery.data, detailQuery.data]);
 
   if (detailQuery.isPending) {
     return (
@@ -137,7 +146,7 @@ function CardDetailView({ cardId, viewerId }: CardDetailViewProps) {
         </div>
 
         <div className="min-w-0 space-y-6">
-          <CartelSheet card={card} />
+          <CartelSheet card={card} exemplaireCount={exemplaireCount} />
           <PlaceSheet card={card} />
           <ReservesSheet />
           <OfferSheet card={card} isOwn={isOwn} />
@@ -200,7 +209,7 @@ function CartelRow({ label, children }: { label: string; children: ReactNode }) 
   );
 }
 
-function CartelSheet({ card }: { card: CardDetail }) {
+function CartelSheet({ card, exemplaireCount }: { card: CardDetail; exemplaireCount: number }) {
   return (
     <section className="vellum rounded-sheet p-6 md:p-8">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep">
@@ -222,6 +231,12 @@ function CartelSheet({ card }: { card: CardDetail }) {
         <CartelRow label={CARD_DETAIL.scoreLabel}>
           <span className="font-display text-3xl tabular-nums text-ink">
             {scoreFormatter.format(card.score)}
+          </span>
+        </CartelRow>
+
+        <CartelRow label={CARD_DETAIL.exemplairesLabel}>
+          <span className="text-[14px] text-ink-soft">
+            {exemplairesCountLabel(exemplaireCount)}
           </span>
         </CartelRow>
 

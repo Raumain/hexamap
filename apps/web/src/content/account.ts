@@ -31,22 +31,13 @@ export const ACCOUNT_ROOM = {
   email: {
     title: 'Courriel',
     description:
-      'Chaque compte s’identifie par une adresse. La changer ne prend effet qu’une fois le lien de vérification ouvert.',
+      'Chaque compte s’identifie par une adresse. Votre adresse actuelle est affichée ci-dessous, et vous pouvez la changer à tout moment.',
     currentLabel: 'Adresse actuelle',
-    verified: 'Vérifiée',
-    unverified: 'Non vérifiée',
-    verifiedHint: 'Votre adresse a été confirmée.',
-    unverifiedHint:
-      'Votre adresse n’a pas encore été confirmée. Ouvrez le lien reçu pour la vérifier.',
     label: 'Nouvelle adresse',
     placeholder: 'prenom@exemple.fr',
-    hint: 'Un lien de vérification est envoyé à la nouvelle adresse. Votre courriel actuel reste actif tant que ce lien n’est pas ouvert.',
-    disabled:
-      'Le changement d’adresse n’est pas encore ouvert : aucun courriel de vérification ne peut être envoyé. Votre adresse actuelle reste inchangée.',
     invalid: 'Saisissez une adresse électronique valide.',
-    submit: 'Envoyer le lien de vérification',
-    success:
-      'Un lien de vérification vient d’être envoyé à votre nouvelle adresse. Votre courriel actuel reste inchangé tant que le lien n’est pas ouvert.',
+    submit: 'Changer d’adresse',
+    success: 'Votre demande de changement d’adresse est enregistrée.',
   },
   password: {
     title: 'Mot de passe',

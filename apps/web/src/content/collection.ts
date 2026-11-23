@@ -1,3 +1,11 @@
+import {
+  CRAFT_THRESHOLD,
+  nextCraftRarity,
+  RARITY,
+  RARITY_LABELS,
+  type Rarity,
+} from '@hexamap/shared';
+
 export const COLLECTION = {
   eyebrow: 'Collection',
   title: 'Ma collection',
@@ -54,20 +62,61 @@ export const COLLECTION_FILTERED_EMPTY = {
   description: 'Modifiez ou réinitialisez les filtres pour retrouver votre collection.',
 } as const;
 
-/** Le compte filtré dit la même chose que le compte brut, sur le total de la collection. */
-export function filteredCardsLabel(shown: number, total: number): string {
-  return cardsShownLabel(shown, total);
+/** Marque d'un groupe d'exemplaires : jamais affichée pour un groupe d'un seul. */
+export function exemplairesMark(count: number): string {
+  return `×${count}`;
+}
+
+export function exemplairesCountLabel(count: number): string {
+  if (count === 0) return 'Aucun exemplaire';
+  return count === 1 ? '1 exemplaire' : `${count} exemplaires`;
+}
+
+export function collectionGroupsLabel(
+  shownCards: number,
+  groups: number,
+  totalCards: number,
+): string {
+  const groupsText = groups === 1 ? '1 groupe' : `${groups} groupes`;
+  return `${cardsShownLabel(shownCards, totalCards)} · ${groupsText}`;
 }
 
 export const ATELIER = {
   title: "L'Atelier",
-  intro:
-    'Fondez trois exemplaires identiques en une carte du palier supérieur. Le résultat est toujours le palier suivant : aucun hasard.',
+  emptyTitle: 'Aucune grappe à fusionner.',
   action: 'Fondre',
   confirmTitle: 'Confirmer la fusion',
   confirm: 'Confirmer la fusion',
   cancel: 'Annuler',
 } as const;
+
+/**
+ * La règle de fusion, lue sur `packages/shared/src/atelier.ts` et jamais recopiée.
+ * Le palier plafond et le palier jamais produit sont **calculés** : écrire « 3 »
+ * ou « Mythique » en dur ici ferait diverger le texte de la règle.
+ */
+export function atelierRuleLabel(): string {
+  const produced = RARITY.flatMap((rarity) => {
+    const next = nextCraftRarity(rarity);
+    return next === null ? [] : [next];
+  });
+  const top = produced.reduce<Rarity | null>((_, rarity) => rarity, null);
+  const neverProduced = RARITY.filter(
+    (rarity) => nextCraftRarity(rarity) === null && !produced.includes(rarity),
+  ).reduce<Rarity | null>((_, rarity) => rarity, null);
+
+  const topLabel = top === null ? '' : RARITY_LABELS[top];
+  const neverLabel = neverProduced === null ? '' : RARITY_LABELS[neverProduced];
+  return (
+    `${CRAFT_THRESHOLD} exemplaires identiques d'une même carte donnent une carte du palier suivant. ` +
+    `Le palier le plus haut que la fusion produit est ${topLabel} ; aucune carte ${neverLabel} n'en sort.`
+  );
+}
+
+/** Ce qu'il faut réunir pour ouvrir une grappe, seuil compris. */
+export function atelierEmptyHint(): string {
+  return `Réunissez ${CRAFT_THRESHOLD} exemplaires de la même carte, dans la même rareté, pour ouvrir une grappe.`;
+}
 
 export function atelierResultLabel(
   nom: string,

@@ -1,0 +1,19 @@
+# Campagne « retours v2 » — une ligne par retour produit de `.docs/10-retours-v2.md`.
+# Colonnes : wave<TAB>phase<TAB>slug<TAB>branche<TAB>migration<TAB>statut
+#
+# R-002 est sans objet (décision du titulaire) et n'est donc pas planifié.
+# Une vague = un retour. La vague 1 n'a plus qu'un lot, parce que R-001 et R-003 y ont
+# déjà été repliés (voir plus bas). Une seule migration sur toute la campagne :
+# `0021_view_box`, portée par R-006.
+#
+# R-001 (phase 44) a été livré puis replié dans `chore/v2-retours-campagne` avant la
+# reprise : la porte ci:check s'était arrêtée sur la mesure de charge de l'Atlas
+# (semis de 2 000 cartes dans le budget de 5 s, sous contention), pas sur ce retour.
+# R-003 (phase 45) l'a rejoint de la même façon : sa session et sa porte étaient vertes,
+# c'est l'accumulation qui est tombée sur la même mesure, non isolée. Les deux correctifs
+# de mesure sont entrés dans la base. La vague 1 ne rejoue donc plus que R-004.
+1	46	retrait-cgv	feat/v2-46-retrait-cgv	-	ready
+2	47	exemplaires-multiples	feat/v2-47-exemplaires-multiples	-	ready
+3	48	atelier-place	feat/v2-48-atelier-place	-	ready
+4	49	atlas-distinction	feat/v2-49-atlas-distinction	-	ready
+5	50	atlas-outre-mer	feat/v2-50-atlas-outre-mer	0021_view_box	ready

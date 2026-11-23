@@ -70,7 +70,6 @@ function AccountRoom({ user }: { user: SessionUser }) {
   const confirmationPseudo = user.pseudo ?? '';
   const capabilities = useQuery(accountCapabilitiesQueryOptions());
   const deletionOpen = capabilities.data?.deletion === true;
-  const emailVerificationOpen = capabilities.data?.emailVerification === true;
 
   return (
     <section>
@@ -87,7 +86,7 @@ function AccountRoom({ user }: { user: SessionUser }) {
 
       <div className="mt-8 space-y-6">
         <IdentitySection currentPseudo={pseudo} />
-        <EmailSection user={user} verificationOpen={emailVerificationOpen} />
+        <EmailSection user={user} />
         <PasswordSection />
         <ProfileSection />
         <AccountSection title={PUSH_ROOM.title} description={PUSH_ROOM.description}>
@@ -225,13 +224,7 @@ function IdentitySection({ currentPseudo }: { currentPseudo: string }) {
   );
 }
 
-function EmailSection({
-  user,
-  verificationOpen,
-}: {
-  user: SessionUser;
-  verificationOpen: boolean;
-}) {
+function EmailSection({ user }: { user: SessionUser }) {
   const [value, setValue] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
   const invalidateSession = useInvalidateSession();
@@ -239,9 +232,9 @@ function EmailSection({
   const trimmed = value.trim();
   const liveError =
     trimmed.length > 0 && !EMAIL_PATTERN.test(trimmed) ? ACCOUNT_ROOM.email.invalid : undefined;
-  // Sans transport de courriel, le formulaire reste lisible mais inerte : il ne
-  // part pas, et le message de succès ne peut donc jamais s'afficher.
-  const canSubmit = verificationOpen && trimmed.length > 0 && EMAIL_PATTERN.test(trimmed);
+  // Le champ reste éditable en permanence : aucune confirmation d'adresse n'est
+  // demandée, donc rien ne ferme le formulaire et rien ne le bloque.
+  const canSubmit = trimmed.length > 0 && EMAIL_PATTERN.test(trimmed);
 
   const mutation = useMutation({
     mutationFn: (newEmail: string) => requestEmailChange(newEmail),
@@ -255,25 +248,7 @@ function EmailSection({
 
   return (
     <AccountSection title={ACCOUNT_ROOM.email.title} description={ACCOUNT_ROOM.email.description}>
-      <div className="space-y-2">
-        <CurrentValue label={ACCOUNT_ROOM.email.currentLabel} value={user.email} />
-        <p className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded-[2px] border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] ${
-              user.emailVerified
-                ? 'border-verdigris/50 text-verdigris'
-                : 'border-oxide/50 text-oxide'
-            }`}
-          >
-            {user.emailVerified ? ACCOUNT_ROOM.email.verified : ACCOUNT_ROOM.email.unverified}
-          </span>
-          <span className="text-sm leading-relaxed text-vellum/60">
-            {user.emailVerified
-              ? ACCOUNT_ROOM.email.verifiedHint
-              : ACCOUNT_ROOM.email.unverifiedHint}
-          </span>
-        </p>
-      </div>
+      <CurrentValue label={ACCOUNT_ROOM.email.currentLabel} value={user.email} />
 
       <form
         noValidate
@@ -293,12 +268,8 @@ function EmailSection({
           autoComplete="email"
           value={value}
           error={liveError}
-          disabled={!verificationOpen}
           onChange={(event) => setValue(event.target.value)}
         />
-        <p className="text-sm leading-relaxed text-vellum/60">
-          {verificationOpen ? ACCOUNT_ROOM.email.hint : ACCOUNT_ROOM.email.disabled}
-        </p>
 
         <NoticeLine notice={notice} />
 

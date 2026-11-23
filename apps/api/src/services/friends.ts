@@ -18,7 +18,13 @@ export interface FriendEntry {
   id: string;
   status: FriendshipStatus;
   createdAt: string;
-  player: { id: string; pseudo: string | null };
+  /**
+   * `profile_public` accompagne le pseudo parce que `/friends` est le seul écran qui
+   * doive décider d'un lien vers la vitrine : une vitrine privée répond `404` par
+   * dessein, et proposer le lien quand même produirait un lien mort
+   * (`.docs/01-architecture.md` §2.9, retour R-003).
+   */
+  player: { id: string; pseudo: string | null; profile_public: boolean };
 }
 
 export interface FriendLists {
@@ -32,6 +38,11 @@ export type FriendResult<T> = { ok: true; value: T } | { ok: false; code: Friend
 export interface PlayerRef {
   id: string;
   pseudo: string | null;
+  /**
+   * `user_profiles.profile_public`, `true` quand aucune ligne de profil n'existe —
+   * exactement le défaut SQL (`.docs/02-database.md` §4.9).
+   */
+  profile_public: boolean;
 }
 
 interface FriendshipRow {
@@ -92,13 +103,16 @@ export async function findPlayerByPseudo(
 ): Promise<PlayerRef | null> {
   const rows = await db
     .selectFrom('user')
-    .select(['id', 'pseudo'])
+    .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+    .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
     .where(sql<boolean>`lower(pseudo) = lower(${pseudo})`)
     .limit(2)
     .execute();
 
-  if (rows.length !== 1) return null;
-  return rows[0] ?? null;
+  const row = rows.length === 1 ? rows[0] : undefined;
+  if (!row) return null;
+
+  return { id: row.id, pseudo: row.pseudo, profile_public: row.profile_public ?? true };
 }
 
 export async function isBlockedBetween(
@@ -121,7 +135,11 @@ function toEntry(row: FriendshipRow, other: PlayerRef): FriendEntry {
     id: other.id,
     status: row.status,
     createdAt: row.created_at.toISOString(),
-    player: { id: other.id, pseudo: other.pseudo },
+    player: {
+      id: other.id,
+      pseudo: other.pseudo,
+      profile_public: other.profile_public,
+    },
   };
 }
 
@@ -141,7 +159,16 @@ async function readPairRow(
 }
 
 async function readPlayer(db: Kysely<Database>, id: string): Promise<PlayerRef | undefined> {
-  return db.selectFrom('user').select(['id', 'pseudo']).where('id', '=', id).executeTakeFirst();
+  const row = await db
+    .selectFrom('user')
+    .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+    .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
+    .where('user.id', '=', id)
+    .executeTakeFirst();
+
+  if (!row) return undefined;
+
+  return { id: row.id, pseudo: row.pseudo, profile_public: row.profile_public ?? true };
 }
 
 async function isOverDailyCap(
@@ -191,9 +218,23 @@ export async function listFriends(db: Kysely<Database>, userId: string): Promise
   ];
   const players =
     otherIds.length > 0
-      ? await db.selectFrom('user').select(['id', 'pseudo']).where('id', 'in', otherIds).execute()
+      ? await db
+          .selectFrom('user')
+          .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+          .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
+          .where('user.id', 'in', otherIds)
+          .execute()
       : [];
-  const byId = new Map(players.map((player) => [player.id, player]));
+  const byId = new Map<string, PlayerRef>(
+    players.map((player) => [
+      player.id,
+      {
+        id: player.id,
+        pseudo: player.pseudo,
+        profile_public: player.profile_public ?? true,
+      },
+    ]),
+  );
 
   const lists: FriendLists = { friends: [], incoming: [], outgoing: [] };
   for (const row of rows) {
