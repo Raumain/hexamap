@@ -144,6 +144,11 @@ try {
         geom: commune.geometry,
         view_box: groupViewBox,
         path_d: pathDOf(commune.geometry, 'COMMUNE'),
+        // Comme toute commune du référentiel E2E, une commune d'outre-mer porte
+        // son blason : les cartes tirées depuis ces lignes arrivent au Cartel et
+        // au Cadastre comme les autres, et une planche sans blason y rendrait le
+        // repli au lieu de l'image que le design system mesure.
+        blason_url: `/blasons/communes/${commune.code}.svg`,
       })),
     )
     .execute();
