@@ -32,6 +32,10 @@ export const ATLAS_ROOM = {
   retry: 'Réessayer',
   emptyNational: 'Aucun contour n’est disponible : le référentiel de la carte est vide.',
   emptyDepartement: 'Aucune commune de ce département n’est référencée dans l’atlas.',
+  overseasTitle: 'Outre-mer',
+  overseasLegend: 'Encarts : l’outre-mer, chacun cadré sur son groupe.',
+  overseasCaption:
+    'Un encart par groupe d’outre-mer : la région, son département et ses communes partagent le même cadre, donc les communes s’assemblent.',
   copies: (n: number) => (n === 1 ? '1 exemplaire' : `${n} exemplaires`),
 } as const;
 
