@@ -268,21 +268,26 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 - [ ] **[hôte]** Blasons importés et attribués. `blason_credit` est servi avec chaque carte : une
       carte sans attribution est un manquement, pas un détail d'affichage.
 
-- [ ] **[juridique]** Mentions légales, CGV, politique de confidentialité et information sur les
+- [ ] **[juridique]** Mentions légales, politique de confidentialité et information sur les
       cookies — un cookie de session reste un cookie. Le dépôt ne livre que la **structure** :
-      `/cgv`, `/mentions-legales` et `/confidentialite` rendent trois documents dont chaque
-      section porte un repère `[À COMPLÉTER — …]`, et un bandeau « Texte provisoire — à
-      compléter avant la mise en vente. » reste affiché tant qu'un repère subsiste. Le **texte
-      juridique** est le livrable du titulaire du site, rédigé par un professionnel ; ce dépôt
-      ne contient aucune prose juridique et aucune des trois pages ne doit être considérée comme
-      publiée avant remplacement des repères.
+      `/mentions-legales` et `/confidentialite` rendent deux documents dont chaque section porte
+      un repère `[À COMPLÉTER — …]`, et un bandeau « Texte provisoire — à compléter avant la
+      mise en vente. » reste affiché tant qu'un repère subsiste. Le **texte juridique** est le
+      livrable du titulaire du site, rédigé par un professionnel ; ce dépôt ne contient aucune
+      prose juridique et aucune des deux pages ne doit être considérée comme publiée avant
+      remplacement des repères. **La page de conditions générales de vente a été retirée de
+      l'interface** (retour R-004, phase 46) : aucune URL `/cgv` n'existe plus, et la boutique
+      étant fermée, aucune vente n'a lieu.
 
-- [ ] **[hôte]** Après le texte, le Dashboard Stripe : enregistrer l'URL publique des CGV
-      (Settings → Business → Public details) **avant** de poser `SHOP_REQUIRE_TOS_CONSENT=true`.
+- [ ] **[hôte]** Après le texte, le Dashboard Stripe : enregistrer l'URL publique des conditions
+      générales de vente (Settings → Business → Public details) **avant** de poser
+      `SHOP_REQUIRE_TOS_CONSENT=true`. Cette URL ne peut plus désigner une page du jeu : la page
+      CGV a été retirée de l'interface (retour R-004, phase 46) et la boutique est fermée, donc
+      le document devrait être publié ailleurs — l'interrupteur reste éteint en attendant.
       Tant que cette URL manque, Stripe refuse `terms_of_service: 'required'` et le checkout
-      échoue ; l'interrupteur reste donc éteint par défaut, et le consentement aux CGV n'est pas
-      recueilli au paiement. Le texte de renoncement au droit de rétractation, lui, est déjà
-      transmis au paiement (`custom_text.submit`) quel que soit l'état de l'interrupteur.
+      échoue ; le consentement aux CGV n'est donc pas recueilli au paiement. Le texte de
+      renoncement au droit de rétractation, lui, est déjà transmis au paiement
+      (`custom_text.submit`) quel que soit l'état de l'interrupteur.
 
 - [ ] **[juridique]** DPA signé avec l'hébergeur, résidence des données dans l'UE.
 

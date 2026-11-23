@@ -14,11 +14,14 @@
  *    court. Une seule emprise pour les trois niveaux : région, département et
  *    commune se superposent donc exactement.
  *
- * **L'outre-mer sort naturellement du cadre.** Une emprise qui contiendrait la
- * Réunion et les Antilles multiplierait l'échelle par dix et rendrait la
- * métropole illisible ; une entité dont la géométrie est disjointe de
- * `[0, 1000]²` est donc classée `out_of_viewbox` et ne rend aucun tracé. La règle
- * est géométrique, jamais une liste de codes de département à maintenir.
+ * **L'outre-mer sort du cadre métropolitain, et se range dans le sien.** Une
+ * emprise qui contiendrait la Réunion et les Antilles multiplierait l'échelle par
+ * dix et rendrait la métropole illisible ; une entité dont la géométrie est
+ * disjointe du cadre demandé est donc classée `out_of_viewbox` et ne rend aucun
+ * tracé. Pour la métropole, ce cadre est `0 0 1000 1000` ; pour un groupe
+ * d'outre-mer, il est la bbox rembourrée de ses points projetés — la projection
+ * reste la même, seul le `viewBox` choisit la fenêtre. La règle est géométrique,
+ * jamais une liste de codes de département à maintenir.
  *
  * **Ce module est pur** : aucune entrée-sortie, aucun import, aucun
  * `process.env`, aucun aléatoire, aucune date. Deux appels sur la même géométrie
@@ -26,6 +29,19 @@
  */
 
 export const ATLAS_VIEWBOX = 1000;
+
+/** Cadre d'affichage métropolitain : valeur par défaut de `ref_*.view_box`. */
+export const ATLAS_METROPOLE_VIEW_BOX = '0 0 1000 1000';
+
+/** Rembourrage du cadre d'un groupe : 2 % de sa plus grande dimension, au moins 1 unité. */
+export const ATLAS_VIEW_BOX_PADDING_RATIO = 0.02;
+
+export interface AtlasViewBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
 
 export const ATLAS_PROJECTION = 'mercator-spherical-epsg3857-metropole';
 
@@ -129,6 +145,41 @@ export function projectLonLat(lon: number, lat: number): AtlasPoint {
 
 function formatCoordinate(value: number): string {
   return String(roundCoordinate(value));
+}
+
+/** `'0 0 1000 1000'` → nombres. `null` si la valeur n'est pas un viewBox exploitable. */
+export function parseViewBox(value: string): AtlasViewBox | null {
+  const parts = value.trim().split(/[\s,]+/);
+
+  if (parts.length !== 4) {
+    return null;
+  }
+
+  const numbers = parts.map((part) => Number(part));
+  if (numbers.some((number) => !Number.isFinite(number))) {
+    return null;
+  }
+
+  const [x, y, width, height] = numbers;
+  if (
+    x === undefined ||
+    y === undefined ||
+    width === undefined ||
+    height === undefined ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  return { x, y, width, height };
+}
+
+/** Un viewBox SVG, quatre nombres à deux décimales au plus. */
+export function formatViewBox(box: AtlasViewBox): string {
+  return `${formatCoordinate(box.x)} ${formatCoordinate(box.y)} ${formatCoordinate(
+    box.width,
+  )} ${formatCoordinate(box.height)}`;
 }
 
 function segmentDistanceSquared(point: AtlasPoint, start: AtlasPoint, end: AtlasPoint): number {
@@ -365,6 +416,56 @@ function collectRings(geometry: unknown): ParsedRing[] | null {
   }
 }
 
+/**
+ * Le cadre d'un groupe : la bbox des points **projetés** de toutes ses géométries,
+ * rembourrée. `null` si aucune géométrie n'est exploitable. C'est la seule fonction
+ * qui décide d'un `view_box` d'outre-mer ; elle ne reprojette rien.
+ */
+export function viewBoxOfGeometries(geometries: readonly unknown[]): string | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let found = false;
+
+  for (const geometry of geometries) {
+    const rings = collectRings(geometry);
+    if (rings === null) {
+      continue;
+    }
+
+    for (const ring of rings) {
+      for (const [lon, lat] of ring.positions) {
+        const point = projectLonLat(lon, lat);
+        if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+          continue;
+        }
+
+        found = true;
+        if (point.x < minX) minX = point.x;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.y > maxY) maxY = point.y;
+      }
+    }
+  }
+
+  if (!found) {
+    return null;
+  }
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const pad = Math.max(1, ATLAS_VIEW_BOX_PADDING_RATIO * Math.max(width, height));
+
+  return formatViewBox({
+    x: minX - pad,
+    y: minY - pad,
+    width: width + 2 * pad,
+    height: height + 2 * pad,
+  });
+}
+
 interface AnalysedGeometry {
   readonly verdict: AtlasGeometryVerdict;
   /** Anneaux projetés, deux décimales, ordre d'entrée conservé. */
@@ -378,7 +479,10 @@ interface AnalysedGeometry {
  * Hodgman) et ne servirait aucun cas métropolitain. Seule une bbox entièrement
  * disjointe est classée `out_of_viewbox`.
  */
-function overlapsViewbox(rings: ReadonlyArray<ReadonlyArray<AtlasPoint>>): boolean {
+function overlapsViewbox(
+  rings: ReadonlyArray<ReadonlyArray<AtlasPoint>>,
+  box: AtlasViewBox,
+): boolean {
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
@@ -400,10 +504,16 @@ function overlapsViewbox(rings: ReadonlyArray<ReadonlyArray<AtlasPoint>>): boole
     return false;
   }
 
-  return !(maxX < 0 || minX > ATLAS_VIEWBOX || maxY < 0 || minY > ATLAS_VIEWBOX);
+  return !(maxX < box.x || minX > box.x + box.width || maxY < box.y || minY > box.y + box.height);
 }
 
-function analyseGeometry(geometry: unknown): AnalysedGeometry {
+function analyseGeometry(geometry: unknown, viewBox: string): AnalysedGeometry {
+  const box = parseViewBox(viewBox) ?? {
+    x: 0,
+    y: 0,
+    width: ATLAS_VIEWBOX,
+    height: ATLAS_VIEWBOX,
+  };
   const rings = collectRings(geometry);
 
   if (rings === null || rings.length === 0) {
@@ -419,7 +529,7 @@ function analyseGeometry(geometry: unknown): AnalysedGeometry {
     projected.push(points);
   }
 
-  if (!overlapsViewbox(projected)) {
+  if (!overlapsViewbox(projected, box)) {
     return { verdict: 'out_of_viewbox', rings: [] };
   }
 
@@ -468,8 +578,12 @@ function renderPath(
  * de rien d'autre : la classe (`ok`, `invalid`, `out_of_viewbox`) est la même
  * quel que soit le niveau.
  */
-export function geometryToPathD(geometry: unknown, level: AtlasLevel): string | null {
-  const analysed = analyseGeometry(geometry);
+export function geometryToPathD(
+  geometry: unknown,
+  level: AtlasLevel,
+  viewBox: string = ATLAS_METROPOLE_VIEW_BOX,
+): string | null {
+  const analysed = analyseGeometry(geometry, viewBox);
 
   if (analysed.verdict !== 'ok') {
     return null;
@@ -490,10 +604,14 @@ export function geometryToPathD(geometry: unknown, level: AtlasLevel): string | 
   return rendered.path;
 }
 
-export function classifyGeometry(geometry: unknown, level: AtlasLevel): AtlasGeometryVerdict {
+export function classifyGeometry(
+  geometry: unknown,
+  level: AtlasLevel,
+  viewBox: string = ATLAS_METROPOLE_VIEW_BOX,
+): AtlasGeometryVerdict {
   // Le niveau ne change pas la classe : seules l'epsilon et le plafond diffèrent.
   void level;
-  return analyseGeometry(geometry).verdict;
+  return analyseGeometry(geometry, viewBox).verdict;
 }
 
 /** Nombre de sommets d'un `path_d` : un `M` d'ouverture et un `L` par sommet. */

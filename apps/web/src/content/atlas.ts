@@ -11,8 +11,9 @@ export const ATLAS_ROOM = {
   title: "L'Atlas",
   subtitle:
     'La carte se dessine depuis vos propres cartes, et la descente est guidée : de la France entière au département, puis à la commune.',
-  legendFill: 'Remplissage : part des communes couvertes.',
+  legendFill: 'Remplissage vert : part des communes couvertes de chaque département.',
   legendFillet: 'Filet de laiton : carte de Région ou de Département possédée.',
+  legendContour: 'Contour clair : limite de région ; contour vert : commune possédée.',
   nationalTitle: 'La France entière',
   tableCaption: 'Table équivalente de la carte',
   columnEntity: 'Entité',
@@ -31,6 +32,10 @@ export const ATLAS_ROOM = {
   retry: 'Réessayer',
   emptyNational: 'Aucun contour n’est disponible : le référentiel de la carte est vide.',
   emptyDepartement: 'Aucune commune de ce département n’est référencée dans l’atlas.',
+  overseasTitle: 'Outre-mer',
+  overseasLegend: 'Encarts : l’outre-mer, chacun cadré sur son groupe.',
+  overseasCaption:
+    'Un encart par groupe d’outre-mer : la région, son département et ses communes partagent le même cadre, donc les communes s’assemblent.',
   copies: (n: number) => (n === 1 ? '1 exemplaire' : `${n} exemplaires`),
 } as const;
 

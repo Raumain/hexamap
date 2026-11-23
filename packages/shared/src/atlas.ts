@@ -12,6 +12,7 @@ export interface AtlasSummaryRegion {
   code: string;
   nom: string;
   pathD: string | null;
+  viewBox: string;
   hasRegionCard: boolean;
   communesOwned: number;
   communesTotal: number;
@@ -22,6 +23,7 @@ export interface AtlasSummaryDepartement {
   nom: string;
   codeRegion: string;
   pathD: string | null;
+  viewBox: string;
   hasDepartementCard: boolean;
   communesOwned: number;
   communesTotal: number;
@@ -37,6 +39,7 @@ export interface AtlasCommune {
   codeInsee: string;
   nom: string;
   pathD: string | null;
+  viewBox: string;
   ownedCards: number;
   hasCommuneCard: boolean;
 }

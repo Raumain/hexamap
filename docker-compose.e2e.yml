@@ -102,7 +102,7 @@ services:
       [
         "sh",
         "-c",
-        "bun run --cwd scripts/import e2e:seed && bun packages/e2e/fixtures/market-fixture.ts",
+        "bun run --cwd scripts/import e2e:seed && bun packages/e2e/fixtures/drom-fixture.ts && bun packages/e2e/fixtures/market-fixture.ts",
       ]
     environment:
       DATABASE_URL: postgres://hexamap:hexamap@db:5432/hexamap_e2e

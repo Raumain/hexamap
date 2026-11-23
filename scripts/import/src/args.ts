@@ -25,6 +25,8 @@ export interface CliOptions {
   merge: boolean;
   /** Étape atlas seule : ni API Gouv, ni BAN, ni blasons. */
   pathsOnly: boolean;
+  /** Ne traite que les groupes d'outre-mer : cadre de groupe et `path_d`. */
+  overseas: boolean;
   /** Recalcule un `path_d` déjà écrit (et réécrit une `geom` déjà acquise). */
   pathsForce: boolean;
   /** Avec `--paths-only` : n'acquiert aucune géométrie, calcule `path_d` depuis `geom`. */
@@ -54,7 +56,9 @@ Options :
                          une \`geom\` déjà acquise.
   --limit=<n>            Étape atlas : ne calcule le tracé que pour n entités par niveau ;
                          l'acquisition de la géométrie reste complète (développement).
-  --help                 Affiche cette aide.`;
+  --help                 Affiche cette aide.
+  --overseas             Ne traite que les groupes d'outre-mer : calcule leur cadre de groupe
+                         (\`view_box\`) et leur \`path_d\`, sans toucher la métropole.`;
 
 export function parseArgs(argv: readonly string[]): CliOptions {
   const options: CliOptions = {
@@ -68,6 +72,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     ifEmpty: false,
     merge: false,
     pathsOnly: false,
+    overseas: false,
     pathsForce: false,
     pathsNoFetch: false,
     pathsLimit: null,
@@ -99,6 +104,10 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     }
     if (arg === '--paths-only') {
       options.pathsOnly = true;
+      continue;
+    }
+    if (arg === '--overseas') {
+      options.overseas = true;
       continue;
     }
     if (arg === '--no-fetch') {

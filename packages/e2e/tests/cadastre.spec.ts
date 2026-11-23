@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { type BrowserContext, expect, type Locator, type Page, test } from '@playwright/test';
+import { clearExemplairesCards, ensureExemplairesCards } from '../fixtures/exemplaires-fixture';
 
 // Phase 36 « Les filtres du Cadastre » — l'état des filtres vit dans l'URL.
 //
@@ -224,4 +225,80 @@ test("cadastre — le parcours depuis L'Atlas", async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: COLLECTION_TITLE })).toBeVisible();
   await expect(collectionTable(page)).toBeVisible();
+});
+
+// Exemplaires multiples — l'identité d'une ligne du Cadastre est la carte
+// (catégorie, référence, rareté), pas la ligne de `user_cards`. Trois doublons
+// identiques font donc **une** ligne marquée `×3`, tandis que deux éditions du
+// même lieu restent deux lignes.
+
+interface CollectionCardBody {
+  id: string;
+  refCode: string;
+  rarity: string;
+}
+
+interface CardsBody {
+  items: CollectionCardBody[];
+}
+
+async function sessionUserId(context: BrowserContext): Promise<string> {
+  const response = await context.request.get('/api/auth/get-session');
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as { user: { id: string } | null };
+  expect(body.user?.id).toBeTruthy();
+  return body.user?.id ?? '';
+}
+
+async function collectionCards(page: Page): Promise<CollectionCardBody[]> {
+  const response = await page.request.get('/api/v1/cards?limit=5000');
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as CardsBody).items;
+}
+
+test.describe('cadastre — exemplaires multiples', () => {
+  test('trois identiques font une ligne, deux éditions en font deux', async ({ page }) => {
+    const userId = await sessionUserId(page.context());
+    await ensureExemplairesCards(userId);
+
+    try {
+      await page.goto('/collection?categorie=COMMUNE');
+
+      const group = collectionTable(page).getByRole('row', {
+        name: /Commune E2E LEGENDAIRE 0/,
+      });
+      await expect(group).toHaveCount(1);
+      await expect(group).toContainText('×3');
+
+      const editions = collectionTable(page).getByRole('row', {
+        name: /Commune E2E MYTHIQUE 0/,
+      });
+      await expect(editions).toHaveCount(2);
+
+      // Le compteur dit ce qu'il compte : des groupes, pas des lignes brutes.
+      await expect(counterLine(page)).toContainText('groupe');
+
+      // Le Cartel d'un représentant annonce ses trois exemplaires.
+      const cards = await collectionCards(page);
+      const card = cards.find((item) => item.refCode === 'E2E-C-LEGENDAIRE-0');
+      expect(
+        card,
+        'La carte « Commune E2E LEGENDAIRE 0 » est absente de /api/v1/cards',
+      ).toBeTruthy();
+      await page.goto(`/card/${card?.id ?? ''}`);
+      await expect(page.getByText(/3 exemplaires/).first()).toBeVisible();
+
+      // Le tiroir de La Planche liste les cartes du joueur, marque comprise.
+      await page.goto('/tableau');
+      await page
+        .getByRole('button', { name: /Emplacement libre.*Commune/i })
+        .first()
+        .click();
+      const candidate = page.getByRole('button', { name: /Commune E2E LEGENDAIRE 0/ }).first();
+      await expect(candidate).toBeVisible();
+      await expect(candidate).toContainText('×3');
+    } finally {
+      await clearExemplairesCards(userId);
+    }
+  });
 });
