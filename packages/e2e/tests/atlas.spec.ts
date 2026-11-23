@@ -10,10 +10,13 @@ import { expect, type Locator, type Page, test } from '@playwright/test';
 // La fixture `e2e-seed.ts` sème deux régions (`E2E-R1`, `E2E-R2`), deux
 // départements (`E2E-D1`, `E2E-D2`) et six communes par département, toutes
 // pourvues d'un `path_d` : le nombre de tracés égale donc toujours le nombre de
-// lignes de la table nationale.
+// lignes de la table nationale. Depuis la phase 50, `drom-fixture.ts` ajoute un
+// groupe d'outre-mer (une région, un département, deux communes), rendu dans un
+// encart : les tracés de l'encart comptent donc aussi, et le niveau national
+// annonce trois régions et trois départements.
 
 const TABLE_NAME = 'Table équivalente de la carte';
-const NATIONAL_STATUS = /^Niveau national : 2 régions et 2 départements\.$/;
+const NATIONAL_STATUS = /^Niveau national : 3 régions et 3 départements\.$/;
 const ENTITY_PATH = 'svg path[data-entity-code]';
 
 function equivalentTable(page: Page): Locator {
