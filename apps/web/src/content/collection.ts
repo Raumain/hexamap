@@ -54,11 +54,6 @@ export const COLLECTION_FILTERED_EMPTY = {
   description: 'Modifiez ou réinitialisez les filtres pour retrouver votre collection.',
 } as const;
 
-/** Le compte filtré dit la même chose que le compte brut, sur le total de la collection. */
-export function filteredCardsLabel(shown: number, total: number): string {
-  return cardsShownLabel(shown, total);
-}
-
 /** Marque d'un groupe d'exemplaires : jamais affichée pour un groupe d'un seul. */
 export function exemplairesMark(count: number): string {
   return `×${count}`;
