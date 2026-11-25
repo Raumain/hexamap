@@ -1,6 +1,7 @@
 import {
   COMMUNE_RARITY_BOUNDS,
   COMMUNE_SCORE_EXAMPLES,
+  EDITION_SCORE,
   RARITY,
   RARITY_LABELS,
   RARITY_WEIGHTS,
@@ -196,6 +197,44 @@ function RaretePage() {
           </dl>
           <p className="mt-3 font-mono text-[10px] leading-relaxed text-vellum/50">
             {RARETE.formulas.rounding}
+          </p>
+        </article>
+
+        <article className={`${CARD} md:col-span-2`}>
+          <h2 className={HEADING}>{RARETE.editions.heading}</h2>
+          <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-vellum/70">
+            {RARETE.editions.intro}
+          </p>
+          <table
+            className="mt-3 w-full border-collapse text-left"
+            aria-label={RARETE.editions.heading}
+          >
+            <thead>
+              <tr>
+                <th scope="col" className={CELL_HEAD}>
+                  {RARETE.editions.columns.edition}
+                </th>
+                <th scope="col" className={CELL_HEAD_END}>
+                  {RARETE.editions.columns.score}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {RARITY.map((rarity) => (
+                <tr key={rarity}>
+                  <th scope="row" className={`${CELL} text-left font-normal`}>
+                    <RarityLabel rarity={rarity} />
+                  </th>
+                  <td className={CELL_END}>{pointsLabel(EDITION_SCORE[rarity])}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-4 text-[14px] leading-relaxed text-vellum/80">
+            {RARETE.editions.duplicate}
+          </p>
+          <p className="mt-2 text-[12px] leading-relaxed text-vellum/60">
+            {RARETE.editions.communeContrast}
           </p>
         </article>
 
