@@ -71,20 +71,32 @@ interface SitemapEntry {
 }
 
 /**
- * Les vitrines publiques, lues dans le schéma existant. Trois colonnes
- * seulement — identifiant public, pseudo non nul, date de réglage : ni adresse
- * électronique, ni solde, ni carte (§2.9). Une vitrine privée est exclue par la
- * clause `profile_public`, exactement comme la route `/players/:id` répond
- * `404`.
+ * Les vitrines publiques, lues dans le schéma existant. Deux colonnes seulement
+ * — identifiant public et date de réglage : ni adresse électronique, ni solde,
+ * ni carte (§2.9).
+ *
+ * **La jointure est externe à dessein.** Une ligne `user_profiles` absente vaut
+ * « vitrine publique » : c'est la règle de `loadPlayerProfile`
+ * (`profileRow?.profile_public === false`), et la quasi-totalité des joueurs
+ * n'ouvre jamais l'écran de réglages. Une jointure interne les aurait tous
+ * exclus — le sitemap servi en production ne listait alors aucune vitrine,
+ * alors que `/players/:id` les servait. Seul un `profile_public = false`
+ * explicite retire un compte du plan.
  */
 async function loadPublicShowcases(origin: string): Promise<SitemapEntry[]> {
   const rows = await db
-    .selectFrom('user_profiles')
-    .innerJoin('user', 'user.id', 'user_profiles.user_id')
+    .selectFrom('user')
+    .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
     .select(['user.id as id', 'user_profiles.updated_at as updated_at'])
-    .where('user_profiles.profile_public', '=', true)
-    .where('user.pseudo', 'is not', null)
+    // `is not false` couvre les deux états publics — `true` et `null` — en une
+    // seule expression, et n'exclut que le refus explicite.
+    .where('user_profiles.profile_public', 'is not', false)
+    // Les vitrines réglées récemment d'abord, puis l'identifiant : le tri est
+    // total, donc la borne garde toujours le même sous-ensemble. Un compte sans
+    // ligne de réglages n'a pas de date — il vient en tête du tri descendant, ce
+    // qui est stable et suffisant.
     .orderBy('user_profiles.updated_at', 'desc')
+    .orderBy('user.id', 'asc')
     .limit(PUBLIC_SHOWCASES_LIMIT)
     .execute();
 

@@ -4,15 +4,21 @@ import { env } from '@hexamap/api/env';
 import { createDb, runMigrations } from '@hexamap/db';
 
 // Le sitemap est construit depuis le contenu public **réel** : il faut donc une
-// base, deux comptes et leurs réglages de vitrine. Même patron que
+// base, trois comptes et leurs réglages de vitrine. Même patron que
 // `profile.spec.ts` — `DATABASE_URL` désigne la base de test posée par
 // `ci:check`.
 const db = createDb(process.env.DATABASE_URL ?? '');
 
 const prefix = crypto.randomUUID().slice(0, 8);
+
+// Trois états de vitrine, et le troisième est le plus important : c'est celui de
+// la quasi-totalité des joueurs. §2.9 — « la vitrine est publique par défaut » —
+// donc l'absence de ligne `user_profiles` vaut public. Une jointure interne
+// l'aurait exclu, et le sitemap de production ne listait alors aucune vitrine.
 const publicId = `${prefix}-public`;
 const privateId = `${prefix}-private`;
-const createdUserIds = [publicId, privateId];
+const defaultId = `${prefix}-default`;
+const createdUserIds = [publicId, privateId, defaultId];
 
 // L'origine canonique vient de `PUBLIC_ORIGIN` : la spécification ne la réécrit
 // jamais, sans quoi elle prouverait une valeur que la production n'utilise pas.
@@ -38,19 +44,24 @@ async function seedUser(id: string, pseudo: string): Promise<void> {
     .execute();
 }
 
+/** Une vitrine explicitement publique, une explicitement privée. La troisième n'a aucune ligne. */
+async function seedProfiles(): Promise<void> {
+  await db
+    .insertInto('user_profiles')
+    .values([
+      { user_id: publicId, bio: null, profile_public: true },
+      { user_id: privateId, bio: null, profile_public: false },
+    ])
+    .execute();
+}
+
 describe('I-005 — le fond SEO servi par l’API', () => {
   beforeAll(async () => {
     await runMigrations(db);
     await seedUser(publicId, `Vitrine${prefix}`);
     await seedUser(privateId, `Privee${prefix}`);
-
-    await db
-      .insertInto('user_profiles')
-      .values([
-        { user_id: publicId, bio: null, profile_public: true },
-        { user_id: privateId, bio: null, profile_public: false },
-      ])
-      .execute();
+    await seedUser(defaultId, `Defaut${prefix}`);
+    await seedProfiles();
   });
 
   afterAll(async () => {
@@ -81,7 +92,7 @@ describe('I-005 — le fond SEO servi par l’API', () => {
     expect(sitemapLine).toStartWith('Sitemap: http');
   });
 
-  it('sert un sitemap.xml qui liste la racine et la vitrine publique', async () => {
+  it('sert un sitemap.xml qui liste la racine et les vitrines publiques', async () => {
     const response = await request('/sitemap.xml');
     const body = await response.text();
 
@@ -99,9 +110,11 @@ describe('I-005 — le fond SEO servi par l’API', () => {
     expect(body).toContain(`<loc>${origin}/mentions-legales</loc>`);
     expect(body).toContain(`<loc>${origin}/confidentialite</loc>`);
 
-    // La vitrine publique est le vrai gisement : elle vient de la base, pas
-    // d'une liste écrite à la main.
+    // La vitrine est le vrai gisement : elle vient de la base, pas d'une liste
+    // écrite à la main. Les deux états publics comptent — la ligne explicite
+    // **et** l'absence de ligne, qui est le défaut du contrat.
     expect(body).toContain(`<loc>${origin}/players/${publicId}</loc>`);
+    expect(body).toContain(`<loc>${origin}/players/${defaultId}</loc>`);
   });
 
   it('I-005 — une vitrine privée n’entre jamais dans le sitemap', async () => {
@@ -123,11 +136,20 @@ describe('I-005 — le fond SEO servi par l’API', () => {
     expect(body).not.toContain('/blasons/');
   });
 
-  it('I-005 — le sitemap reste valide quand aucune vitrine n’est publique', async () => {
-    // Le cas est produit par la donnée : on retire les réglages des deux
-    // comptes, puis on les rétablit. Une liste de vitrines vide ne doit pas
-    // casser le document — une base neuve est exactement dans cet état.
-    await db.deleteFrom('user_profiles').where('user_id', 'in', createdUserIds).execute();
+  it('I-005 — toutes les vitrines fermées : le sitemap reste valide', async () => {
+    // Le cas est produit par la donnée : tout le monde passe en privé explicite,
+    // y compris le compte sans ligne de réglages. La base de test est partagée
+    // par les fichiers de spec qui tournent en parallèle, donc l'assertion porte
+    // sur **mes** identifiants — pas sur l'absence globale de vitrines.
+    await db
+      .updateTable('user_profiles')
+      .set({ profile_public: false })
+      .where('user_id', 'in', createdUserIds)
+      .execute();
+    await db
+      .insertInto('user_profiles')
+      .values({ user_id: defaultId, bio: null, profile_public: false })
+      .execute();
 
     try {
       const response = await request('/sitemap.xml');
@@ -135,17 +157,14 @@ describe('I-005 — le fond SEO servi par l’API', () => {
 
       expect(response.status).toBe(200);
       expect(body).toContain(`<loc>${origin}/</loc>`);
-      expect(body).not.toContain(`<loc>${origin}/players/${publicId}</loc>`);
+      for (const id of createdUserIds) {
+        expect(body).not.toContain(`<loc>${origin}/players/${id}</loc>`);
+      }
       // Le document reste refermé : une dégradation n'est pas une troncature.
       expect(body.trimEnd()).toEndWith('</urlset>');
     } finally {
-      await db
-        .insertInto('user_profiles')
-        .values([
-          { user_id: publicId, bio: null, profile_public: true },
-          { user_id: privateId, bio: null, profile_public: false },
-        ])
-        .execute();
+      await db.deleteFrom('user_profiles').where('user_id', 'in', createdUserIds).execute();
+      await seedProfiles();
     }
   });
 
