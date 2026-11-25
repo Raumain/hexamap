@@ -612,14 +612,18 @@ function CollectionTable({ groups, total, isDesktop }: CollectionTableProps) {
 
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // Filtrer change la liste : on ne remonte qu'à une longueur réellement différente.
+  // Filtrer change la liste : on ne ramène la fenêtre sur l'en-tête que lorsqu'il a
+  // quitté le haut du viewport — un clic sur un filtre visible ne déplace rien.
   const previousLength = useRef(rows.length);
 
   useEffect(() => {
     if (previousLength.current === rows.length) return;
     previousLength.current = rows.length;
-    rowVirtualizer.scrollToOffset(0);
-  }, [rows.length, rowVirtualizer]);
+    const node = listRef.current;
+    if (!node) return;
+    const top = node.getBoundingClientRect().top;
+    if (top < 0) window.scrollTo({ top: window.scrollY + top - 12, behavior: 'auto' });
+  }, [rows.length]);
 
   return (
     <div>
