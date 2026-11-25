@@ -24,6 +24,7 @@ import { playerRoutes } from './routes/players';
 import { profileRoutes } from './routes/profile';
 import { pushRoutes } from './routes/push';
 import { refRoutes } from './routes/ref';
+import { seoRoutes } from './routes/seo';
 import { shopCheckoutRoutes, shopWebhookRoutes } from './routes/shop';
 import { tableauRoutes } from './routes/tableaux';
 import { ticketRoutes } from './routes/tickets';
@@ -148,6 +149,10 @@ export function createApp(options: CreateAppOptions = {}) {
     })
     .use(buildPublicRoutes(provider))
     .use(buildProtectedRoutes(provider))
+    // `robots.txt` et `sitemap.xml` avant tout service de fichiers : ce sont des
+    // routes de contenu, jamais des fichiers de `WEB_DIST_DIR` (le build les
+    // écraserait, et un fichier statique serait faux dès la première vitrine).
+    .use(seoRoutes())
     // Assets statiques hors du préfixe /api/v1 : servis directement sur /blasons.
     .use(blasonRoutes(options.blasonsDir ?? env.BLASONS_DIR))
     .mount(auth.handler);
