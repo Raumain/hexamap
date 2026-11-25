@@ -1,3 +1,5 @@
+import { RARITY_LABELS, type Rarity } from '@hexamap/shared';
+
 const integerFr = new Intl.NumberFormat('fr-FR');
 const decimalFr = new Intl.NumberFormat('fr-FR', {
   minimumFractionDigits: 1,
@@ -31,6 +33,16 @@ export const RARETE = {
       'La rareté d’une rue est lue dans le nombre de communes qui portent ce nom de voie. Plus le nom est rare, plus la carte vaut cher.',
     columns: { rarity: 'Palier', range: 'Communes portant ce nom' },
   },
+  editions: {
+    heading: 'Régions et départements : six éditions',
+    intro:
+      'Une région et un département n’ont pas de rareté propre : le serveur tire le palier, puis une entité au hasard dans le référentiel, et la carte reçoit le score de ce palier. La même Guadeloupe peut donc tomber en Peu commune comme en Mythique, et sa valeur est celle de l’édition, pas du lieu.',
+    columns: { edition: 'Édition', score: 'Score' },
+    duplicate:
+      'Posséder deux fois la même région dans deux éditions n’est pas un doublon, c’est deux cartes : le comptoir, le troc et l’Atelier les traitent comme deux objets distincts.',
+    communeContrast:
+      'Une commune ne suit pas cette règle : sa rareté est lue dans sa population et ne change jamais. Deux communes de même nom et de même palier sont, elles, deux exemplaires de la même carte.',
+  },
   formulas: {
     heading: 'Les deux formules',
     intro:
@@ -59,6 +71,11 @@ export const RARETE = {
 
 export function weightLabel(weight: number): string {
   return `${decimalFr.format(weight)} %`;
+}
+
+/** « Édition mythique » : le vocabulaire des régions et des départements. */
+export function editionLabel(rarity: Rarity): string {
+  return `Édition ${RARITY_LABELS[rarity].toLowerCase()}`;
 }
 
 export function pointsLabel(points: number): string {

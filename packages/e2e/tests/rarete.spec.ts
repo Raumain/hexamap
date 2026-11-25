@@ -59,6 +59,38 @@ test.describe('rarete — page publique', () => {
 
     await assertNoHorizontalOverflow(page, 'à 390 px');
   });
+
+  test('rarete — la section « six éditions » porte les six scores et la phrase des deux cartes', async ({
+    page,
+  }) => {
+    await page.goto('/rarete');
+
+    const editions = page.getByRole('article').filter({
+      has: page.getByRole('heading', { name: 'Régions et départements : six éditions' }),
+    });
+    await expect(editions).toBeVisible();
+
+    const scores = editions.getByRole('table', {
+      name: 'Régions et départements : six éditions',
+    });
+    await expect(scores).toBeVisible();
+
+    // Les six paliers et leurs six scores d'édition (200 → 3 500), lus dans
+    // `EDITION_SCORE` par la page : aucun chiffre n'est écrit à la main.
+    for (const label of RARITY_LABELS) {
+      await expect(scores.getByText(label, { exact: true })).toHaveCount(1);
+    }
+    for (const score of ['200 pts', '400 pts', '750 pts', '1 250 pts', '2 000 pts', '3 500 pts']) {
+      await expect(scores.getByText(new RegExp(`^${score.replace(/\s/g, '\\s?')}$`))).toBeVisible();
+    }
+
+    // La phrase qui tue le malentendu du doublon.
+    await expect(editions).toContainText(/n’est pas un doublon, c’est deux cartes/);
+    // Et le contraste avec la commune, dont la rareté ne change jamais.
+    await expect(editions).toContainText(/ne change jamais/);
+
+    await assertNoHorizontalOverflow(page, 'avec la section des six éditions à 390 px');
+  });
 });
 
 test.describe('rarete — depuis la feuille des salles', () => {
