@@ -3,7 +3,14 @@ import { app } from '@hexamap/api/app';
 import { type DrawnCard, drawCard } from '@hexamap/api/services/draw';
 import { generateTicket } from '@hexamap/api/services/ticket';
 import { createDb, runMigrations, sql } from '@hexamap/db';
-import { CATEGORY, type Category, RARITY, type Rarity } from '@hexamap/shared';
+import {
+  CATEGORY,
+  type Category,
+  departementPopulationBonus,
+  EDITION_SCORE,
+  RARITY,
+  type Rarity,
+} from '@hexamap/shared';
 
 const db = createDb(process.env.DATABASE_URL ?? '');
 
@@ -1085,5 +1092,31 @@ describe('Plan §5.6 — robustesse du tirage', () => {
     }
     expect(errors).toHaveLength(1);
     expect(errors[0]?.code).toBe('REFERENCE_DATA_MISSING');
+  });
+
+  it("Archi §2.1 — une région et un département portent le palier tiré et le score de l'édition", async () => {
+    // Une région et un département n'ont aucune rareté intrinsèque : le serveur
+    // tire le palier, l'écrit sur la carte et en dérive le score. Les six paliers
+    // sont éprouvés, sans quoi la règle ne serait tenue que pour un seul.
+    for (const rarity of RARITY) {
+      const region = await drawCard(db, 'REGION', rarity, rng);
+      expect(region.card.category).toBe('REGION');
+      expect(region.card.rarity).toBe(rarity);
+      expect(region.score).toBe(EDITION_SCORE[rarity]);
+      expect(region.editionBonus).toBe(0);
+
+      const departement = await drawCard(db, 'DEPARTEMENT', rarity, rng);
+      expect(departement.card.category).toBe('DEPARTEMENT');
+      expect(departement.card.rarity).toBe(rarity);
+
+      const row = await db
+        .selectFrom('ref_departements')
+        .select('population')
+        .where('code', '=', departement.card.ref_code)
+        .executeTakeFirstOrThrow();
+      const bonus = departementPopulationBonus(row.population);
+      expect(departement.editionBonus).toBe(bonus);
+      expect(departement.score).toBe(EDITION_SCORE[rarity] + bonus);
+    }
   });
 });
