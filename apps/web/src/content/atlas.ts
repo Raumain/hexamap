@@ -10,10 +10,10 @@ export const ATLAS_ROOM = {
   eyebrow: 'LE GRAND LEVÉ',
   title: "L'Atlas",
   subtitle:
-    'La carte se dessine depuis vos propres cartes, et la descente est guidée : de la France entière au département, puis à la commune.',
-  legendFill: 'Remplissage vert : part des communes couvertes de chaque département.',
-  legendFillet: 'Filet de laiton : carte de Région ou de Département possédée.',
-  legendContour: 'Contour clair : limite de région ; contour vert : commune possédée.',
+    'La carte se dessine depuis vos propres cartes, et la descente est guidée : de la France entière à la région, puis au département et à la commune.',
+  legendFill: 'Fond doré : entité possédée (département ou commune).',
+  legendFillet: 'Filet de laiton : région possédée, ou cadre de l’entité ouverte.',
+  legendContour: 'Aplat vert : part des communes couvertes d’un département.',
   nationalTitle: 'La France entière',
   tableCaption: 'Table équivalente de la carte',
   columnEntity: 'Entité',
@@ -22,15 +22,18 @@ export const ATLAS_ROOM = {
   possessed: 'Possédée',
   missing: 'Manquante',
   cadastreLink: 'Cadastre',
+  openRegion: 'Ouvrir les départements de ',
   openDepartment: 'Ouvrir les communes de ',
   openCommune: 'Voir la commune au Cadastre : ',
   openDepartmentAtCadastre: 'Voir les cartes au Cadastre : ',
   backToNational: 'Revenir à la France entière',
+  backToRegion: (nom: string) => `Revenir à la région ${nom}`,
   loadingSession: 'Chargement de votre session…',
   loadingSummary: 'Chargement de la carte…',
   loadingDepartement: 'Chargement des communes…',
   retry: 'Réessayer',
   emptyNational: 'Aucun contour n’est disponible : le référentiel de la carte est vide.',
+  emptyRegion: 'Aucun département de cette région n’est référencé dans l’atlas.',
   emptyDepartement: 'Aucune commune de ce département n’est référencée dans l’atlas.',
   overseasTitle: 'Outre-mer',
   overseasLegend: 'Encarts : l’outre-mer, chacun cadré sur son groupe.',
@@ -54,4 +57,10 @@ export function departementSummary(nom: string, communes: number, owned: number)
   const communeLabel = communes > 1 ? 'communes' : 'commune';
   const ownedLabel = owned > 1 ? 'couvertes' : 'couverte';
   return `Département ${nom} : ${communes} ${communeLabel}, ${owned} ${ownedLabel}.`;
+}
+
+export function regionSummary(nom: string, departements: number, owned: number): string {
+  const departementLabel = departements > 1 ? 'départements' : 'département';
+  const ownedLabel = owned > 1 ? 'possédés' : 'possédé';
+  return `${nom} : ${departements} ${departementLabel}, ${owned} ${ownedLabel}.`;
 }
