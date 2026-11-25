@@ -1,11 +1,10 @@
 import {
-  CATEGORY,
-  CATEGORY_WEIGHTS,
   COMMUNE_RARITY_BOUNDS,
   COMMUNE_SCORE_EXAMPLES,
   RARITY,
   RARITY_LABELS,
   RARITY_WEIGHTS,
+  type Rarity,
   RUE_RARITY_BOUNDS,
   RUE_SCORE_EXAMPLES,
 } from '@hexamap/shared';
@@ -21,7 +20,6 @@ import {
   rueInvertedParagraph,
   weightLabel,
 } from '../content/rarete';
-import { CATEGORY_LABELS } from '../content/tickets';
 
 export const Route = createFileRoute('/rarete')({
   component: RaretePage,
@@ -33,6 +31,23 @@ const CELL_HEAD = 'pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-v
 const CELL_HEAD_END = `${CELL_HEAD} text-right`;
 const CELL = 'border-t border-veil/50 py-2 align-middle';
 const CELL_END = `${CELL} text-right font-mono text-[12px] tabular-nums text-brass-pale`;
+const CELL_TEXT = `${CELL} text-right font-mono text-[12px] text-vellum/70`;
+
+/**
+ * Le sceau est décoratif ici : le libellé du palier est écrit juste à côté, donc
+ * il porte seul le nom accessible de la ligne. Sans cela, un lecteur d'écran
+ * annoncerait « Rareté : Commune, Commune ».
+ */
+function RarityLabel({ rarity }: { rarity: Rarity }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-[14px] text-vellum">
+      <span aria-hidden="true" className="inline-flex">
+        <RaritySeal rarity={rarity} size={16} />
+      </span>
+      <span>{RARITY_LABELS[rarity]}</span>
+    </span>
+  );
+}
 
 function RaretePage() {
   const totalWeight = RARITY.reduce((sum, rarity) => sum + RARITY_WEIGHTS[rarity], 0);
@@ -52,7 +67,7 @@ function RaretePage() {
         </p>
       </header>
 
-      <div className="mt-8 grid gap-6 md:grid-cols-2">
+      <div className="mt-8 grid items-start gap-6 md:grid-cols-2">
         <article className={CARD}>
           <h2 className={HEADING}>{RARETE.tiers.heading}</h2>
           <p className="mt-2 text-[13px] leading-relaxed text-vellum/70">{RARETE.tiers.intro}</p>
@@ -74,10 +89,7 @@ function RaretePage() {
               {RARITY.map((rarity) => (
                 <tr key={rarity}>
                   <th scope="row" className={`${CELL} text-left font-normal`}>
-                    <span className="inline-flex items-center gap-2 text-[14px] text-vellum">
-                      <RaritySeal rarity={rarity} size={16} />
-                      {RARITY_LABELS[rarity]}
-                    </span>
+                    <RarityLabel rarity={rarity} />
                   </th>
                   <td className={CELL_END}>{weightLabel(RARITY_WEIGHTS[rarity])}</td>
                 </tr>
@@ -85,7 +97,7 @@ function RaretePage() {
               <tr>
                 <th
                   scope="row"
-                  className={`${CELL} text-left font-normal text-[13px] text-vellum/60`}
+                  className={`${CELL} text-left text-[13px] font-normal text-vellum/60`}
                 >
                   {RARETE.tiers.total}
                 </th>
@@ -96,41 +108,6 @@ function RaretePage() {
           <p className="mt-3 font-mono text-[10px] leading-relaxed text-vellum/50">
             {RARETE.tiers.totalNote}
           </p>
-        </article>
-
-        <article className={CARD}>
-          <h2 className={HEADING}>{RARETE.categories.heading}</h2>
-          <p className="mt-2 text-[13px] leading-relaxed text-vellum/70">
-            {RARETE.categories.intro}
-          </p>
-          <table
-            className="mt-3 w-full border-collapse text-left"
-            aria-label={RARETE.categories.heading}
-          >
-            <thead>
-              <tr>
-                <th scope="col" className={CELL_HEAD}>
-                  {RARETE.categories.columns.category}
-                </th>
-                <th scope="col" className={CELL_HEAD_END}>
-                  {RARETE.categories.columns.weight}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {CATEGORY.map((category) => (
-                <tr key={category}>
-                  <th
-                    scope="row"
-                    className={`${CELL} text-left font-normal text-[14px] text-vellum`}
-                  >
-                    {CATEGORY_LABELS[category]}
-                  </th>
-                  <td className={CELL_END}>{weightLabel(CATEGORY_WEIGHTS[category])}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </article>
 
         <article className={CARD}>
@@ -154,14 +131,9 @@ function RaretePage() {
               {COMMUNE_RARITY_BOUNDS.map((band) => (
                 <tr key={band.rarity}>
                   <th scope="row" className={`${CELL} text-left font-normal`}>
-                    <span className="inline-flex items-center gap-2 text-[14px] text-vellum">
-                      <RaritySeal rarity={band.rarity} size={16} />
-                      {RARITY_LABELS[band.rarity]}
-                    </span>
+                    <RarityLabel rarity={band.rarity} />
                   </th>
-                  <td className={`${CELL} text-right font-mono text-[12px] text-vellum/70`}>
-                    {populationRangeLabel(band.min, band.max)}
-                  </td>
+                  <td className={CELL_TEXT}>{populationRangeLabel(band.min, band.max)}</td>
                 </tr>
               ))}
             </tbody>
@@ -186,14 +158,9 @@ function RaretePage() {
               {RUE_RARITY_BOUNDS.map((band) => (
                 <tr key={band.rarity}>
                   <th scope="row" className={`${CELL} text-left font-normal`}>
-                    <span className="inline-flex items-center gap-2 text-[14px] text-vellum">
-                      <RaritySeal rarity={band.rarity} size={16} />
-                      {RARITY_LABELS[band.rarity]}
-                    </span>
+                    <RarityLabel rarity={band.rarity} />
                   </th>
-                  <td className={`${CELL} text-right font-mono text-[12px] text-vellum/70`}>
-                    {communesRangeLabel(band.min, band.max)}
-                  </td>
+                  <td className={CELL_TEXT}>{communesRangeLabel(band.min, band.max)}</td>
                 </tr>
               ))}
             </tbody>
@@ -232,7 +199,7 @@ function RaretePage() {
           </p>
         </article>
 
-        <article className={CARD}>
+        <article className={`${CARD} md:col-span-2`}>
           <h2 className={HEADING}>{RARETE.examples.heading}</h2>
           <p className="mt-2 text-[13px] leading-relaxed text-vellum/70">{RARETE.examples.intro}</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -281,11 +248,11 @@ function RaretePage() {
 
         <article className={`${CARD} md:col-span-2`}>
           <h2 className={HEADING}>{RARETE.inverted.heading}</h2>
-          {singleCommuneStreet && widespreadStreet ? (
-            <p className="mt-2 text-[14px] leading-relaxed text-vellum/80">
-              {rueInvertedParagraph(singleCommuneStreet.score, widespreadStreet.score)}
-            </p>
-          ) : null}
+          <p className="mt-2 text-[14px] leading-relaxed text-vellum/80">
+            {singleCommuneStreet && widespreadStreet
+              ? rueInvertedParagraph(singleCommuneStreet.score, widespreadStreet.score)
+              : RARETE.inverted.fallback}
+          </p>
         </article>
       </div>
     </section>

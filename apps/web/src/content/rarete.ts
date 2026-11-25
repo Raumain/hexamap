@@ -14,16 +14,10 @@ export const RARETE = {
     heading: 'Les six paliers',
     intro:
       'Chaque case grattée tire d’abord une catégorie, puis un palier de rareté, puis une carte au hasard dans ce palier. Les six poids ci-dessous se partagent le tirage.',
-    columns: { rarity: 'Palier', weight: 'Chance au tirage' },
+    columns: { rarity: 'Palier', weight: 'Poids de tirage' },
     total: 'Total',
     totalNote:
       'La somme des six paliers fait exactement 100 % : aucune part du tirage n’est perdue.',
-  },
-  categories: {
-    heading: 'Les quatre catégories',
-    intro:
-      'Avant le palier, c’est la catégorie qui est tirée. Une rue sort plus souvent qu’une région, mais elle ne vaut pas la même chose.',
-    columns: { category: 'Catégorie', weight: 'Chance au tirage' },
   },
   commune: {
     heading: 'Une commune : sa population',
@@ -57,6 +51,9 @@ export const RARETE = {
   },
   inverted: {
     heading: 'La rareté inversée des rues',
+    /** Repli si les deux exemples de référence disparaissaient du barème. */
+    fallback:
+      'Plus un nom de voie est rare, plus la carte qu’il donne vaut cher : c’est la rareté inversée des rues, et elle fait d’un village à rue unique un tableau qui rivalise avec une métropole.',
   },
 } as const;
 

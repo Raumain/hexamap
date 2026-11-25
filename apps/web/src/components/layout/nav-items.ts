@@ -109,7 +109,7 @@ const SECONDARY_NAV_BASE: readonly NavItem[] = [
     to: '/rarete',
     label: 'Les Raretés',
     short: 'Raretés',
-    glyph: 'M12 3l2.4 5.1 5.6.7-4.1 3.9 1.1 5.6L12 15.6 7 18.3l1.1-5.6L4 8.8l5.6-.7z',
+    glyph: 'M12 3l7 9-7 9-7-9zM5 12h14',
   },
 ];
 
