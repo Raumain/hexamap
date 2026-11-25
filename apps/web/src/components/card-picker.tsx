@@ -112,7 +112,7 @@ export function CardPicker({ cards, value, onChange }: CardPickerProps) {
     overscan: 8,
   });
 
-  const selected = cards.find((card) => card.id === value) ?? null;
+  const selected = useMemo(() => cards.find((card) => card.id === value) ?? null, [cards, value]);
 
   function applyFilters(next: PickerFilters): void {
     setFilters(next);

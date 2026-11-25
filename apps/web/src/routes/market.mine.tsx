@@ -93,11 +93,17 @@ function SellForm() {
     () => (collectionItems ?? []).filter((card) => !card.locked),
     [collectionItems],
   );
+  // Une carte peut quitter la liste entre le choix et l'envoi (vente depuis un
+  // autre onglet) : le bouton se ferme alors, plutôt que d'envoyer un `409`.
+  const chosenCard = useMemo(
+    () => unlocked.find((card) => card.id === cardId) ?? null,
+    [unlocked, cardId],
+  );
 
   const parsedPrice = price === '' ? Number.NaN : Number.parseInt(price, 10);
   const priceValid = Number.isInteger(parsedPrice) && parsedPrice >= 1 && parsedPrice <= 1_000_000;
   const priceError = price !== '' && !priceValid ? MARKET_MINE.priceInvalid : null;
-  const formValid = cardId !== '' && priceValid;
+  const formValid = chosenCard !== null && priceValid;
 
   const createMutation = useMutation({
     mutationFn: createListing,
