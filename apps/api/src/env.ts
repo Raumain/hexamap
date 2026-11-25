@@ -13,6 +13,16 @@ const envSchema = z
     FRONTEND_URL: z.url().optional(),
     // Origines supplémentaires autorisées (CORS + Better Auth), séparées par des virgules.
     TRUSTED_ORIGINS: z.string().default(''),
+    // Origine publique **canonique** : `robots.txt` et `sitemap.xml` la lisent,
+    // et c'est elle que la bordure HTTP doit servir (les variantes `www` et IP
+    // redirigent vers elle, sinon deux origines se disputent la même page).
+    // Facultative : le défaut est l'origine de la pile de production locale,
+    // `http://localhost:${WEB_HOST_PORT:-8080}`, pour que le développement n'ait
+    // rien à déclarer. Normalisée en origine nue — ni barre finale, ni chemin.
+    PUBLIC_ORIGIN: z
+      .url()
+      .default(`http://localhost:${process.env.WEB_HOST_PORT ?? '8080'}`)
+      .transform((value) => new URL(value).origin),
     // Adresses ou CIDR des mandataires de confiance pour la résolution de l'IP
     // cliente (reverse proxy, ingress). Vide par défaut : tant que la bordure
     // d'hébergement n'est pas connue, aucun en-tête `X-Forwarded-For` n'est cru
