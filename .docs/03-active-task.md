@@ -125,6 +125,58 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 # Journal
 
+### 2026-11-25 — Atlas, descente région et possession lisible
+
+Demande du titulaire sur `/atlas` : rendre la possession immédiatement lisible et
+ouvrir la région. La descente passe à **trois niveaux** (national → région →
+département) par une pile `AtlasLevel` : remonter dépile d'exactement un niveau,
+et le libellé du retour nomme le parent (`Revenir à la région …`) ou la France
+entière. Le clic sur une région de la carte fait ce que fait sa ligne de table, et
+la table équivalente suit la sélection — au national régions et départements, en
+région ses seuls départements (nouvelle `RegionTable`), au département ses
+communes, inchangé.
+
+Le **conteneur ouvert porte un contour de laiton** (`path[data-map-outline="true"]`,
+tracé au-dessus de ses enfants, `pointer-events: none`, sans `data-entity-code`
+pour que la parité lignes/tracés tienne). Une entité possédée s'éclaire désormais
+d'un **fond doré clair** (`fill-brass-pale`) au lieu du vert sombre : département
+et commune possédés se lisent à l'aplat, le vert restant la couverture des
+non possédées. La région reste un contour, doré quand elle est possédée. Aucune
+couleur littérale : uniquement les jetons de `styles.css`.
+
+Les **contours sont épaissis** pour se voir : région 3,5 px (possédée) et 2 px
+(manquante), département 3 / 1,5, commune 2,5 / 1,25, cadre de l'entité ouverte
+**5**. Tous restent des pixels écran (`vector-effect: non-scaling-stroke`), donc
+lisibles même très zoomés ; aucun remplissage n'a bougé.
+
+Le **recadrage est animé**, et c'est lui qui fait le zoom : un seul `<svg>`
+persiste du national au département (aucun remontage), et à chaque descente son
+`viewBox` est interpolé **480 ms** par `requestAnimationFrame` (easing cubique
+`1 − (1 − t)³`) jusqu'à un cadre **carré et centré** sur la boîte du tracé cliqué
+(`getBBox()`, marge de 12 %). Ce carré n'est pas cosmétique : avec
+`preserveAspectRatio` `meet` dans un viewport carré, l'échelle perçue vaut
+`S / max(width, height)`, et un cadre allongé la ferait reculer au milieu du vol —
+le « dézoom avant rezoom ». Pour la même raison, le **centre** est interpolé en
+linéaire et la **taille en logarithme** : le plan se resserre à vitesse constante,
+et la largeur des frames ne remonte jamais (verrouillé par le banc).
+La prop React reste `transition.from` pendant tout le vol, donc un re-rendu (le
+détail du département qui arrive) ne réécrit pas l'attribut. La carte du niveau
+précédent reste dessinée sous la nouvelle (`data-ghost`, sans `data-entity-*`,
+retirée à la fin), ce qui supprime l'impression de rafraîchissement. Hors
+métropole (DROM), le cadre reste **exactement** celui du groupe — c'est le repère
+où ses tracés sont projetés — et le changement de repère s'applique d'un coup,
+sans interpolation. Sous `prefers-reduced-motion: reduce`, aucune animation : le
+cadre est posé immédiatement. Limite assumée : sur la carte, une région ne se
+clique que sur son **contour** (le tracé ne remplit pas) ; la ligne de table reste
+le chemin accessible et fiable, et les cas E2E passent par elle.
+
+Cinq cas E2E ajoutés (région ouverte, fond plus clair, cadre doré + communes,
+zoom sans remontage — marqueur DOM et sonde de frames —, cadre immédiat sous
+mouvement réduit). La possession n'étant pas devinable depuis le code, les
+contre-épreuves sont lues dans le DOM (`data-possession="false"`) — `E2E-C-COMMUNE-0`
+peut être tirée par le ticket du compte, et un cas qui la supposerait libre
+deviendrait faux une fois sur deux.
+
 ### 2026-11-22 — Phase 32, Le Socle (vague 1, 348 specs · 72 E2E)
 
 Le découpage par route demandé par le brief était **déjà fait** (`autoCodeSplitting: true` depuis

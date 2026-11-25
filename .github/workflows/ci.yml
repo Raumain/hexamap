@@ -25,8 +25,16 @@ jobs:
           --health-retries 20
 
     env:
-      DATABASE_URL: postgres://hexamap:hexamap@localhost:5432/hexamap_test
+      # Pas de DATABASE_URL ici : le gatekeeper refuse une base de test identique
+      # à la base de développement, et l'étape « Base de données » comme les
+      # spécifications reçoivent DATABASE_URL = TEST_DATABASE_URL juste avant
+      # leur exécution (scripts/ci-check.ts).
       TEST_DATABASE_URL: postgres://hexamap:hexamap@localhost:5432/hexamap_test
+      # Variables exigées par `apps/api/src/env.ts` dès qu'une spécification
+      # importe l'application. Valeurs de CI uniquement : aucun secret réel.
+      APP_URL: http://localhost:5174
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-hexamap-secret-not-for-production-0123456789
 
     steps:
       - uses: actions/checkout@v4
