@@ -54,6 +54,9 @@ services:
       # est exercée, pas contournée.
       AUTH_COOKIE_SECURE: "true"
       TRUSTED_ORIGINS: ""
+      # Origine canonique du banc : `robots.txt` et `sitemap.xml` doivent citer
+      # l'adresse réellement servie, jamais `http://localhost`.
+      PUBLIC_ORIGIN: https://hexamap.test
       BLASONS_DIR: /data/blasons
       IMPORT_STATUS_DIR: /data/import-status
       # La suppression de compte est éteinte par défaut (les pages légales ne
