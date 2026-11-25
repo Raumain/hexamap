@@ -388,6 +388,13 @@ directe, mais il faut la journaliser pour pouvoir la lire plus tard.
 
 ### Phase 41 — L'Atelier (v2.1)
 
+> **Reportée à la v3 — retirée du produit le 2026-11-25.** Le panneau monté dans Le Cadastre, la
+> route `POST /cards/craft`, `apps/web/src/lib/atelier.ts`, `apps/api/src/services/atelier.ts` et
+> leurs bancs (spec et E2E) n'existent plus. Le **socle reste intact** : migration `0018`,
+> `CRAFT` dans `CardSource`, et `packages/shared/src/atelier.ts` — dont `craftGroupKey` sert à la
+> fonctionnalité livrée des exemplaires. Rien n'a jamais été promu en salle ni dans le rail.
+> Le détail est au journal de `.docs/03-active-task.md`.
+
 **Objectif.** Un joueur qui gratte accumule des doublons exacts — même catégorie, même
 `ref_code`, même rareté — sans usage. L'Atelier les fond en une seule carte de rareté supérieure,
 ce qui donne aux doublons une valeur et une raison de revenir.

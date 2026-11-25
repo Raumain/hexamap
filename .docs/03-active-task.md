@@ -125,6 +125,67 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 # Journal
 
+### 2026-11-25 — Le Cadastre s'épure, L'Atelier repart en v3
+
+Branche `feat/v2-cadastre-epure`, partie de `v2` (`f747d98`). Quatre demandes du titulaire,
+trois dans Le Cadastre, une qui en sort.
+
+**Le filtre « Département » disparaît.** Il était le seul filtre du Cadastre qui demandait une
+donnée serveur : le `<select>` était alimenté par `atlasSummaryQueryOptions()`, donc une requête
+`/atlas/summary` était tirée à l'ouverture du panneau pour lister 101 codes. Le retrait emporte
+la clé `departement` du contrat d'URL (`CollectionFilters`, `CollectionSearchWire`,
+`parseCollectionSearch`, `serializeCollectionSearch`), `isDepartementCode`, `matchesDepartement`
+et les trois libellés. Un `?departement=75` qui traîne devient une **clé inconnue** : la
+normalisation existante l'écarte et réécrit l'adresse — c'est verrouillé par un cas de spec
+(« un code de département entrant n'est plus un filtre ») et par un cas E2E (l'URL revient à
+`/collection`, aucune `combobox` « Département », la liste reste entière). **Écart assumé** : le
+lien « Voir les cartes au Cadastre » de L'Atlas posait `search={{ departement }}` ; il pose
+désormais `search={{ q: code }}`. La recherche par code retrouve le département *et* ses communes
+(les codes INSEE sont préfixés par le code du département), donc le parcours survit — il est
+prouvé par `cadastre — le parcours depuis L'Atlas` et `atlas — le département mène au Cadastre`,
+tous deux réécrits. La catégorie « Département » reste, elle : c'est un filtre à puces, sans
+requête.
+
+**Filtrer ne remonte plus la page.** `CollectionTable` montait un `useWindowVirtualizer` et, dès
+que le nombre de lignes changeait, appelait `rowVirtualizer.scrollToOffset(0)` — c'est-à-dire un
+défilement de la **fenêtre** vers le haut de page. Le remplacement ne bouge la fenêtre que si
+l'en-tête de la liste est **sorti par le haut du viewport** (`getBoundingClientRect().top < 0`),
+et il le ramène à 12 px du bord, sans animation. Un clic sur un filtre visible ne déplace donc
+rien. **Ce comportement n'a pas de cas E2E** : le panneau de filtres vit en haut de page, si bien
+que tout clic y ramène la vue et que l'assertion ne distinguerait plus l'ancien du nouveau. La
+vérification est faite dans le navigateur (captures desktop 1280 px et mobile 390 px), et le
+journal le dit comme le demande la règle 10.
+
+**Les exemplaires ont une colonne.** La puce `×N`, minuscule, n'apparaissait qu'au-delà d'un
+exemplaire et jamais sur mobile. Le tableau gagne une septième colonne **« Exemplaires »**, entre
+le score et la date, qui dit toujours ce qu'elle compte — « 1 exemplaire », « 3 exemplaires » —
+en laiton mono tabulaire, triable. Sur mobile, où les colonnes au-delà de la première sont
+masquées, le même libellé rejoint la ligne de métadonnées sous le nom. `gridTemplate` passe à
+sept pistes ; la capture montre `1 exemplaire` sur une ligne et `4 exemplaires` sur l'autre, sans
+débordement horizontal (1280 et 390 mesurés à `documentElement.scrollWidth === clientWidth`).
+Le tiroir de La Planche et le Cartel gardent la marque compacte `×3`, qui est leur vocabulaire.
+
+**L'Atelier est retiré du produit.** Ce n'était pas une salle : un panneau `<CraftPanel>` monté
+dans Le Cadastre et une route `POST /cards/craft` dans `routes/cards.ts`. Disparaissent donc le
+panneau, `apps/web/src/lib/atelier.ts`, `apps/api/src/services/atelier.ts`, le bloc `ATELIER` et
+ses quatre formateurs, la route et son schéma, plus `packages/spec/src/atelier.spec.ts`,
+`packages/e2e/tests/atelier.spec.ts` et `packages/e2e/fixtures/atelier-fixture.ts` (vérifié : seul
+consommateur). **Le socle reste** : migration `0018_card_source`, `CRAFT` dans `CardSource`,
+`t.CRAFT` dans les schémas de réponse, et `packages/shared/src/atelier.ts` — `craftGroupKey` est
+le pivot de la fonctionnalité **exemplaires**, qui reste livrée et verte. Aucune migration n'est
+touchée : une migration livrée ne se réécrit pas. `.docs/02-database.md` §4.2 et
+`.docs/07-roadmap-v2.md` (phase 41) disent désormais que la valeur existe sans écrivain.
+
+**Mesuré, dans Docker.** `ci:check` vert aux cinq étapes : lint, typecheck, base de test (21
+migrations), **544 spécifications** et 0 échec (le compte baisse de 4 : `atelier.spec.ts` disparaît
+et trois cas département sont remplacés par un cas de non-filtre), puis mesure de charge (p95 du
+résumé d'Atlas à 10,0 ms pour un seuil de 200 ms). Banc E2E complet vert : **118 cas**, 0 échec,
+sur `chromium`, `pwa`, `Pixel 7` et `iPhone 13` — dont les huit cas du Cadastre, le parcours
+d'Atlas réécrit et `trois identiques font une ligne, deux éditions en font deux` qui lit maintenant
+« 3 exemplaires ».
+
+Rien n'est commité : la branche porte le diff, le titulaire décide du découpage.
+
 ### 2026-11-25 — Atlas, descente région et possession lisible
 
 Demande du titulaire sur `/atlas` : rendre la possession immédiatement lisible et
