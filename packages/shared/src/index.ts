@@ -8,6 +8,7 @@ export * from './notifications';
 export * from './packs';
 export * from './palmares';
 export * from './payments';
+export * from './postal';
 export * from './pseudo';
 export * from './push';
 export * from './rarity';
