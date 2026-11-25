@@ -79,6 +79,68 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
     await expect(page.getByRole('button', { name: 'Ouvrir un nouveau ticket' })).toBeVisible();
   });
 
+  await test.step('case révélée : le détail s’ouvre dans un dialogue', async () => {
+    // La cloche du Guichet resynchronise son compteur toutes les 60 s : un
+    // battement qui tomberait dans la fenêtre du pas ferait échouer l'assertion
+    // « aucune requête » sans que la modale y soit pour rien. La garde porte donc
+    // sur toute l'API sauf cette pulsation, qui ne dépend pas de l'ouverture.
+    const apiRequests: string[] = [];
+    const recordRequest = (request: { url(): string }) => {
+      const { pathname } = new URL(request.url());
+      if (pathname.startsWith('/api/') && !pathname.startsWith('/api/v1/notifications')) {
+        apiRequests.push(request.url());
+      }
+    };
+    page.on('request', recordRequest);
+
+    const opener = page.getByRole('button', { name: /^Agrandir la case \d+/ }).first();
+    await expect(opener).toBeVisible();
+    // Le nom accessible vient du `sr-only` porté par le bouton : `textContent`
+    // le rend tel quel, sans dépendre de la mise en page calculée.
+    const accessibleName =
+      (await opener.getAttribute('aria-label')) ?? (await opener.textContent()) ?? '';
+
+    await opener.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Le dialogue appartient à <body>, jamais à <main> (§4.9, BUG-007).
+    expect(await dialog.evaluate((node) => node.closest('main') === null)).toBe(true);
+    expect(await dialog.evaluate((node) => node.parentElement === document.body)).toBe(true);
+
+    // Aucun ancêtre transformé : <main> reste en `transform: none`.
+    const main = page.getByRole('main');
+    expect(await main.evaluate((node) => getComputedStyle(node).transform)).toBe('none');
+
+    // Le titre du dialogue nomme la même case que le bouton. `level: 2` isole
+    // l'en-tête du dialogue : la planche détaillée porte elle aussi le nom, en
+    // `h3`, comme toute planche du Cartel.
+    const expectedTitle = accessibleName.replace(/^Agrandir la case \d+ — /, '');
+    await expect(dialog.getByRole('heading', { level: 2, name: expectedTitle })).toBeVisible();
+
+    // Une carte montre son Cartel (l'`article` porte le code de référence) ;
+    // un panneau montre le texte de `.docs/01-architecture.md` §2.6. L'un ou
+    // l'autre, jamais rien.
+    const detail = dialog
+      .locator('article')
+      .or(dialog.getByText(/coups de grattoir|case adjacente|palier de rareté/));
+    await expect(detail.first()).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    // Le focus revient à la case d'origine. On réutilise le localisateur du
+    // bouton ouvert : deux cases peuvent porter le même nom (deux exemplaires de
+    // la même carte), et un sélecteur par nom lèverait une violation de mode strict.
+    await expect(opener).toBeFocused();
+
+    // Aucune requête réseau : tout ce qu'affiche la modale était déjà là.
+    expect(apiRequests).toEqual([]);
+
+    page.off('request', recordRequest);
+  });
+
   await test.step('inventaire : la collection contient les cartes révélées', async () => {
     await page.goto('/collection');
 
