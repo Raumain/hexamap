@@ -1,7 +1,7 @@
-import { RARITY_LABELS } from '@hexamap/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { CardPicker } from '../components/card-picker';
 import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
@@ -28,7 +28,7 @@ import { collectionStatsQueryKey } from '../lib/tickets';
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
 const dateFormatter = new Intl.DateTimeFormat('fr-FR');
 
-const selectClass =
+const fieldClass =
   'h-10 w-full rounded-[2px] border border-veil bg-cabinet-sunk px-3 text-[13px] text-vellum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass';
 
 const outlineButtonClass =
@@ -87,6 +87,13 @@ function SellForm() {
   const [cardId, setCardId] = useState('');
   const [price, setPrice] = useState('');
 
+  // Les cartes verrouillées sont déjà en vente : le tiroir ne les propose pas.
+  const collectionItems = collectionQuery.data?.items;
+  const unlocked = useMemo(
+    () => (collectionItems ?? []).filter((card) => !card.locked),
+    [collectionItems],
+  );
+
   const parsedPrice = price === '' ? Number.NaN : Number.parseInt(price, 10);
   const priceValid = Number.isInteger(parsedPrice) && parsedPrice >= 1 && parsedPrice <= 1_000_000;
   const priceError = price !== '' && !priceValid ? MARKET_MINE.priceInvalid : null;
@@ -126,8 +133,6 @@ function SellForm() {
     );
   }
 
-  const unlocked = (collectionQuery.data?.items ?? []).filter((card) => !card.locked);
-
   if (unlocked.length === 0) {
     return (
       <section className="space-y-4 rounded-sheet border border-veil bg-cabinet-raised p-5 md:p-7">
@@ -150,27 +155,7 @@ function SellForm() {
       <h2 className="font-display text-2xl font-semibold text-vellum">{MARKET_MINE.sellTitle}</h2>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label
-            htmlFor="sell-card"
-            className="block font-mono text-[9px] uppercase tracking-[0.18em] text-vellum/60"
-          >
-            {MARKET_MINE.cardLabel}
-          </label>
-          <select
-            id="sell-card"
-            value={cardId}
-            onChange={(event) => setCardId(event.target.value)}
-            className={selectClass}
-          >
-            <option value="">{MARKET_MINE.selectCard}</option>
-            {unlocked.map((card) => (
-              <option key={card.id} value={card.id}>
-                {card.nom} — {RARITY_LABELS[card.rarity]} — {scoreFormatter.format(card.score)} pts
-              </option>
-            ))}
-          </select>
-        </div>
+        <CardPicker cards={unlocked} value={cardId} onChange={setCardId} />
 
         <div className="space-y-1.5">
           <label
@@ -191,7 +176,7 @@ function SellForm() {
             aria-errormessage={priceError ? 'sell-price-error' : undefined}
             aria-describedby={priceError ? 'sell-price-error' : undefined}
             onChange={(event) => setPrice(event.target.value)}
-            className={`${selectClass} ${priceError ? 'border-danger' : ''}`}
+            className={`${fieldClass} ${priceError ? 'border-danger' : ''}`}
           />
           {priceError ? (
             <p id="sell-price-error" className="text-sm text-danger">
