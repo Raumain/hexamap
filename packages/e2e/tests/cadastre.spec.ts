@@ -284,8 +284,13 @@ test('cadastre — la colonne Code postal trie les lignes', async ({ page }) => 
   );
   const ascending = await codePostalValues(page, columnIndex);
   expect(ascending.length, 'Aucune ligne à trier').toBeGreaterThan(1);
-  expect(ascending, `Ordre croissant attendu, reçu ${ascending.join(' · ')}`).toEqual(
-    [...ascending].sort(),
+  // Une commune du banc n'a pas de code postal (outre-mer) : la colonne affiche
+  // alors un tiret, et le tri texte la range en fin de liste. Le contrat porte sur
+  // les codes, pas sur le rang du tiret.
+  const ascendingCodes = ascending.filter((value) => value !== CODE_POSTAL_ABSENT);
+  expect(ascendingCodes.length, 'Aucun code postal rendu').toBeGreaterThan(1);
+  expect(ascendingCodes, `Ordre croissant attendu, reçu ${ascendingCodes.join(' · ')}`).toEqual(
+    [...ascendingCodes].sort(),
   );
 
   await header.click();
@@ -294,8 +299,9 @@ test('cadastre — la colonne Code postal trie les lignes', async ({ page }) => 
     'descending',
   );
   const descending = await codePostalValues(page, columnIndex);
-  expect(descending, `Ordre décroissant attendu, reçu ${descending.join(' · ')}`).toEqual(
-    [...descending].sort().reverse(),
+  const descendingCodes = descending.filter((value) => value !== CODE_POSTAL_ABSENT);
+  expect(descendingCodes, `Ordre décroissant attendu, reçu ${descendingCodes.join(' · ')}`).toEqual(
+    [...descendingCodes].sort().reverse(),
   );
   expect(descending, 'Le tri n’a rien réordonné').not.toEqual(ascending);
 });
@@ -327,8 +333,14 @@ test('cadastre — le code postal ne fait pas déborder la page à 390 px', asyn
   expect(overflow, 'Débordement horizontal à 390 px').toBeLessThanOrEqual(0);
 
   // Sur mobile, la colonne est masquée : le code postal rejoint la ligne de
-  // métadonnées sous le nom, et une commune du banc en porte un.
-  await expect(collectionRows(page).first()).toContainText(/\d{5}/);
+  // métadonnées sous le nom. Une commune du banc en porte un, et la commune
+  // d'outre-mer, dont le référentiel n'en publie aucun, y affiche le tiret.
+  await expect(collectionTable(page).locator('tbody')).toContainText(/\d{5}/);
+  await expect(
+    collectionTable(page)
+      .getByRole('row', { name: /Outre-mer/ })
+      .first(),
+  ).toContainText(CODE_POSTAL_ABSENT);
 });
 
 // Exemplaires multiples — l'identité d'une ligne du Cadastre est la carte
