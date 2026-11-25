@@ -12,7 +12,8 @@ export type SalonPath =
   | '/achievements'
   | '/atlas'
   | '/palmares'
-  | '/boutique';
+  | '/boutique'
+  | '/rarete';
 
 export interface NavItem {
   to: SalonPath;
@@ -104,6 +105,12 @@ const SECONDARY_NAV_BASE: readonly NavItem[] = [
     short: 'Boutique',
     glyph: 'M4 8h16l-1 12H5zM9 8V6a3 3 0 0 1 6 0v2M12 12v4M10 14h4',
   },
+  {
+    to: '/rarete',
+    label: 'Les Raretés',
+    short: 'Raretés',
+    glyph: 'M12 3l7 9-7 9-7-9zM5 12h14',
+  },
 ];
 
 /**
@@ -132,6 +139,7 @@ const SALON_TITLES: Record<string, string> = {
   '/palmares': 'Le Palmarès',
   '/boutique': 'La Boutique',
   '/boutique/succes': 'La Boutique',
+  '/rarete': 'Les Raretés',
   '/mentions-legales': 'Mentions légales',
   '/confidentialite': 'Confidentialité',
   '/login': 'Le Seuil',

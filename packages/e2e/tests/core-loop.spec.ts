@@ -94,6 +94,15 @@ test('parcours critique : inscription, ticket, grattage, collection, marché', a
     page.on('request', recordRequest);
 
     const opener = page.getByRole('button', { name: /^Agrandir la case \d+/ }).first();
+    // Le tirage peut révéler la Pépite : sa modale s'ouvre au-dessus de la
+    // grille et intercepterait le clic. Le joueur la referme ; le cas fait de
+    // même, sans quitter la salle. Sans cette garde, le parcours dépendait du
+    // hasard du tirage — il passait quand la Pépite restait cachée.
+    const celebrationClose = page.getByRole('dialog').getByRole('button', { name: 'Fermer' });
+    if (await celebrationClose.count()) {
+      await celebrationClose.click();
+      await expect(celebrationClose).toHaveCount(0);
+    }
     await expect(opener).toBeVisible();
     // Le nom accessible vient du `sr-only` porté par le bouton : `textContent`
     // le rend tel quel, sans dépendre de la mise en page calculée.

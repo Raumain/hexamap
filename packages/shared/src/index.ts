@@ -11,6 +11,7 @@ export * from './payments';
 export * from './pseudo';
 export * from './push';
 export * from './rarity';
+export * from './rarity-examples';
 export * from './reference-codes';
 export * from './scoring';
 export * from './tableau';
