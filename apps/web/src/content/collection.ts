@@ -21,6 +21,7 @@ export const COLLECTION = {
     category: 'Catégorie',
     rarity: 'Rareté',
     score: 'Score',
+    exemplaires: 'Exemplaires',
     acquiredAt: 'Acquise le',
     state: 'État',
   },
@@ -40,11 +41,7 @@ export const COLLECTION_FILTERS = {
   summary: 'Filtres',
   categorie: 'Catégorie',
   rarete: 'Rareté',
-  departement: 'Département',
   recherche: 'Recherche',
-  departementAll: 'Tous les départements',
-  departementHint:
-    'Seules les cartes de département et de commune portent un département : les régions et les rues sont écartées par ce filtre.',
   recherchePlaceholder: 'Nom ou code de carte',
   reset: 'Réinitialiser les filtres',
 } as const;

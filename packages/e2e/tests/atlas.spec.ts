@@ -130,11 +130,9 @@ test('atlas — le département mène au Cadastre', async ({ page }) => {
   await expect(row).toHaveCount(1);
   await row.getByRole('link', { name: /Voir les cartes au Cadastre/ }).click();
 
-  // `E2E-D1` n'est pas un code de département français : le validateur du contrat
-  // du Cadastre (`^(\d{2,3}|2[AB])$`) l'écarte par construction, donc l'arrivée est
-  // le Cadastre nu. Ce n'est pas une régression — ne pas « corriger » cette URL
-  // vers `?departement=E2E-D1`.
-  await expect(page).toHaveURL(/\/collection$/);
+  // Le Cadastre n'a plus de filtre département : le lien pose une recherche par code.
+  // `E2E-D1` est le code de référence du département possédé, que `q` retrouve.
+  await expect(page).toHaveURL(/\/collection\?q=E2E-D1$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Ma collection' })).toBeVisible();
 });
 

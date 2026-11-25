@@ -1071,11 +1071,7 @@ function NationalTable({ summary, onOpen, onOpenRegion }: NationalTableProps) {
               <span className="block">
                 {coveragePercent(departement.communesOwned, departement.communesTotal)}
               </span>
-              <Link
-                to="/collection"
-                search={{ departement: departement.code }}
-                className={linkClass}
-              >
+              <Link to="/collection" search={{ q: departement.code }} className={linkClass}>
                 <span className="sr-only">{ATLAS_ROOM.openDepartmentAtCadastre}</span>
                 {ATLAS_ROOM.cadastreLink}
               </Link>
@@ -1118,11 +1114,7 @@ function RegionTable({ departements, onOpen }: RegionTableProps) {
               <span className="block">
                 {coveragePercent(departement.communesOwned, departement.communesTotal)}
               </span>
-              <Link
-                to="/collection"
-                search={{ departement: departement.code }}
-                className={linkClass}
-              >
+              <Link to="/collection" search={{ q: departement.code }} className={linkClass}>
                 <span className="sr-only">{ATLAS_ROOM.openDepartmentAtCadastre}</span>
                 {ATLAS_ROOM.cadastreLink}
               </Link>

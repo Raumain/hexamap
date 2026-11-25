@@ -3,14 +3,12 @@ import { CATEGORY, type Category, RARITY, type Rarity } from '@hexamap/shared';
 export interface CollectionFilters {
   categorie: Category[];
   rarete: Rarity[];
-  departement: string | null;
   q: string;
 }
 
 export type CollectionSearchWire = {
   categorie?: string;
   rarete?: string;
-  departement?: string;
   q?: string;
   commune?: string;
 };
@@ -25,11 +23,8 @@ export interface CollectionCardLike {
 export const EMPTY_COLLECTION_FILTERS: CollectionFilters = {
   categorie: [],
   rarete: [],
-  departement: null,
   q: '',
 };
-
-const DEPARTEMENT_CODE = /^(\d{2,3}|2[AB])$/;
 
 function firstString(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
@@ -54,10 +49,6 @@ function domainValues<T extends string>(value: unknown, domain: readonly T[]): T
   return domain.filter((entry) => wanted.has(entry));
 }
 
-export function isDepartementCode(value: string): boolean {
-  return DEPARTEMENT_CODE.test(value.trim().toUpperCase());
-}
-
 export function normalizeSearchText(value: string): string {
   return value
     .toLowerCase()
@@ -66,12 +57,9 @@ export function normalizeSearchText(value: string): string {
 }
 
 export function parseCollectionSearch(search: Record<string, unknown>): CollectionFilters {
-  const departement = firstString(search.departement)?.trim().toUpperCase() ?? '';
-
   return {
     categorie: domainValues(search.categorie, CATEGORY),
     rarete: domainValues(search.rarete, RARITY),
-    departement: isDepartementCode(departement) ? departement : null,
     q: firstString(search.q)?.trim() ?? '',
   };
 }
@@ -80,7 +68,6 @@ export function serializeCollectionSearch(filters: CollectionFilters): Collectio
   const wire: CollectionSearchWire = {};
   if (filters.categorie.length > 0) wire.categorie = filters.categorie.join(',');
   if (filters.rarete.length > 0) wire.rarete = filters.rarete.join(',');
-  if (filters.departement !== null) wire.departement = filters.departement;
   const q = filters.q.trim();
   if (q.length > 0) wire.q = q;
   return wire;
@@ -91,13 +78,6 @@ export function parseCollectionWire(search: Record<string, unknown>): Collection
   const commune = firstString(search.commune);
   if (commune !== undefined && commune.trim().length > 0) wire.commune = commune;
   return wire;
-}
-
-// Les codes INSEE d'une commune sont préfixés par le code du département.
-function matchesDepartement(card: CollectionCardLike, departement: string): boolean {
-  if (card.category === 'DEPARTEMENT') return card.refCode === departement;
-  if (card.category === 'COMMUNE') return card.refCode.startsWith(departement);
-  return false;
 }
 
 // `refCode` n'est un code public que pour une région, un département ou une commune (code
@@ -119,8 +99,6 @@ export function collectionCardMatches(
   }
 
   if (filters.rarete.length > 0 && !filters.rarete.includes(card.rarity as Rarity)) return false;
-
-  if (filters.departement !== null && !matchesDepartement(card, filters.departement)) return false;
 
   const needle = normalizeSearchText(filters.q);
   if (needle.length > 0) {

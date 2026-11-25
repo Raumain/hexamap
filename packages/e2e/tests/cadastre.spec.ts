@@ -17,7 +17,7 @@ const TABLE_NAME = 'Liste des cartes de votre collection';
 const ATLAS_TABLE_NAME = 'Table équivalente de la carte';
 const SEARCH_NAME = 'Recherche';
 const DEPARTEMENT_NAME = 'Département';
-const FILTERED_EMPTY_TITLE = 'Aucune carte ne correspond à ces filtres';
+const RESET_LABEL = 'Réinitialiser les filtres';
 
 const CATEGORY_LABELS = {
   region: 'Région',
@@ -56,10 +56,6 @@ function categoryToggle(page: Page, label: string): Locator {
 
 function searchBox(page: Page): Locator {
   return page.getByRole('searchbox', { name: SEARCH_NAME });
-}
-
-function departementSelect(page: Page): Locator {
-  return page.getByRole('combobox', { name: DEPARTEMENT_NAME });
 }
 
 /** La ligne de compte des cartes filtrées : un `<p aria-live="polite">`. */
@@ -133,17 +129,19 @@ test("cadastre — une frappe n'ajoute pas d'entrée d'historique", async ({ pag
   await expect(page).toHaveURL(/\/tableau$/);
 });
 
-test('cadastre — un département absent des données vide la liste', async ({ page }) => {
-  await page.goto('/collection?departement=99');
+test('cadastre — un filtre département retiré est écarté, la liste reste entière', async ({
+  page,
+}) => {
+  await page.goto('/collection?departement=75');
 
-  // `99` est bien formé mais absent : le `<select>` l'accepte et l'injecte comme
-  // option, puisque le résumé d'Atlas ne connaît que les codes `E2E-*`.
-  const select = departementSelect(page);
-  await expect(select).toHaveValue('99');
-  await expect(select.getByRole('option', { name: '99', exact: true })).toBeAttached();
+  // `departement` n'est plus une clé du contrat du Cadastre : elle est écartée comme
+  // toute clé inconnue, l'adresse est réécrite sans elle, et aucune carte n'est filtrée.
+  await expect(page).toHaveURL(/\/collection$/);
+  await expect(page.getByRole('combobox', { name: DEPARTEMENT_NAME })).toHaveCount(0);
 
-  await expect(counterLine(page)).toHaveText(/^0 cartes affichées/);
-  await expect(page.getByText(FILTERED_EMPTY_TITLE, { exact: true })).toBeVisible();
+  await expect(collectionRows(page).first()).toBeVisible();
+  const rows = await collectionRows(page).count();
+  expect(rows, 'Le Cadastre nu ne rend aucune ligne').toBeGreaterThan(0);
 });
 
 test('cadastre — une commune entrante devient une recherche', async ({ page }) => {
@@ -210,11 +208,17 @@ test("cadastre — le parcours depuis L'Atlas", async ({ page }) => {
   await expect(row).toHaveCount(1);
   await row.getByRole('link', { name: /Voir les cartes au Cadastre/ }).click();
 
-  // `E2E-D1` n'est pas un code de département français : le validateur du
-  // contrat du Cadastre (`^(\d{2,3}|2[AB])$`) l'écarte, donc l'arrivée est le
-  // Cadastre nu. Ce n'est pas une régression.
+  // Le Cadastre n'a plus de filtre département : le lien pose une recherche par code.
+  // `E2E-D1` est le code de référence du département, que le compte possède — la
+  // recherche par code le retrouve donc, nom comme référence.
+  await expect(page).toHaveURL(/\/collection\?q=E2E-D1$/);
+  await expect(searchBox(page)).toHaveValue('E2E-D1');
+  const matched = collectionTable(page).getByRole('row', { name: /Département E2E A/ });
+  await expect(matched).toHaveCount(1);
+
+  // « Réinitialiser les filtres » ramène au Cadastre nu.
+  await page.getByRole('button', { name: RESET_LABEL }).first().click();
   await expect(page).toHaveURL(/\/collection$/);
-  await expect(page.getByRole('heading', { level: 1, name: COLLECTION_TITLE })).toBeVisible();
 
   await categoryToggle(page, CATEGORY_LABELS.commune).click();
   await expect(page).toHaveURL(/\/collection\?categorie=COMMUNE$/);
@@ -229,8 +233,9 @@ test("cadastre — le parcours depuis L'Atlas", async ({ page }) => {
 
 // Exemplaires multiples — l'identité d'une ligne du Cadastre est la carte
 // (catégorie, référence, rareté), pas la ligne de `user_cards`. Trois doublons
-// identiques font donc **une** ligne marquée `×3`, tandis que deux éditions du
-// même lieu restent deux lignes.
+// identiques font donc **une** ligne portant « 3 exemplaires », tandis que deux
+// éditions du même lieu restent deux lignes. Le tiroir de La Planche et le Cartel
+// gardent la marque compacte `×3`.
 
 interface CollectionCardBody {
   id: string;
@@ -264,11 +269,15 @@ test.describe('cadastre — exemplaires multiples', () => {
     try {
       await page.goto('/collection?categorie=COMMUNE');
 
+      // Le nombre d'exemplaires est une colonne à part entière, lisible sur les deux
+      // gabarits : en-tête de table sur bureau, ligne de métadonnées sur mobile.
+      await expect(collectionTable(page).locator('thead')).toContainText('Exemplaires');
+
       const group = collectionTable(page).getByRole('row', {
         name: /Commune E2E LEGENDAIRE 0/,
       });
       await expect(group).toHaveCount(1);
-      await expect(group).toContainText('×3');
+      await expect(group).toContainText('3 exemplaires');
 
       const editions = collectionTable(page).getByRole('row', {
         name: /Commune E2E MYTHIQUE 0/,

@@ -38,10 +38,9 @@ import {
   COLLECTION_FILTERS,
   collectionGroupsLabel,
   collectionTotalLabel,
-  exemplairesMark,
+  exemplairesCountLabel,
 } from '../content/collection';
 import { CATEGORY_LABELS } from '../content/tickets';
-import { atlasSummaryQueryOptions } from '../lib/atlas';
 import {
   type CollectionCard,
   collectionErrorMessage,
@@ -102,11 +101,6 @@ const columns = columnHelper.columns([
               className="w-[120px] shrink-0 md:w-[140px]"
             />
           </CardLink>
-          {card.exemplaireCount > 1 ? (
-            <span className="shrink-0 rounded-[2px] border border-brass/40 bg-brass/10 px-1.5 py-px font-mono text-[11px] tracking-[0.12em] text-brass">
-              {exemplairesMark(card.exemplaireCount)}
-            </span>
-          ) : null}
           <div className="min-w-0 md:hidden">
             <p className="font-display text-[15px] font-semibold leading-tight text-vellum line-clamp-2">
               {card.nom}
@@ -116,6 +110,9 @@ const columns = columnHelper.columns([
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <RarityBadge rarity={card.rarity} />
+              <span className="font-mono text-[10px] tabular-nums text-brass">
+                {exemplairesCountLabel(card.exemplaireCount)}
+              </span>
               <span className="font-mono text-[10px] tabular-nums text-vellum/55">
                 {dateFormatter.format(new Date(card.acquiredAt))}
               </span>
@@ -148,6 +145,15 @@ const columns = columnHelper.columns([
       </span>
     ),
   }),
+  columnHelper.accessor('exemplaireCount', {
+    header: COLLECTION.columns.exemplaires,
+    sortFn: 'basic',
+    cell: (info) => (
+      <span className="whitespace-nowrap font-mono tabular-nums text-brass">
+        {exemplairesCountLabel(info.getValue())}
+      </span>
+    ),
+  }),
   columnHelper.accessor('acquiredAt', {
     header: COLLECTION.columns.acquiredAt,
     sortFn: 'datetime',
@@ -165,7 +171,7 @@ const columns = columnHelper.columns([
 ]);
 
 const gridTemplate =
-  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[140px_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,0.6fr)] md:py-2';
+  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[140px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.95fr)_minmax(0,0.85fr)_minmax(0,0.55fr)] md:py-2';
 
 const inputClass =
   'h-10 rounded-[2px] border border-veil bg-cabinet-sunk px-3 text-[13px] text-vellum placeholder:text-vellum/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass';
@@ -270,7 +276,7 @@ function CollectionBody({ search }: { search: CollectionSearchWire }) {
 
   // La forme transportée par l'URL est unique. Une seule normalisation réécrit
   // l'adresse quand elle s'en écarte : ordre du domaine, doublons retirés, clés
-  // dans l'ordre `categorie, rarete, departement, q`, virgules littérales, et
+  // dans l'ordre `categorie, rarete, q`, virgules littérales, et
   // `commune` — un point d'entrée, jamais un état — remplacé par `q`.
   const searchStr = useRouterState({ select: (state) => state.location.searchStr });
   // Les deux côtés de la comparaison se lisent dans **le même instantané** : `current`
@@ -401,7 +407,6 @@ function CollectionFiltersPanel({
   isDesktop,
   onCommit,
 }: CollectionFiltersPanelProps) {
-  const summaryQuery = useQuery(atlasSummaryQueryOptions());
   const [pending, setPending] = useState(filters.q);
   // Ce que nous avons nous-mêmes écrit dans l'URL : réaligner la saisie sur tout `q`
   // validé écraserait une frappe tapée pendant la fenêtre entre le minuteur et
@@ -427,10 +432,6 @@ function CollectionFiltersPanel({
     }, 250);
     return () => window.clearTimeout(timer);
   }, [pending, filters, onCommit]);
-
-  const departements = summaryQuery.data?.departements ?? [];
-  const current = filters.departement;
-  const currentIsListed = current !== null && departements.some(({ code }) => code === current);
 
   return (
     <div className="space-y-3">
@@ -501,42 +502,6 @@ function CollectionFiltersPanel({
                 );
               })}
             </div>
-          </fieldset>
-
-          <fieldset className={fieldsetClass}>
-            <legend className={legendClass}>{COLLECTION_FILTERS.departement}</legend>
-            <select
-              id="collection-departement"
-              aria-label={COLLECTION_FILTERS.departement}
-              aria-describedby="collection-departement-hint"
-              value={current ?? ''}
-              onChange={(event) =>
-                onCommit(
-                  {
-                    ...filters,
-                    departement: event.target.value === '' ? null : event.target.value,
-                  },
-                  { replace: false },
-                )
-              }
-              className={`${inputClass} mt-2 w-full md:max-w-sm`}
-            >
-              <option value="">{COLLECTION_FILTERS.departementAll}</option>
-              {current !== null && !currentIsListed ? (
-                <option value={current}>{current}</option>
-              ) : null}
-              {departements.map(({ code, nom }) => (
-                <option key={code} value={code}>
-                  {nom}
-                </option>
-              ))}
-            </select>
-            <p
-              id="collection-departement-hint"
-              className="mt-2 font-mono text-[10px] leading-relaxed text-vellum/60"
-            >
-              {COLLECTION_FILTERS.departementHint}
-            </p>
           </fieldset>
 
           <fieldset className={fieldsetClass}>
