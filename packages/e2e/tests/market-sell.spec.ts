@@ -127,16 +127,20 @@ test.describe('market — le tiroir sur un écran étroit', () => {
     if (chipBox === null) throw new Error('Aucune puce de catégorie rendue.');
     expect(chipBox.height).toBeGreaterThanOrEqual(32);
 
-    // Le prix est rendu après la liste : il n'est jamais enfoui sous elle.
+    // Le prix est rendu **après** la liste dans le document : il n'est jamais
+    // enfoui sous elle, quel que soit le défilement. Le test porte sur l'ordre
+    // du DOM, 4 étant `DOCUMENT_POSITION_FOLLOWING`.
+    const priceAfterList = await page.evaluate((listLabel) => {
+      const region = document.querySelector(`section[aria-label="${listLabel}"]`);
+      const price = document.getElementById('sell-price');
+      if (region === null || price === null) return null;
+      return (region.compareDocumentPosition(price) & 4) !== 0;
+    }, PICKER);
+    expect(priceAfterList, 'Le prix doit suivre la liste').toBe(true);
+
     const price = page.getByLabel('Prix');
     await price.scrollIntoViewIfNeeded();
     await expect(price).toBeVisible();
-
-    const priceBox = await price.boundingBox();
-    if (priceBox === null) throw new Error('Le champ de prix ne rend aucune boîte.');
-    expect(priceBox.y, 'Le prix doit suivre la liste, jamais la précéder').toBeGreaterThanOrEqual(
-      listBox.y + listBox.height - 1,
-    );
 
     // Une planche se marque du premier appui.
     const first = list.locator('button[data-index]').first();
@@ -159,8 +163,22 @@ test.describe('market — le tiroir sur un écran large', () => {
     const list = page.getByRole('region', { name: PICKER });
     await expect(list).toBeVisible();
 
-    await page.getByLabel(SEARCH_LABEL).fill('E2E');
-    await expect(list.locator('button[data-index]').first()).toBeVisible();
+    // Le compte annoncé suit les filtres : c'est lui qui prouve que le clic et
+    // la frappe ont été pris en compte, et non un rendu lu avant la mise à jour.
+    const counter = page.getByText(/^\d+ cartes?$/).first();
+    await expect(counter).toBeVisible();
+    const before = (await counter.textContent()) ?? '';
+
+    const rareChip = page
+      .getByRole('group', { name: 'Rareté' })
+      .getByRole('button', { name: 'Rare', exact: true });
+    await rareChip.click();
+    await expect(rareChip).toHaveAttribute('aria-pressed', 'true');
+    await expect(counter).not.toHaveText(before);
+
+    await page.getByLabel(SEARCH_LABEL).fill('E2E-C-RARE-0');
+    await expect(counter).toHaveText('1 carte');
+    await expect(list.locator('button[data-index]')).toHaveCount(1);
 
     const submit = page.getByRole('button', { name: 'Mettre en vente' });
     await expect(submit).toBeDisabled();
