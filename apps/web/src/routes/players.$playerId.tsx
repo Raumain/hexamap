@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Navigate, useRouter } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { useSeoHead } from '../components/seo-head';
 import { outlineButtonClass } from '../components/ui/button-classes';
 import { Card } from '../components/ui/Card';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
@@ -11,6 +12,7 @@ import {
   playerProfileErrorMessage,
   playerProfileQueryOptions,
 } from '../lib/player-profile';
+import { BRAND_DESCRIPTION, currentOrigin, publicHead } from '../lib/seo';
 import { useSessionState } from '../lib/session';
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
@@ -54,6 +56,23 @@ function PlayerProfilePage() {
 function PlayerProfileView({ playerId }: { playerId: string }) {
   const router = useRouter();
   const profileQuery = useQuery(playerProfileQueryOptions(playerId));
+
+  // La vitrine est la seule page dont le titre dépend de la donnée : elle nomme
+  // le joueur par son **pseudo**, et rien d'autre. §2.9 interdit d'afficher ici
+  // l'adresse électronique, le solde, les cartes verrouillées ou une vitrine
+  // privée — le titre n'en porte donc aucun.
+  const pseudo = profileQuery.data?.pseudo ?? null;
+  useSeoHead(
+    publicHead({
+      title: pseudo === null ? 'La Vitrine — Hexamap' : `La collection de ${pseudo} — Hexamap`,
+      description:
+        pseudo === null
+          ? BRAND_DESCRIPTION
+          : `La collection de ${pseudo} sur Hexamap : cartes, tableaux et médailles.`,
+      path: `/players/${playerId}`,
+      origin: currentOrigin(),
+    }),
+  );
 
   if (profileQuery.isPending) {
     return (
