@@ -1,0 +1,25 @@
+# Campagne « idées » — une ligne par idée de `.docs/09-idees.md`.
+# Colonnes : wave<TAB>phase<TAB>slug<TAB>branche<TAB>migration<TAB>statut
+#
+# Le lanceur lit SIX champs exactement : une septième colonne décalerait `statut`.
+# `statut` n'a qu'une valeur spéciale, `blocked`, qui retire la ligne du jeu.
+#
+# Deux règles décident du découpage, comme pour la v2 :
+#   — UNE SEULE MIGRATION PAR VAGUE. Seule I-002 (phase 55) touche le contrat de
+#     données : `0022_postal_code`. Elle ne partage sa vague avec aucune autre
+#     migration, puisqu'il n'y en a pas d'autre sur la campagne.
+#   — UN SEUL PROPRIÉTAIRE DE LA COQUILLE PAR VAGUE. I-003 (phase 53) ajoute une
+#     salle et édite `apps/web/src/components/layout/nav-items.ts` : c'est elle, et
+#     elle seule, qui possède `components/layout/` dans sa vague.
+#
+# L'ordre est un ordre de dépendance, pas un ordre de difficulté :
+#   — la 54 (SEO) construit son `sitemap.xml` à partir des routes publiques réelles,
+#     dont la salle de la 53 : elle part donc de la vague qui la contient ;
+#   — la 56 (six éditions) complète la page de la 53 et verrouille par une spec la
+#     règle que la page explique : elle vient après elle.
+1	51	vendre-planche	feat/v2-51-vendre-planche	-	ready
+1	52	agrandir-case	feat/v2-52-agrandir-case	-	ready
+2	53	salle-raretes	feat/v2-53-salle-raretes	-	ready
+3	54	seo-fond	feat/v2-54-seo-fond	-	ready
+3	55	code-postal	feat/v2-55-code-postal	0022_postal_code	ready
+4	56	six-editions	feat/v2-56-six-editions	-	ready
