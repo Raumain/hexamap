@@ -186,11 +186,14 @@ create index user_cards_ref_idx on user_cards (category, ref_code);
 
 `ref_code` contient : le code région, le code département, le code INSEE de la commune, ou l'identifiant `ref_odonymes.id` sérialisé en texte.
 
-`source = 'CRAFT'` est écrit par l'Atelier, et **uniquement** par lui : la route de fusion ne
-reçoit ni `source`, ni `score`, ni `id`, et le service insère la carte produite sous transaction.
-Aucun client ne peut donc fabriquer une carte `CRAFT`. La fusion est déterministe (palier `+1`),
-ne produit jamais `MYTHIQUE` et consomme tout le groupe `(catégorie, ref_code, rareté)` ; la
-règle vit dans `packages/shared/src/atelier.ts`.
+`source = 'CRAFT'` appartient à L'Atelier. **La surface a été retirée du produit le 2026-11-25** :
+L'Atelier est reporté à la v3 (voir `.docs/03-active-task.md`), donc **aucune route livrée n'écrit
+cette valeur** aujourd'hui. Le `CHECK` la conserve néanmoins : une migration livrée ne se réécrit
+pas, et le socle de la v3 est déjà là. Quand la fusion reviendra, la route ne recevra ni `source`,
+ni `score`, ni `id`, et le service insérera la carte produite sous transaction — aucun client ne
+pourra donc fabriquer une carte `CRAFT`. La fusion est déterministe (palier `+1`), ne produit
+jamais `MYTHIQUE` et consomme tout le groupe `(catégorie, ref_code, rareté)` ; la règle vit dans
+`packages/shared/src/atelier.ts`, conservée.
 
 ### 4.3 Tickets
 

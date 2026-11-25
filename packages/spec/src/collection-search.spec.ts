@@ -7,7 +7,6 @@ import {
   collectionCardMatches,
   EMPTY_COLLECTION_FILTERS,
   filterCollectionCards,
-  isDepartementCode,
   normalizeSearchText,
   parseCollectionSearch,
   parseCollectionWire,
@@ -117,32 +116,6 @@ describe('Cadastre filtres §2.2 — l’inconnu s’écarte sans lever', () => 
   });
 });
 
-describe('Cadastre filtres §2.3 — le département', () => {
-  it('Cadastre filtres §2.3 — un code valide est retenu, en majuscules', () => {
-    expect(parseCollectionSearch({ departement: '75' }).departement).toBe('75');
-    expect(parseCollectionSearch({ departement: '971' }).departement).toBe('971');
-    expect(parseCollectionSearch({ departement: '2a' }).departement).toBe('2A');
-    expect(parseCollectionSearch({ departement: ' 75 ' }).departement).toBe('75');
-  });
-
-  it('Cadastre filtres §2.3 — un code invalide devient null', () => {
-    expect(parseCollectionSearch({ departement: 'E2E-D1' }).departement).toBeNull();
-    expect(parseCollectionSearch({ departement: '2' }).departement).toBeNull();
-    expect(parseCollectionSearch({ departement: '75056' }).departement).toBeNull();
-    expect(parseCollectionSearch({ departement: '' }).departement).toBeNull();
-    expect(parseCollectionSearch({}).departement).toBeNull();
-  });
-
-  it('Cadastre filtres §2.3 — isDepartementCode juge la forme', () => {
-    expect(isDepartementCode('75')).toBe(true);
-    expect(isDepartementCode('2a')).toBe(true);
-    expect(isDepartementCode('971')).toBe(true);
-    expect(isDepartementCode('E2E-D1')).toBe(false);
-    expect(isDepartementCode('75056')).toBe(false);
-    expect(isDepartementCode('')).toBe(false);
-  });
-});
-
 describe('Cadastre filtres §2.4 — le texte recherché', () => {
   it('Cadastre filtres §2.4 — q est rogné', () => {
     expect(parseCollectionSearch({ q: '  Église  ' }).q).toBe('Église');
@@ -173,8 +146,8 @@ describe('Cadastre filtres §2.5 — écriture de l’URL', () => {
 
     expect(wire).toEqual({ categorie: 'RUE' });
     expect(serializeCollectionSearch(filtersOf({ q: 'Paris' }))).toEqual({ q: 'Paris' });
-    expect(serializeCollectionSearch(filtersOf({ departement: '75' }))).toEqual({
-      departement: '75',
+    expect(serializeCollectionSearch(filtersOf({ rarete: ['RARE'], q: '   ' }))).toEqual({
+      rarete: 'RARE',
     });
   });
 
@@ -182,14 +155,12 @@ describe('Cadastre filtres §2.5 — écriture de l’URL', () => {
     const normalised: CollectionFilters = {
       categorie: ['COMMUNE', 'RUE'],
       rarete: ['RARE', 'MYTHIQUE'],
-      departement: '75',
       q: 'eglise',
     };
 
     expect(serializeCollectionSearch(normalised)).toEqual({
       categorie: 'COMMUNE,RUE',
       rarete: 'RARE,MYTHIQUE',
-      departement: '75',
       q: 'eglise',
     });
     expect(parseCollectionSearch(toSearch(serializeCollectionSearch(normalised)))).toEqual(
@@ -225,9 +196,10 @@ describe('Cadastre filtres §2.6 — la commune traverse la forme de transport',
       commune: '75056',
     });
 
+    // `departement` n'est plus un filtre du Cadastre : la clé est écartée comme toute
+    // clé inconnue, et l'adresse normalisée ne la réécrit pas.
     expect(wire).toEqual({
       categorie: 'REGION,RUE',
-      departement: '2A',
       q: 'Église',
       commune: '75056',
     });
@@ -254,13 +226,15 @@ describe('Cadastre filtres §2.7 — appariement d’une carte', () => {
     expect(collectionCardMatches(paris, filtersOf({ rarete: ['RARE'] }))).toBe(false);
   });
 
-  it('Cadastre filtres §2.7 — le département s’applique par le code de référence', () => {
-    expect(collectionCardMatches(departement75, filtersOf({ departement: '75' }))).toBe(true);
-    expect(collectionCardMatches(paris, filtersOf({ departement: '75' }))).toBe(true);
-    expect(collectionCardMatches(paris, filtersOf({ departement: '971' }))).toBe(false);
-    expect(collectionCardMatches(regionIdf, filtersOf({ departement: '75' }))).toBe(false);
-    expect(collectionCardMatches(rueEglise, filtersOf({ departement: '75' }))).toBe(false);
-    expect(collectionCardMatches(paris, filtersOf({ departement: null }))).toBe(true);
+  it('Cadastre filtres §2.7 — un code de département entrant n’est plus un filtre', () => {
+    // Le filtre département a été retiré du Cadastre : la clé devient inconnue, donc
+    // écartée à la lecture comme à l’écriture, et aucune carte n’est retenue par elle.
+    expect(parseCollectionSearch({ departement: '75' })).toEqual(EMPTY_COLLECTION_FILTERS);
+    expect(parseCollectionWire({ departement: '75', q: 'Paris' })).toEqual({ q: 'Paris' });
+    expect(collectionCardMatches(departement75, EMPTY_COLLECTION_FILTERS)).toBe(true);
+    expect(collectionCardMatches(paris, EMPTY_COLLECTION_FILTERS)).toBe(true);
+    expect(collectionCardMatches(regionIdf, EMPTY_COLLECTION_FILTERS)).toBe(true);
+    expect(collectionCardMatches(rueEglise, EMPTY_COLLECTION_FILTERS)).toBe(true);
   });
 
   it('Cadastre filtres §2.7 — q cherche dans le nom comme dans le code, sans casse ni accent', () => {
@@ -292,13 +266,13 @@ describe('Cadastre filtres §2.7 — appariement d’une carte', () => {
     expect(collectionCardMatches(communeId, filtersOf({ q: '12345' }))).toBe(true);
   });
 
-  it('Cadastre filtres §2.7 — les quatre conditions se cumulent', () => {
+  it('Cadastre filtres §2.7 — les trois conditions se cumulent', () => {
     const filters = filtersOf({ categorie: ['COMMUNE'], rarete: ['MYTHIQUE'], q: 'paris' });
 
     expect(collectionCardMatches(paris, filters)).toBe(true);
-    expect(collectionCardMatches(paris, { ...filters, departement: '75' })).toBe(true);
-    expect(collectionCardMatches(paris, { ...filters, departement: '971' })).toBe(false);
     expect(collectionCardMatches(departement75, filters)).toBe(false);
+    expect(collectionCardMatches(regionIdf, filters)).toBe(false);
+    expect(collectionCardMatches(paris, { ...filters, q: 'rue' })).toBe(false);
   });
 
   it('Cadastre filtres §2.7 — le filtrage rend un tableau neuf et laisse l’entrée intacte', () => {
@@ -341,10 +315,10 @@ describe('Cadastre filtres §2.8 — la forme de transport de l’URL', () => {
   });
 
   it('Cadastre filtres §2.8 — une valeur relue est toujours une chaîne', () => {
-    const parsed = parseSearch('?departement=99');
+    const parsed = parseSearch('?q=99');
 
-    expect(parsed).toEqual({ departement: '99' });
-    expect(typeof parsed.departement).toBe('string');
+    expect(parsed).toEqual({ q: '99' });
+    expect(typeof parsed.q).toBe('string');
   });
 
   it('Cadastre filtres §2.8 — une clé répétée devient une liste, une seule reste simple', () => {
