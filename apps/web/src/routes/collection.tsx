@@ -36,6 +36,7 @@ import {
   COLLECTION,
   COLLECTION_FILTERED_EMPTY,
   COLLECTION_FILTERS,
+  codePostalLabel,
   collectionGroupsLabel,
   collectionTotalLabel,
   exemplairesCountLabel,
@@ -110,6 +111,9 @@ const columns = columnHelper.columns([
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <RarityBadge rarity={card.rarity} />
+              <span className="font-mono text-[10px] tabular-nums text-vellum/60">
+                {codePostalLabel(card.codePostal)}
+              </span>
               <span className="font-mono text-[10px] tabular-nums text-brass">
                 {exemplairesCountLabel(card.exemplaireCount)}
               </span>
@@ -145,6 +149,16 @@ const columns = columnHelper.columns([
       </span>
     ),
   }),
+  columnHelper.accessor((row) => row.codePostal ?? '', {
+    id: 'codePostal',
+    header: COLLECTION.columns.codePostal,
+    sortFn: 'text',
+    cell: (info) => (
+      <span className="whitespace-nowrap font-mono tabular-nums text-vellum/75">
+        {codePostalLabel(info.row.original.codePostal)}
+      </span>
+    ),
+  }),
   columnHelper.accessor('exemplaireCount', {
     header: COLLECTION.columns.exemplaires,
     sortFn: 'basic',
@@ -171,7 +185,7 @@ const columns = columnHelper.columns([
 ]);
 
 const gridTemplate =
-  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[140px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.95fr)_minmax(0,0.85fr)_minmax(0,0.55fr)] md:py-2';
+  'grid grid-cols-1 items-center gap-6 px-5 py-3 md:grid-cols-[140px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.7fr)_minmax(0,0.95fr)_minmax(0,0.85fr)_minmax(0,0.55fr)] md:py-2';
 
 const inputClass =
   'h-10 rounded-[2px] border border-veil bg-cabinet-sunk px-3 text-[13px] text-vellum placeholder:text-vellum/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass';

@@ -231,6 +231,106 @@ test("cadastre — le parcours depuis L'Atlas", async ({ page }) => {
   await expect(collectionTable(page)).toBeVisible();
 });
 
+// Code postal — I-002 de `.docs/09-idees.md`. Le tri vit dans l'état local du
+// tableau, pas dans l'URL : il ne s'assert donc pas par une adresse, mais par
+// l'ordre réellement rendu.
+
+const CODE_POSTAL_HEADER = 'Code postal';
+const CODE_POSTAL_ABSENT = '—';
+
+/** Index de la colonne « Code postal » dans l'en-tête rendu. */
+async function codePostalColumnIndex(table: Locator): Promise<number> {
+  const headers = table.locator('thead th');
+  const count = await headers.count();
+  for (let index = 0; index < count; index += 1) {
+    const text = (await headers.nth(index).textContent()) ?? '';
+    if (text.includes(CODE_POSTAL_HEADER)) return index;
+  }
+  return -1;
+}
+
+/** Les codes postaux des lignes rendues, dans l'ordre du DOM. */
+async function codePostalValues(page: Page, columnIndex: number): Promise<string[]> {
+  const rows = collectionRows(page);
+  const count = await rows.count();
+  const values: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const cell = rows.nth(index).locator('td').nth(columnIndex);
+    values.push(((await cell.textContent()) ?? '').trim());
+  }
+  return values;
+}
+
+test('cadastre — la colonne Code postal trie les lignes', async ({ page }) => {
+  // La table d'en-tête est un gabarit de bureau (`md:block`) : le tri se prouve
+  // à une largeur de bureau, quelle que soit celle du projet Playwright.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/collection?categorie=COMMUNE');
+
+  const table = collectionTable(page);
+  await expect(collectionRows(page).first()).toBeVisible();
+  await expect(table.locator('thead')).toContainText(CODE_POSTAL_HEADER);
+
+  const columnIndex = await codePostalColumnIndex(table);
+  expect(columnIndex, 'La colonne « Code postal » ne figure pas dans l’en-tête').toBeGreaterThan(0);
+
+  const header = table.getByRole('button', { name: CODE_POSTAL_HEADER });
+  await expect(header).toBeVisible();
+
+  await header.click();
+  await expect(table.locator('thead th').nth(columnIndex)).toHaveAttribute(
+    'aria-sort',
+    'ascending',
+  );
+  const ascending = await codePostalValues(page, columnIndex);
+  expect(ascending.length, 'Aucune ligne à trier').toBeGreaterThan(1);
+  expect(ascending, `Ordre croissant attendu, reçu ${ascending.join(' · ')}`).toEqual(
+    [...ascending].sort(),
+  );
+
+  await header.click();
+  await expect(table.locator('thead th').nth(columnIndex)).toHaveAttribute(
+    'aria-sort',
+    'descending',
+  );
+  const descending = await codePostalValues(page, columnIndex);
+  expect(descending, `Ordre décroissant attendu, reçu ${descending.join(' · ')}`).toEqual(
+    [...descending].sort().reverse(),
+  );
+  expect(descending, 'Le tri n’a rien réordonné').not.toEqual(ascending);
+});
+
+test('cadastre — une carte qui n’est pas une commune affiche un tiret', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/collection?categorie=DEPARTEMENT');
+
+  await expect(collectionRows(page).first()).toBeVisible();
+  const table = collectionTable(page);
+  const columnIndex = await codePostalColumnIndex(table);
+  expect(columnIndex, 'La colonne « Code postal » ne figure pas dans l’en-tête').toBeGreaterThan(0);
+
+  const values = await codePostalValues(page, columnIndex);
+  expect(values.length, 'Aucun département rendu').toBeGreaterThan(0);
+  for (const value of values) {
+    expect(value, 'Un département ne porte pas de code postal').toBe(CODE_POSTAL_ABSENT);
+  }
+});
+
+test('cadastre — le code postal ne fait pas déborder la page à 390 px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/collection?categorie=COMMUNE');
+
+  await expect(collectionRows(page).first()).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, 'Débordement horizontal à 390 px').toBeLessThanOrEqual(0);
+
+  // Sur mobile, la colonne est masquée : le code postal rejoint la ligne de
+  // métadonnées sous le nom, et une commune du banc en porte un.
+  await expect(collectionRows(page).first()).toContainText(/\d{5}/);
+});
+
 // Exemplaires multiples — l'identité d'une ligne du Cadastre est la carte
 // (catégorie, référence, rareté), pas la ligne de `user_cards`. Trois doublons
 // identiques font donc **une** ligne portant « 3 exemplaires », tandis que deux
