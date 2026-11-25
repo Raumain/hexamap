@@ -28,7 +28,6 @@ import {
 } from '@tanstack/react-table';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CraftPanel } from '../components/atelier/craft-panel';
 import { Card } from '../components/ui/Card';
 import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { RarityBadge } from '../components/ui/rarity-badge';
@@ -337,7 +336,6 @@ function CollectionBody({ search }: { search: CollectionSearchWire }) {
   return (
     <div className="space-y-8">
       <CollectionCounters items={items} />
-      <CraftPanel items={items} />
       {items.length === 0 ? (
         <div className="border-y border-veil px-4 py-16 text-center">
           <p className="font-display text-lg italic text-vellum/60">{COLLECTION.emptyTitle}</p>
