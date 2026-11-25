@@ -3,6 +3,7 @@ import {
   distanceLabel,
   PANEL_CONTENT,
   type PanelKind,
+  revealedCellLabel,
 } from '../content/tickets';
 import type { TicketCell } from '../lib/tickets';
 import { Card } from './ui/Card';
@@ -11,6 +12,7 @@ type CardKind = 'CARD' | 'TREASURE' | 'TWIN';
 
 interface RevealedCellProps {
   cell: TicketCell;
+  onOpen: (cell: TicketCell) => void;
 }
 
 function isCardKind(kind: TicketCell['kind']): kind is CardKind {
@@ -41,10 +43,13 @@ function CellStrip({ kind, distance }: { kind: TicketCell['kind']; distance?: nu
   );
 }
 
-export function RevealedCell({ cell }: RevealedCellProps) {
+export function RevealedCell({ cell, onOpen }: RevealedCellProps) {
   const { kind, card, nom, distance } = cell;
   const isTreasure = kind === 'TREASURE';
   const name = card?.nom || nom || 'Carte';
+  // Une case révélée sans contenu rendu n'a rien à agrandir : sans cette garde,
+  // elle ouvrirait un dialogue au titre générique et au corps vide.
+  const canOpen = (isCardKind(kind) && card !== null) || isPanelKind(kind);
 
   return (
     <div
@@ -82,6 +87,16 @@ export function RevealedCell({ cell }: RevealedCellProps) {
             </p>
           </div>
         </>
+      ) : null}
+      {canOpen ? (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => onOpen(cell)}
+          className="absolute inset-0 z-10 rounded-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass"
+        >
+          <span className="sr-only">{revealedCellLabel(cell.index, name)}</span>
+        </button>
       ) : null}
     </div>
   );
