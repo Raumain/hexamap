@@ -21,6 +21,7 @@ export const COLLECTION = {
     category: 'Catégorie',
     rarity: 'Rareté',
     score: 'Score',
+    codePostal: 'Code postal',
     exemplaires: 'Exemplaires',
     acquiredAt: 'Acquise le',
     state: 'État',
@@ -54,6 +55,14 @@ export const COLLECTION_FILTERED_EMPTY = {
 /** Marque d'un groupe d'exemplaires : jamais affichée pour un groupe d'un seul. */
 export function exemplairesMark(count: number): string {
   return `×${count}`;
+}
+
+/**
+ * Code postal d'une carte : jamais une case vide. Une commune sans code postal,
+ * comme une région, un département ou une rue, affiche un tiret cadratin.
+ */
+export function codePostalLabel(value: string | null): string {
+  return value ?? '—';
 }
 
 export function exemplairesCountLabel(count: number): string {

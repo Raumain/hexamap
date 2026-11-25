@@ -384,6 +384,31 @@ export async function resolveCardNoms(
   return result;
 }
 
+/**
+ * Codes postaux des seules cartes `COMMUNE` de la liste (une requête au plus).
+ * Une région, un département ou une rue n'a pas de code postal de carte :
+ * l'appelant rend `null` pour ces trois catégories, jamais une valeur inventée.
+ */
+export async function resolveCardPostalCodes(
+  exec: Executor,
+  cards: ReadonlyArray<{ category: CardCategory; ref_code: string }>,
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const codes = [...new Set(cards.filter((c) => c.category === 'COMMUNE').map((c) => c.ref_code))];
+  if (codes.length === 0) return result;
+
+  const rows = await exec
+    .selectFrom('ref_communes')
+    .select(['code_insee', 'code_postal'])
+    .where('code_insee', 'in', codes)
+    .execute();
+
+  for (const r of rows) {
+    result.set(cardNomKey('COMMUNE', r.code_insee), r.code_postal);
+  }
+  return result;
+}
+
 /** Assets de blason résolus pour une carte. */
 export interface CardAssets {
   blasonUrl: string | null;
