@@ -44,6 +44,7 @@
 | `push_subscriptions`, `push_preferences` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
 | Index `user_scratch_charges_empty_idx` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
 | Colonne `view_box` sur `ref_regions`, `ref_departements`, `ref_communes` | **Migrée** (2026-11-23) | `packages/db/migrations/0021_view_box.ts` |
+| Colonne `code_postal` et index `ref_communes_code_postal_idx` sur `ref_communes` | **Migrée** (2026-11-25) | `packages/db/migrations/0022_postal_code.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -689,11 +690,13 @@ create table ref_communes (
   contour_url text,
   blason_credit text,
   path_d text,
-  view_box text not null default '0 0 1000 1000'
+  view_box text not null default '0 0 1000 1000',
+  code_postal text
 );
 
 create index ref_communes_rarete_bucket_idx on ref_communes (rarete, draw_bucket);
 create index ref_communes_departement_idx on ref_communes (code_departement);
+create index ref_communes_code_postal_idx on ref_communes (code_postal);
 
 create table ref_odonymes (
   id bigserial primary key,
@@ -734,6 +737,16 @@ cadré sur l'emprise métropolitaine lon `[−5,5 ; 9,9]` / lat `[41,2 ; 51,3]`,
 colonne se lit par clé primaire, elle ne se filtre pas.
 
 **`view_box` — le cadre d'affichage.** `view_box` est le `viewBox` SVG de l'entité, tel qu'il s'écrit dans l'attribut (`'0 0 1000 1000'`), donc consommable sans transformation par le composant qui le reçoit. Il porte le cadre du **groupe** auquel l'entité appartient — la région, son département et ses communes portent la **même** valeur. Un cadre par DROM (5 au total), calculé sur la bbox de l'ensemble du groupe. La métropole garde `0 0 1000 1000`, **valeur par défaut de la colonne** : les ~35 000 lignes métropolitaines ne sont jamais réécrites. `path_d` est exprimé **dans** le repère nommé par `view_box` de sa propre ligne : c'est ce qui fait qu'une commune de DROM s'assemble avec ses voisines. Il n'est **jamais** calculé au runtime (ni API ni navigateur) : il est écrit une fois, par le script de backfill `scripts/import/src/atlas-overseas.ts`.
+
+**`code_postal` — le code principal, un seul.** `ref_communes.code_postal` porte **un** code à cinq
+chiffres, jamais un tableau : `geo.api.gouv.fr` publie `codesPostaux` en tableau et n'en désigne
+aucun comme principal, donc le produit retient le **premier code à cinq chiffres non vide** de ce
+tableau, dans l'ordre de la source (règle pure `principalPostalCode` de
+`packages/shared/src/postal.ts`). La colonne est **nullable et sans défaut** : une commune dont la
+source ne publie aucun code postal n'en a pas, et un code postal n'est pas une clé — une commune
+peut en avoir porté un autre. L'index `ref_communes_code_postal_idx` sert le tri, pas une
+contrainte d'unicité. La valeur est écrite par l'import — y compris par le `do update set` du mode
+`--merge`, sinon un réimport ne remplirait jamais les lignes existantes.
 
 ### 5.1 Intégrité du référentiel (migration `0014_ref_integrity`)
 
@@ -1038,6 +1051,7 @@ export interface RefCommuneTable {
   blason_credit: string | null;
   path_d: string | null;
   view_box: Generated<string>;
+  code_postal: Generated<string | null>;
 }
 
 export interface RefOdonymeTable {
