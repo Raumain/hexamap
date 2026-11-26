@@ -118,6 +118,34 @@ async function accept(player: Player, offerId: string): Promise<Response> {
   return authFetch(`/api/v1/trades/${offerId}/accept`, { method: 'POST' }, player.cookie);
 }
 
+interface FriendCardsBody {
+  cards: Array<{
+    id: string;
+    category: string;
+    refCode: string;
+    rarity: string;
+    score: number;
+    nom: string;
+    blasonUrl: string | null;
+    blasonCredit: string | null;
+  }>;
+}
+
+async function befriend(
+  requester: Player,
+  addressee: Player,
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' = 'ACCEPTED',
+): Promise<void> {
+  await db
+    .insertInto('friendships')
+    .values({ requester_id: requester.userId, addressee_id: addressee.userId, status })
+    .execute();
+}
+
+async function friendCards(viewer: Player, friendId: string): Promise<Response> {
+  return authFetch(`/api/v1/trades/friends/${friendId}/cards`, {}, viewer.cookie);
+}
+
 async function cardOwner(cardId: string): Promise<string | null> {
   const row = await db
     .selectFrom('user_cards')
@@ -521,5 +549,86 @@ describe('Troc — marché', () => {
       alice.cookie,
     );
     expect(listing.status).toBe(201);
+  });
+});
+
+describe('Troc — cartes d’un ami', () => {
+  it('un inconnu se voit refuser la collection', async () => {
+    const { alice, bob } = await twoPlayers();
+    await createCard(bob.userId, 'REGION', `${prefix}-R30`);
+
+    const res = await friendCards(alice, bob.userId);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as ErrorBody).code).toBe('FRIEND_REQUIRED');
+  });
+
+  it('une demande en attente ou déclinée ne suffit pas', async () => {
+    const { alice, bob } = await twoPlayers();
+    await befriend(alice, bob, 'PENDING');
+
+    const pending = await friendCards(alice, bob.userId);
+    expect(pending.status).toBe(403);
+    expect(((await pending.json()) as ErrorBody).code).toBe('FRIEND_REQUIRED');
+
+    await db
+      .updateTable('friendships')
+      .set({ status: 'DECLINED' })
+      .where('addressee_id', '=', bob.userId)
+      .execute();
+
+    const declined = await friendCards(alice, bob.userId);
+    expect(declined.status).toBe(403);
+    expect(((await declined.json()) as ErrorBody).code).toBe('FRIEND_REQUIRED');
+  });
+
+  it('un ami accepté ne montre que ses cartes libres, jamais verrouillées ni engagées', async () => {
+    const { alice, bob } = await twoPlayers();
+    await befriend(bob, alice, 'ACCEPTED');
+
+    const free = await createCard(bob.userId, 'COMMUNE', `${prefix}-C30`, { score: 1600 });
+    const locked = await createCard(bob.userId, 'COMMUNE', `${prefix}-C31`, { locked: true });
+    const offeredInTrade = await createCard(bob.userId, 'COMMUNE', `${prefix}-C32`);
+    const requestedInTrade = await createCard(bob.userId, 'COMMUNE', `${prefix}-C33`);
+
+    const aliceCard = await createCard(alice.userId, 'REGION', `${prefix}-R31`);
+    const aliceOther = await createCard(alice.userId, 'REGION', `${prefix}-R32`);
+
+    // Bob offre `offeredInTrade` et Alice réclame `requestedInTrade` : les deux
+    // index partiels sont occupés, dans les deux sens.
+    expect((await propose(bob, offeredInTrade, aliceCard)).status).toBe(201);
+    expect((await propose(alice, aliceOther, requestedInTrade)).status).toBe(201);
+
+    const res = await friendCards(alice, bob.userId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as FriendCardsBody;
+
+    const ids = body.cards.map((card) => card.id);
+    expect(ids).toContain(free);
+    expect(ids).not.toContain(locked);
+    expect(ids).not.toContain(offeredInTrade);
+    expect(ids).not.toContain(requestedInTrade);
+
+    const shown = body.cards.find((card) => card.id === free);
+    expect(shown?.category).toBe('COMMUNE');
+    expect(shown?.refCode).toBe(`${prefix}-C30`);
+    expect(shown?.rarity).toBe('RARE');
+    expect(shown?.score).toBe(1600);
+    expect(shown?.nom).toBeString();
+  });
+
+  it('sa propre collection se lit au Cadastre, pas par cette route', async () => {
+    const { alice } = await twoPlayers();
+
+    const res = await friendCards(alice, alice.userId);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as ErrorBody).code).toBe('FRIEND_SELF');
+  });
+
+  it('un joueur disparu répond 404', async () => {
+    const { alice } = await twoPlayers();
+
+    const res = await friendCards(alice, crypto.randomUUID());
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as ErrorBody).code).toBe('USER_NOT_FOUND');
   });
 });

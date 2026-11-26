@@ -10,6 +10,7 @@ import {
   resolveCardAssets,
   resolveCardNoms,
 } from './draw';
+import { pairCondition } from './friends';
 import { emitNotification } from './notifications';
 
 /** Carte telle qu'une offre la rend : assez pour dessiner une planche, rien de plus. */
@@ -182,6 +183,87 @@ export async function loadOffer(exec: Executor, offerId: string): Promise<TradeO
   if (!row) return null;
   const [offer] = await toOffers(exec, [row]);
   return offer ?? null;
+}
+
+/** Forme d'une carte d'ami : la même planche qu'une carte engagée dans une offre. */
+export type FriendTradeCard = TradeCardView;
+
+/**
+ * La collection **troquable** d'un ami : déverrouillée, et libre de toute offre
+ * `PENDING`, dans les deux sens. Seule une amitié `ACCEPTED` l'ouvre — c'est la
+ * surface de découverte du troc, la vitrine publique ne la rend jamais.
+ *
+ * L'expiration paresseuse n'est pas rejouée ici : la liste lit `PENDING` comme
+ * les index partiels qui portent l'exclusivité, et le balayage appartient aux
+ * surfaces de troc des deux joueurs (aucun ordonnanceur n'existe).
+ */
+export async function loadFriendTradeCards(
+  exec: Executor,
+  viewerId: string,
+  friendId: string,
+): Promise<FriendTradeCard[]> {
+  if (viewerId === friendId) {
+    throw new HttpError(400, 'FRIEND_SELF', 'Votre propre collection se lit au Cadastre, pas ici.');
+  }
+
+  const friend = await exec
+    .selectFrom('user')
+    .select('id')
+    .where('id', '=', friendId)
+    .executeTakeFirst();
+  if (!friend) {
+    throw new HttpError(404, 'USER_NOT_FOUND', 'Ce joueur est introuvable.');
+  }
+
+  const relation = await exec
+    .selectFrom('friendships')
+    .select('status')
+    .where((eb) => pairCondition(eb, viewerId, friendId))
+    .executeTakeFirst();
+  if (relation?.status !== 'ACCEPTED') {
+    throw new HttpError(
+      403,
+      'FRIEND_REQUIRED',
+      "Seule une amitié acceptée ouvre la collection d'un joueur.",
+    );
+  }
+
+  const rows = await exec
+    .selectFrom('user_cards')
+    .select(['id', 'category', 'ref_code', 'rarity', 'score'])
+    .where('user_id', '=', friendId)
+    .where('locked', '=', false)
+    .orderBy('score', 'desc')
+    .orderBy('acquired_at', 'desc')
+    .orderBy('id', 'asc')
+    .limit(50)
+    .execute();
+
+  const busy = new Set<string>();
+  const ids = rows.map((row) => row.id);
+  if (ids.length > 0) {
+    const offers = await exec
+      .selectFrom('trade_offers')
+      .select(['offered_card_id', 'requested_card_id'])
+      .where('status', '=', 'PENDING')
+      .where((eb) => eb.or([eb('offered_card_id', 'in', ids), eb('requested_card_id', 'in', ids)]))
+      .execute();
+    for (const offer of offers) {
+      busy.add(offer.offered_card_id);
+      busy.add(offer.requested_card_id);
+    }
+  }
+
+  const free = rows.filter((row) => !busy.has(row.id));
+  if (free.length === 0) return [];
+
+  const entries = free.map((row) => ({ category: row.category, ref_code: row.ref_code }));
+  const noms = await resolveCardNoms(exec, entries);
+  const assets = await resolveCardAssets(exec, entries);
+
+  return free.map((row) =>
+    toCard(row.id, row.category, row.ref_code, row.rarity, row.score, noms, assets),
+  );
 }
 
 /**
