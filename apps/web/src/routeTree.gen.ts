@@ -22,6 +22,7 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
 import { Route as PalmaresRouteImport } from './routes/palmares'
+import { Route as RareteRouteImport } from './routes/rarete'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as TableauxRouteImport } from './routes/tableaux'
@@ -98,6 +99,11 @@ const PalmaresRoute = PalmaresRouteImport.update({
   path: '/palmares',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RareteRoute = RareteRouteImport.update({
+  id: '/rarete',
+  path: '/rarete',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/palmares': typeof PalmaresRoute
+  '/rarete': typeof RareteRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/palmares': typeof PalmaresRoute
+  '/rarete': typeof RareteRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/palmares': typeof PalmaresRoute
+  '/rarete': typeof RareteRoute
   '/register': typeof RegisterRoute
   '/tableau': typeof TableauRoute
   '/tableaux': typeof TableauxRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mentions-legales'
     | '/palmares'
+    | '/rarete'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mentions-legales'
     | '/palmares'
+    | '/rarete'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mentions-legales'
     | '/palmares'
+    | '/rarete'
     | '/register'
     | '/tableau'
     | '/tableaux'
@@ -317,6 +329,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
   PalmaresRoute: typeof PalmaresRoute
+  RareteRoute: typeof RareteRoute
   RegisterRoute: typeof RegisterRoute
   TableauRoute: typeof TableauRoute
   TableauxRoute: typeof TableauxRoute
@@ -422,6 +435,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PalmaresRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rarete': {
+      id: '/rarete'
+      path: '/rarete'
+      fullPath: '/rarete'
+      preLoaderRoute: typeof RareteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -509,6 +529,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
   PalmaresRoute: PalmaresRoute,
+  RareteRoute: RareteRoute,
   RegisterRoute: RegisterRoute,
   TableauRoute: TableauRoute,
   TableauxRoute: TableauxRoute,

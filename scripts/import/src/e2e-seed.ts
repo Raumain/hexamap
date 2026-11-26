@@ -111,6 +111,10 @@ try {
         population: 1_000_000 - rarityIndex * 100_000 - district * 50_000,
         rarete,
         score_base: 100 + rarityIndex * 50,
+        // Code postal déterministe, et **inversé** par rapport à la rareté : trier
+        // par code postal doit réordonner visiblement les lignes du Cadastre,
+        // jamais retrouver l'ordre du semis.
+        code_postal: String(95000 - (rarityIndex * 2 + district) * 1000).padStart(5, '0'),
         // Chaque commune du banc porte un blason réellement servi par l'API :
         // les fichiers vivent dans `packages/e2e/fixtures/blasons`, monté en
         // lecture seule sur `/data/blasons`. Sans eux, le Cartel ne peut pas

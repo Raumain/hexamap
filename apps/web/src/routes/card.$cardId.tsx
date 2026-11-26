@@ -9,7 +9,7 @@ import { outlineButtonClass, primaryButtonClass } from '../components/ui/button-
 import { Card } from '../components/ui/Card';
 import { RaritySeal } from '../components/ui/rarity-seal';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
-import { CARD_DETAIL, CARD_SOURCE_LABELS, stateLabel } from '../content/card-detail';
+import { CARD_DETAIL, CARD_SOURCE_LABELS, editionNote, stateLabel } from '../content/card-detail';
 import { exemplairesCountLabel } from '../content/collection';
 import { CURRENCY } from '../content/market';
 import { CATEGORY_LABELS } from '../content/tickets';
@@ -210,6 +210,11 @@ function CartelRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 function CartelSheet({ card, exemplaireCount }: { card: CardDetail; exemplaireCount: number }) {
+  // Une région et un département n'ont pas de rareté intrinsèque : leur palier est
+  // l'édition de la carte. Une commune et une rue gardent leur lecture.
+  const editionCategory =
+    card.category === 'REGION' || card.category === 'DEPARTEMENT' ? card.category : null;
+
   return (
     <section className="vellum rounded-sheet p-6 md:p-8">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-brass-deep">
@@ -221,7 +226,7 @@ function CartelSheet({ card, exemplaireCount }: { card: CardDetail; exemplaireCo
           <span className="text-[15px] text-ink">{CATEGORY_LABELS[card.category]}</span>
         </CartelRow>
 
-        <CartelRow label={CARD_DETAIL.rarityLabel}>
+        <CartelRow label={editionCategory ? CARD_DETAIL.editionLabel : CARD_DETAIL.rarityLabel}>
           <span className="inline-flex items-baseline gap-2">
             <RaritySeal rarity={card.rarity} size={20} />
             <span className="text-[15px] text-ink">{RARITY_LABELS[card.rarity]}</span>
@@ -260,6 +265,18 @@ function CartelSheet({ card, exemplaireCount }: { card: CardDetail; exemplaireCo
           </span>
         </CartelRow>
       </dl>
+
+      {editionCategory ? (
+        <p className="mt-4 border-t border-ink/12 pt-4 text-[12px] leading-relaxed text-ink-soft">
+          {editionNote(editionCategory, card.rarity)}{' '}
+          <Link
+            to="/rarete"
+            className="text-brass-deep underline underline-offset-2 hover:text-ink"
+          >
+            {CARD_DETAIL.editionLink}
+          </Link>
+        </p>
+      ) : null}
     </section>
   );
 }

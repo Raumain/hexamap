@@ -165,6 +165,7 @@ export interface RefCommuneTable {
   blason_credit: string | null;
   path_d: string | null;
   view_box: Generated<string>;
+  code_postal: Generated<string | null>;
 }
 
 export interface RefOdonymeTable {

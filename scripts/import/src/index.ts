@@ -152,6 +152,10 @@ async function insertCommunes(
           rarete: eb.ref('excluded.rarete'),
           score_base: eb.ref('excluded.score_base'),
           draw_bucket: eb.ref('excluded.draw_bucket'),
+          // Le code postal appartient à l'étape référentiel, pas aux étapes
+          // blasons ni atlas : il se réécrit donc, sinon un `--merge` ne
+          // remplirait jamais les lignes déjà présentes.
+          code_postal: eb.ref('excluded.code_postal'),
         })),
       )
       .execute();

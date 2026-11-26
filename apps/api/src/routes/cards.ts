@@ -3,7 +3,12 @@ import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { authPlugin } from '../middleware/auth';
 import { resolveCardDetail } from '../services/card-detail';
-import { cardNomKey, resolveCardAssets, resolveCardNoms } from '../services/draw';
+import {
+  cardNomKey,
+  resolveCardAssets,
+  resolveCardNoms,
+  resolveCardPostalCodes,
+} from '../services/draw';
 
 const raritySchema = t.Union([
   t.Literal('COMMUNE'),
@@ -27,6 +32,7 @@ const cardSchema = t.Object(
     category: categorySchema,
     refCode: t.String(),
     nom: t.String(),
+    codePostal: t.Union([t.String(), t.Null()]),
     blasonUrl: t.Union([t.String(), t.Null()]),
     blasonCredit: t.Union([t.String(), t.Null()]),
     rarity: raritySchema,
@@ -171,6 +177,8 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
 
       const noms = await resolveCardNoms(db, rows);
       const assets = await resolveCardAssets(db, rows);
+      // Une seule requête de plus, et seulement s'il y a des communes dans la page.
+      const postalCodes = await resolveCardPostalCodes(db, rows);
 
       const items = rows.map((r) => {
         const asset = assets.get(cardNomKey(r.category, r.ref_code));
@@ -179,6 +187,10 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
           category: r.category,
           refCode: r.ref_code,
           nom: noms.get(cardNomKey(r.category, r.ref_code)) ?? '',
+          codePostal:
+            r.category === 'COMMUNE'
+              ? (postalCodes.get(cardNomKey(r.category, r.ref_code)) ?? null)
+              : null,
           blasonUrl: asset?.blasonUrl ?? null,
           blasonCredit: asset?.blasonCredit ?? null,
           rarity: r.rarity,

@@ -21,6 +21,7 @@ import * as cardSource from '../migrations/0018_card_source';
 import * as tableauScore from '../migrations/0019_tableau_score';
 import * as push from '../migrations/0020_push';
 import * as viewBox from '../migrations/0021_view_box';
+import * as postalCode from '../migrations/0022_postal_code';
 import type { Database } from './index';
 
 /**
@@ -51,6 +52,7 @@ const migrations: Record<string, Migration> = {
   '0019_tableau_score': tableauScore,
   '0020_push': push,
   '0021_view_box': viewBox,
+  '0022_postal_code': postalCode,
 };
 
 /** Les noms dans l'ordre alphabétique, c'est-à-dire l'ordre d'exécution attendu. */
