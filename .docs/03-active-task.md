@@ -125,6 +125,37 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 # Journal
 
+### 2026-11-26 — Le troc devient proposable depuis les amis
+
+Branche `feat/v2-troc-depuis-amis`. Le diagnostic d'abord : `POST /api/v1/trades`
+fonctionnait, mais aucun chemin atteignable ne pouvait le nourrir. Le seul bouton
+`ProposeTrade` vivait dans Le Cartel, et `GET /cards/:id` ne révèle une carte d'autrui
+que si elle est en vente (`locked`) ou déjà engagée dans une offre `PENDING` — exactement
+les deux états que `proposeTrade` refuse en `409 CARD_LOCKED` / `409 CARD_ALREADY_IN_TRADE`.
+Rester sur sa propre carte rend `400 TRADE_SELF_OFFER`. Les quatre chemins échouaient donc,
+et le banc proposait par l'API.
+
+La surface ajoutée est amicale et fermée : `GET /api/v1/trades/friends/:friendId/cards`
+ouvre la collection **troquable** d'un ami `ACCEPTED` — `403 FRIEND_REQUIRED` sinon,
+`400 FRIEND_SELF` pour soi-même, `404 USER_NOT_FOUND` pour un joueur disparu. Elle exclut
+`locked = true` et toute carte citée par une offre `PENDING`, offerte ou demandée (les deux
+index partiels rendent tout autre état impossible), et rend au plus 50 cartes triées par
+score. `loadFriendTradeCards` réutilise `pairCondition` de `services/friends.ts`,
+`resolveCardNoms`/`resolveCardAssets` et `toCard` — aucune résolution de nom dupliquée.
+Aucune migration. `proposeTrade` n'est pas touché : la surface respecte ses règles, elle
+ne les relâche pas.
+
+Côté navigateur, `ProposeTradeDialog` est exporté et piloté par `open`/`onOpenChange`
+(Le Cartel garde son bouton et son wrapper). `FriendTradePanel` s'ajoute à chaque ami
+accepté dans `/friends` : il liste les cartes de l'ami (planche `w-14`, nom, rareté, score),
+puis ouvre le dialogue de proposition déjà existant pour la carte choisie. La vitrine
+publique ne rend rien de tout cela.
+
+Mesuré dans Docker : `ci:check` vert aux cinq étapes, **594 spécifications** (22 dans
+`trade.spec.ts`, dont 5 neuves) ; banc E2E, cas du troc rejoué sur le seul projet
+`chromium`, 1 passed — la proposition part cette fois du produit (`/friends`, liste de
+l'ami, dialogue, propre carte), et l'acceptation déplace toujours les deux cartes.
+
 ### 2026-11-25 — Le Cadastre s'épure, L'Atelier repart en v3
 
 Branche `feat/v2-cadastre-epure`, partie de `v2` (`f747d98`). Quatre demandes du titulaire,
