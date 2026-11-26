@@ -309,7 +309,7 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 
       | Variable | Défaut | Rôle |
       | :--- | :--- | :--- |
-      | `ACCOUNT_DELETION_ENABLED` | `false` | Ouvre `DELETE /api/v1/account`. **À allumer seulement après** la publication des pages légales définitives : aucune suppression ne peut promettre un droit de rétractation que la politique de confidentialité n'explique pas. La variable est relue à chaque appel, donc un redéploiement n'est pas nécessaire pour l'éteindre. |
+      | `ACCOUNT_DELETION_ENABLED` | `true` | Ouvre `DELETE /api/v1/account`. **Ouverte par défaut** depuis la publication des pages légales définitives, qui décrivent la suppression et son effet : la fonctionnalité n'attend plus d'interrupteur. La poser à `false` la referme — c'est l'échappatoire d'exploitation, sans migration et sans retirer les pages. La variable est relue à chaque appel, donc un redéploiement n'est pas nécessaire pour l'éteindre. |
       | `MAIL_OUTBOX_DIR` | absente | Transport de courriel : chaque message de vérification est écrit en JSON dans ce répertoire, sans aucun envoi réseau. Absente, `POST /api/v1/account/email` répond `503 EMAIL_VERIFICATION_DISABLED` et l'écran `/compte` désactive le formulaire au lieu d'annoncer un envoi. |
 
       Le courriel n'est donc pas un service : c'est un fichier. Une vraie remise suppose un
