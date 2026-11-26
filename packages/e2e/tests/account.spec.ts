@@ -22,8 +22,9 @@ import { storageStatePath } from './fixtures/auth';
  * qu'à l'exécution. Les sessions voyagent donc dans l'en-tête `cookie` d'un
  * `APIRequestContext` neuf, exactement comme la fixture du second compte.
  *
- * La suppression n'est active que sur le banc (`ACCOUNT_DELETION_ENABLED`) ; le
- * cas « interrupteur éteint → 503 » vit dans `packages/spec/src/account.spec.ts`.
+ * La suppression est ouverte par défaut (`ACCOUNT_DELETION_ENABLED`) depuis la
+ * publication des pages légales ; le cas « interrupteur refermé → 503 » vit dans
+ * `packages/spec/src/account.spec.ts`.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'https://hexamap.test';

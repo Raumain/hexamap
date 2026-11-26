@@ -460,7 +460,7 @@ describe('Comptes §2.9 — le courriel', () => {
 
 describe('Comptes §2.9 — les capacités du compte', () => {
   it('Comptes §2.9 — /account/capabilities dit ce que le serveur sait faire', async () => {
-    delete process.env.ACCOUNT_DELETION_ENABLED;
+    process.env.ACCOUNT_DELETION_ENABLED = 'false';
     delete process.env.MAIL_OUTBOX_DIR;
 
     const anonymous = await authFetch('/api/v1/account/capabilities');
@@ -480,7 +480,7 @@ describe('Comptes §2.9 — les capacités du compte', () => {
       expect(open.status).toBe(200);
       expect(await open.json()).toEqual({ deletion: true, emailVerification: false });
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 
@@ -490,7 +490,7 @@ describe('Comptes §2.9 — les capacités du compte', () => {
     // manquante — mais elle est éteinte pour de bon. `MAIL_OUTBOX_DIR` n’est pas
     // un transport de courriel, seulement le témoin d’écriture du banc : le poser
     // ne doit donc rien rallumer.
-    delete process.env.ACCOUNT_DELETION_ENABLED;
+    process.env.ACCOUNT_DELETION_ENABLED = 'false';
 
     await withMailOutbox(async () => {
       const account = await signUp();
@@ -498,6 +498,20 @@ describe('Comptes §2.9 — les capacités du compte', () => {
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ deletion: false, emailVerification: false });
     });
+  });
+
+  it('Comptes §2.9 — l’interrupteur est ouvert par défaut', async () => {
+    // Le produit ouvre la suppression par défaut depuis que les pages légales
+    // sont publiées : l'absence de variable vaut `true`, jamais `false`.
+    delete process.env.ACCOUNT_DELETION_ENABLED;
+    try {
+      const account = await signUp();
+      const res = await authFetch('/api/v1/account/capabilities', {}, account.cookie);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ deletion: true, emailVerification: false });
+    } finally {
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
+    }
   });
 });
 
@@ -536,7 +550,7 @@ describe('Comptes §2.9 — l’export', () => {
 
 describe('Comptes §2.9 — la suppression', () => {
   it('Comptes §2.9 — l’interrupteur éteint interdit toute suppression', async () => {
-    delete process.env.ACCOUNT_DELETION_ENABLED;
+    process.env.ACCOUNT_DELETION_ENABLED = 'false';
     const account = await signUp();
     const partner = await signUp();
 
@@ -624,7 +638,7 @@ describe('Comptes §2.9 — la suppression', () => {
       expect(partnerCardsAfter.count).toBe(partnerCardsBefore.count);
       expect(partnerTableauxAfter.count).toBe(partnerTableauxBefore.count);
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 
@@ -651,7 +665,7 @@ describe('Comptes §2.9 — la suppression', () => {
         .executeTakeFirst();
       expect(still?.id).toBe(account.userId);
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 
@@ -675,7 +689,7 @@ describe('Comptes §2.9 — la suppression', () => {
       const body = (await res.json()) as { code: string };
       expect(body.code).toBe('INVALID_PASSWORD');
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 
@@ -699,7 +713,7 @@ describe('Comptes §2.9 — la suppression', () => {
         .executeTakeFirst();
       expect(still?.id).toBe(account.userId);
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 
@@ -729,7 +743,7 @@ describe('Comptes §2.9 — la suppression', () => {
         .executeTakeFirst();
       expect(still?.id).toBe(account.userId);
     } finally {
-      delete process.env.ACCOUNT_DELETION_ENABLED;
+      process.env.ACCOUNT_DELETION_ENABLED = 'false';
     }
   });
 });
