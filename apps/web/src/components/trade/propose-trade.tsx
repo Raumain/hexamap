@@ -44,30 +44,35 @@ export function ProposeTrade({ requestedCardId, requestedCardName }: ProposeTrad
 
       {open ? (
         <ProposeTradeDialog
+          open={open}
+          onOpenChange={setOpen}
           requestedCardId={requestedCardId}
           requestedCardName={requestedCardName}
-          onClose={() => setOpen(false)}
-          onProposed={() => {
-            setOpen(false);
-            setNotice(TROC.sent);
-          }}
+          onProposed={() => setNotice(TROC.sent)}
         />
       ) : null}
     </div>
   );
 }
 
-interface ProposeTradeDialogProps {
+export interface ProposeTradeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   requestedCardId: string;
   requestedCardName: string;
-  onClose: () => void;
-  onProposed: () => void;
+  onProposed?: () => void;
 }
 
-function ProposeTradeDialog({
+/**
+ * Le dialogue de proposition, piloté par son porteur : Le Cartel l'ouvre depuis
+ * sa carte, La collection d'un ami l'ouvre depuis la sienne. La carte offerte se
+ * choisit toujours parmi les siennes, libres de toute vente.
+ */
+export function ProposeTradeDialog({
+  open,
+  onOpenChange,
   requestedCardId,
   requestedCardName,
-  onClose,
   onProposed,
 }: ProposeTradeDialogProps) {
   const titleId = useId();
@@ -78,12 +83,19 @@ function ProposeTradeDialog({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open) return;
+    setOfferedCardId('');
+    setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onOpenChange(false);
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [open, onOpenChange]);
 
   const mutation = useMutation({
     mutationFn: proposeTrade,
@@ -92,17 +104,24 @@ function ProposeTradeDialog({
       void queryClient.invalidateQueries({ queryKey: tradeOffersQueryKey('sent') });
       void queryClient.invalidateQueries({ queryKey: tradeOffersQueryKey('received') });
       void queryClient.invalidateQueries({ queryKey: cardDetailQueryKey(requestedCardId) });
-      onProposed();
+      onOpenChange(false);
+      onProposed?.();
     },
     onError: (failure) => setError(tradeErrorMessage(failure)),
   });
+
+  if (!open) return null;
 
   const freeCards = (collection.data?.items ?? []).filter((card) => !card.locked);
 
   return (
     <OverlayPortal>
       <div className="fixed inset-0 z-50" role="presentation">
-        <div className="absolute inset-0 bg-cabinet/80" onClick={onClose} aria-hidden="true" />
+        <div
+          className="absolute inset-0 bg-cabinet/80"
+          onClick={() => onOpenChange(false)}
+          aria-hidden="true"
+        />
         <div
           role="dialog"
           aria-modal="true"
@@ -113,7 +132,11 @@ function ProposeTradeDialog({
             <h2 id={titleId} className="font-display text-xl text-vellum">
               {TROC.dialogTitle}
             </h2>
-            <button type="button" onClick={onClose} className={outlineButtonClass}>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className={outlineButtonClass}
+            >
               {TROC.close}
             </button>
           </div>

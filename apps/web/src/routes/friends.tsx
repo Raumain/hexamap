@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
+import { FriendTradePanel } from '../components/trade/friend-trade-panel';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { FRIENDS } from '../content/friends';
 import {
@@ -263,6 +264,10 @@ function FriendsBody() {
         >
           {friends.map((entry) => (
             <EntryRow key={entry.id} entry={entry}>
+              <FriendTradePanel
+                friendId={entry.player.id}
+                pseudo={entry.player.pseudo ?? FRIENDS.unknownPseudo}
+              />
               <button
                 type="button"
                 disabled={busy}

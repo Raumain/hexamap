@@ -19,6 +19,16 @@ export const TROC = {
   noFreeCard:
     'Aucune carte libre à proposer : une carte en vente ou déjà engagée dans un troc ne peut pas l’être.',
   sent: 'Proposition envoyée. La réponse arrivera au Guichet.',
+  friend: {
+    open: 'Proposer un troc',
+    pickTitle: (pseudo: string) => `Cartes de ${pseudo}`,
+    pickHint: (pseudo: string) => `Choisissez une carte de ${pseudo} à demander.`,
+    pickLabel: (nom: string) => `Demander « ${nom} »`,
+    empty: 'Cet ami n’a aucune carte libre à échanger pour le moment.',
+    loading: 'Chargement de sa collection…',
+    retry: 'Réessayer',
+    limit: 'Les cinquante plus hautes cartes libres sont proposées.',
+  },
   sectionTitle: 'Le Troc',
   sectionBody:
     'Les échanges en cours : ce qu’on vous propose, et ce que vous avez proposé. Une offre dure sept jours.',

@@ -65,6 +65,27 @@ export async function proposeTrade(input: { offeredCardId: string; requestedCard
   throwTradeError(data);
 }
 
+export const friendTradeCardsQueryKey = (friendId: string) =>
+  ['trades', 'friends', friendId, 'cards'] as const;
+
+export async function fetchFriendTradeCards(friendId: string) {
+  const { data, error } = await api.api.v1.trades.friends({ friendId }).cards.get();
+  if (error) throwTradeError(error);
+  if (data && typeof data === 'object' && 'cards' in data) return data.cards;
+  throwTradeError(data);
+}
+
+export type FriendTradeCards = NonNullable<Awaited<ReturnType<typeof fetchFriendTradeCards>>>;
+
+export function friendTradeCardsQueryOptions(friendId: string) {
+  return queryOptions({
+    queryKey: friendTradeCardsQueryKey(friendId),
+    queryFn: () => fetchFriendTradeCards(friendId),
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
 export async function acceptTrade(offerId: string) {
   const { data, error } = await api.api.v1.trades({ id: offerId }).accept.post();
   if (error) throwTradeError(error);
@@ -111,6 +132,12 @@ export function tradeErrorMessage(error: unknown): string {
         return 'Cette offre ne vous est pas adressée.';
       case 'NOT_TRADE_PROPOSER':
         return 'Seul l’auteur de l’offre peut l’annuler.';
+      case 'FRIEND_REQUIRED':
+        return 'Seule une amitié acceptée ouvre la collection d’un autre joueur.';
+      case 'FRIEND_SELF':
+        return 'Votre propre collection se lit au Cadastre.';
+      case 'USER_NOT_FOUND':
+        return 'Ce joueur est introuvable.';
       default:
         break;
     }

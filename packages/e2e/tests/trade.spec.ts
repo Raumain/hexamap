@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type BrowserContext, expect, type Page, test } from '@playwright/test';
 import { ensureTradeCards } from '../fixtures/trade-fixture';
-import { E2E_PASSWORD } from './fixtures/auth';
+import { E2E_PASSWORD, readAccountFixture } from './fixtures/auth';
 
 const COLLECTION_TABLE = 'Liste des cartes de votre collection';
 const REGISTRATION_TIMEOUT = 30_000;
@@ -55,9 +55,10 @@ async function cardIds(page: Page): Promise<string[]> {
  *
  * Le banc réserve ses comptes aux fixtures de La Planche et de la Vitrine : le
  * troc consomme des cartes, donc ce cas inscrit son propre receveur et sème ses
- * deux cartes (`trade-fixture`). La proposition passe par l'API — la carte
- * d'autrui n'est pas exposée avant l'offre, le navigateur ne peut pas la
- * découvrir — et l'acceptation se fait dans Le Guichet, comme un joueur.
+ * deux cartes (`trade-fixture`). La proposition passe par le produit : les deux
+ * joueurs deviennent amis, le proposant ouvre la collection troquable de l'autre
+ * depuis `/friends` et choisit sa carte là, comme un joueur. L'acceptation se
+ * fait ensuite dans Le Guichet.
  */
 test.describe('Le Troc', () => {
   test('une proposition s’accepte et les deux cartes changent de main', async ({
@@ -68,6 +69,7 @@ test.describe('Le Troc', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const origin = new URL(page.url()).origin;
     const proposerId = await sessionUserId(page.context());
+    const account = readAccountFixture();
 
     const prefix = `troc-${randomUUID().slice(0, 8)}`;
     const player: FreshPlayer = { pseudo: prefix, email: `${prefix}@hexamap.test` };
@@ -89,13 +91,50 @@ test.describe('Le Troc', () => {
       const { proposerCardId, receiverCardId } = await ensureTradeCards(proposerId, receiverId);
       expect(await cardIds(page)).toContain(proposerCardId);
 
-      const proposal = await page.request.post('/api/v1/trades', {
+      // 1. L'amitié est le seul chemin vers la collection de l'autre : le
+      //    receveur demande, le proposant accepte dans la salle des Amis.
+      const request = await receiverContext.request.post('/api/v1/friends/requests', {
+        data: { pseudo: account.pseudo },
         headers: { origin },
-        data: { offeredCardId: proposerCardId, requestedCardId: receiverCardId },
       });
-      expect(proposal.status()).toBe(201);
-      const created = (await proposal.json()) as { offer: { id: string; status: string } };
-      expect(created.offer.status).toBe('PENDING');
+      expect(request.ok()).toBe(true);
+
+      await page.goto('/friends', { waitUntil: 'domcontentloaded' });
+      const incoming = page.getByRole('listitem').filter({ hasText: player.pseudo });
+      await incoming.getByRole('button', { name: 'Accepter' }).click();
+
+      const friendRow = page
+        .getByRole('listitem')
+        .filter({ hasText: player.pseudo })
+        .filter({ has: page.getByRole('button', { name: 'Proposer un troc' }) });
+      await expect(friendRow).toBeVisible();
+
+      // 2. La proposition se construit depuis la collection troquable de l'ami.
+      await friendRow.getByRole('button', { name: 'Proposer un troc' }).click();
+      const friendCards = page.getByRole('dialog', { name: `Cartes de ${player.pseudo}` });
+      await expect(friendCards).toBeVisible();
+      await friendCards
+        .getByRole('button', { name: 'Demander « Commune E2E MYTHIQUE 1 »' })
+        .click();
+
+      const dialog = page.getByRole('dialog', { name: 'Proposer un troc' });
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByLabel('Carte à offrir')
+        .selectOption({ label: 'Commune — Commune E2E LEGENDAIRE 1' });
+      await dialog.getByRole('button', { name: 'Envoyer la proposition' }).click();
+      await expect(
+        page.getByText('Proposition envoyée. La réponse arrivera au Guichet.'),
+      ).toBeVisible();
+
+      // 3. L'offre est bien en attente et réserve les deux cartes.
+      const sent = await page.request.get('/api/v1/trades?box=sent');
+      expect(sent.ok()).toBe(true);
+      const sentBody = (await sent.json()) as {
+        offers: Array<{ id: string; status: string; requestedCard: { id: string } }>;
+      };
+      const created = sentBody.offers.find((offer) => offer.requestedCard.id === receiverCardId);
+      expect(created?.status).toBe('PENDING');
 
       // La carte demandée devient visible pour la partie adverse d'une offre ouverte.
       const requestedDetail = await page.request.get(`/api/v1/cards/${receiverCardId}`);
@@ -134,6 +173,13 @@ test.describe('Le Troc', () => {
       expect(authorCards).toContain(receiverCardId);
       expect(authorCards).not.toContain(proposerCardId);
     } finally {
+      // Le compte principal est partagé par tout le banc : l'amitié de ce cas
+      // ne doit pas survivre à l'exécution.
+      await page.request
+        .delete(`/api/v1/friends/${await sessionUserId(receiverContext)}`, {
+          headers: { origin },
+        })
+        .catch(() => undefined);
       await receiverContext.close();
     }
   });
