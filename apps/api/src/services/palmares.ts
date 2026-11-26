@@ -1,4 +1,4 @@
-import type { CardCategory } from '@hexamap/db';
+import type { CardCategory, Rarity } from '@hexamap/db';
 import {
   type IsoWeek,
   isoWeekLabel,
@@ -9,12 +9,17 @@ import {
 } from '@hexamap/shared';
 import { db } from '../db';
 import { HttpError } from '../lib/http-error';
-import { cardNomKey, resolveCardNoms } from './draw';
+import { cardNomKey, resolveCardAssets, resolveCardNoms } from './draw';
 
 export interface PalmaresCard {
   cardId: string;
   category: CardCategory;
+  refCode: string;
   nom: string;
+  rarity: Rarity;
+  score: number;
+  blasonUrl: string | null;
+  blasonCredit: string | null;
 }
 
 export interface PalmaresEntry {
@@ -143,11 +148,13 @@ export async function loadPalmares(
       ? []
       : await db
           .selectFrom('user_cards')
-          .select(['id', 'category', 'ref_code'])
+          .select(['id', 'category', 'ref_code', 'rarity', 'score'])
           .where('id', 'in', cardIds)
           .execute();
   const cardsById = new Map(cardRows.map((card) => [card.id, card]));
   const noms = await resolveCardNoms(db, cardRows);
+  // Les blasons de toute la page se résolvent en un appel : jamais une requête par entrée.
+  const assets = await resolveCardAssets(db, cardRows);
 
   const items: PalmaresEntry[] = rows.map((row, index) => {
     const cards: PalmaresCard[] = [];
@@ -156,12 +163,19 @@ export async function loadPalmares(
       if (cardId === null) continue;
       const card = cardsById.get(cardId);
       if (card === undefined) continue;
+      const key = cardNomKey(card.category, card.ref_code);
+      const asset = assets.get(key);
       cards.push({
         cardId: card.id,
         category: card.category,
+        refCode: card.ref_code,
         // Un référentiel incomplet ne rend jamais un libellé vide : le code de
         // référence est laid mais cliquable et identifiable (symptôme de BUG-002).
-        nom: noms.get(cardNomKey(card.category, card.ref_code)) ?? card.ref_code,
+        nom: noms.get(key) ?? card.ref_code,
+        rarity: card.rarity,
+        score: card.score,
+        blasonUrl: asset?.blasonUrl ?? null,
+        blasonCredit: asset?.blasonCredit ?? null,
       });
     }
 

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { outlineButtonClass } from '../components/ui/button-classes';
+import { Card } from '../components/ui/Card';
+import { CardLink, cardLinkLabel } from '../components/ui/card-link';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
 import {
   PALMARES,
@@ -8,8 +10,12 @@ import {
   palmaresPoints,
   palmaresWeekLabel,
 } from '../content/palmares';
-import { CATEGORY_LABELS } from '../content/tickets';
-import { type PalmaresEntry, palmaresErrorMessage, palmaresQueryOptions } from '../lib/palmares';
+import {
+  type PalmaresCard,
+  type PalmaresEntry,
+  palmaresErrorMessage,
+  palmaresQueryOptions,
+} from '../lib/palmares';
 import { useSessionState } from '../lib/session';
 
 const dayFormatter = new Intl.DateTimeFormat('fr-FR', {
@@ -20,9 +26,6 @@ const dayFormatter = new Intl.DateTimeFormat('fr-FR', {
 
 const playerNameClass =
   'inline-flex min-h-11 items-center font-display text-lg text-brass transition-colors duration-150 hover:text-brass-pale';
-
-const cardLabelClass =
-  'inline-flex min-h-11 items-center gap-2 font-mono text-[11px] text-vellum/70 transition-colors duration-150 hover:text-brass';
 
 export const Route = createFileRoute('/palmares')({
   component: PalmaresPage,
@@ -154,40 +157,56 @@ function PalmaresRow({ entry }: { entry: PalmaresEntry }) {
         </p>
       </div>
 
-      <div className="mt-3 border-t border-veil-strong/50 pt-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/55">
-          {PALMARES.cardsLabel}
-        </p>
-        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-          {entry.cards.map((card) => (
-            <li key={card.cardId}>
-              {entry.yours ? (
-                // Le Cartel est la salle du propriétaire : `/cards/:id` répond CARD_NOT_VISIBLE
-                // sur la carte d'un autre joueur, donc seules nos cartes sont liées.
-                <Link
-                  to="/card/$cardId"
-                  params={{ cardId: card.cardId }}
-                  className={cardLabelClass}
-                >
-                  <span className="uppercase tracking-[0.12em] text-vellum/50">
-                    {CATEGORY_LABELS[card.category]}
-                  </span>
-                  <span className="truncate">{card.nom}</span>
-                </Link>
-              ) : (
-                <span className={cardLabelClass}>
-                  <span className="uppercase tracking-[0.12em] text-vellum/50">
-                    {CATEGORY_LABELS[card.category]}
-                  </span>
-                  <span className="truncate">{card.nom}</span>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {entry.cards.length > 0 ? (
+        <div className="mt-3 border-t border-veil-strong/50 pt-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/55">
+            {PALMARES.cardsLabel}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {entry.cards.map((card) => (
+              <PalmaresPlate key={card.cardId} card={card} linked={entry.yours} />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </li>
   );
+}
+
+/** La largeur des planches du Cadastre, appliquée des deux côtés du lien. */
+const PLATE_WIDTH = 'w-[120px] shrink-0 md:w-[140px]';
+
+/**
+ * La même planche que dans Le Cadastre : `variant="compact"`, 120 px sur mobile
+ * et 140 px à partir de `md`, donc **avec son texte** — sous 110 px de large la
+ * planche masque son nom et son score (`.plate-optional`, `styles.css`).
+ */
+function PalmaresPlate({ card, linked }: { card: PalmaresCard; linked: boolean }) {
+  const plate = (
+    <Card
+      type={card.category}
+      rarity={card.rarity}
+      name={card.nom}
+      score={card.score}
+      refCode={card.refCode}
+      blasonUrl={card.blasonUrl}
+      blasonCredit={card.blasonCredit}
+      variant="compact"
+      className={PLATE_WIDTH}
+    />
+  );
+
+  // Le Cartel est la salle du propriétaire : `/cards/:id` répond CARD_NOT_VISIBLE
+  // sur la carte d'un autre joueur, donc seules nos cartes sont liées.
+  if (linked) {
+    return (
+      <CardLink cardId={card.cardId} label={cardLinkLabel(card.nom)} className={PLATE_WIDTH}>
+        {plate}
+      </CardLink>
+    );
+  }
+
+  return <div className={PLATE_WIDTH}>{plate}</div>;
 }
 
 function entryDateLabel(value: string): string {

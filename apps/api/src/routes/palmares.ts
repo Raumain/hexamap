@@ -18,8 +18,26 @@ const categorySchema = t.Union([
   t.Literal('RUE'),
 ]);
 
+const raritySchema = t.Union([
+  t.Literal('COMMUNE'),
+  t.Literal('INHABITUELLE'),
+  t.Literal('RARE'),
+  t.Literal('EPIQUE'),
+  t.Literal('LEGENDAIRE'),
+  t.Literal('MYTHIQUE'),
+]);
+
 const palmaresCardSchema = t.Object(
-  { cardId: t.String(), category: categorySchema, nom: t.String() },
+  {
+    cardId: t.String(),
+    category: categorySchema,
+    refCode: t.String(),
+    nom: t.String(),
+    rarity: raritySchema,
+    score: t.Integer(),
+    blasonUrl: t.Union([t.String(), t.Null()]),
+    blasonCredit: t.Union([t.String(), t.Null()]),
+  },
   { additionalProperties: false },
 );
 

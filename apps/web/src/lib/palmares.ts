@@ -1,4 +1,4 @@
-import type { Category } from '@hexamap/shared';
+import type { Category, Rarity } from '@hexamap/shared';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from './api';
 import { isApiErrorValue } from './tickets';
@@ -37,7 +37,12 @@ function throwPalmaresError(value: unknown): never {
 export interface PalmaresCard {
   cardId: string;
   category: Category;
+  refCode: string;
   nom: string;
+  rarity: Rarity;
+  score: number;
+  blasonUrl: string | null;
+  blasonCredit: string | null;
 }
 
 /**
