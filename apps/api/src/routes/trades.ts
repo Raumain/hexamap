@@ -8,6 +8,7 @@ import {
   cancelTrade,
   declineTrade,
   expireOffersForUser,
+  loadFriendTradeCards,
   loadOffers,
   proposeTrade,
   type TradeBox,
@@ -110,6 +111,37 @@ export const tradeRoutes = new Elysia({ name: 'routes.trades', prefix: '/trades'
       response: {
         200: t.Object({ offers: t.Array(tradeOfferSchema) }, { additionalProperties: false }),
         401: errorSchema,
+      },
+    },
+  )
+  .get(
+    '/friends/:friendId/cards',
+    async ({ user, params, set }) => {
+      if (!user) {
+        set.status = 401;
+        return unauthorized;
+      }
+
+      try {
+        const cards = await loadFriendTradeCards(db, user.id, params.friendId);
+        return { cards };
+      } catch (error) {
+        if (error instanceof HttpError) {
+          set.status = error.status;
+          return { code: error.code, message: error.message };
+        }
+        throw error;
+      }
+    },
+    {
+      // `"user".id` est un `text` Better Auth, jamais un uuid : aucune `format` ici.
+      params: t.Object({ friendId: t.String({ minLength: 1 }) }),
+      response: {
+        200: t.Object({ cards: t.Array(tradeCardSchema) }, { additionalProperties: false }),
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
       },
     },
   )
