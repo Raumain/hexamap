@@ -41,7 +41,7 @@ export const ACCOUNT_ROOM = {
   },
   password: {
     title: 'Mot de passe',
-    description: 'Le mot de passe actuel est exigé : c’est lui qui protège vos cartes et vos écus.',
+    description: '',
     currentLabel: 'Mot de passe actuel',
     newLabel: 'Nouveau mot de passe',
     confirmLabel: 'Confirmation du nouveau mot de passe',

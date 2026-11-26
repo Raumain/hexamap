@@ -45,8 +45,6 @@ export const RARETE = {
   },
   formulas: {
     heading: 'Les deux formules',
-    intro:
-      'Le score d’une carte est calculé par le serveur au moment où elle est découverte. Il n’est jamais recalculé par le navigateur.',
     communeLabel: 'Score d’une commune',
     communeFormula: '100 × log₁₀(max(P, 10))²',
     communeNote: 'P est la population, avec un plancher à 10 habitants.',

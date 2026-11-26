@@ -170,7 +170,6 @@ function RaretePage() {
 
         <article className={CARD}>
           <h2 className={HEADING}>{RARETE.formulas.heading}</h2>
-          <p className="mt-2 text-[13px] leading-relaxed text-vellum/70">{RARETE.formulas.intro}</p>
           <dl className="mt-3 flex flex-col gap-3">
             <div>
               <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-vellum/50">
