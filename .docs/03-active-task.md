@@ -125,6 +125,62 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 # Journal
 
+### 2026-11-26 — Le Palmarès montre les planches de ses tableaux (hotfix sur `main`)
+
+La salle listait les quatre lieux d'un tableau classé en texte (« Région — Île-de-France »…),
+seule information qu'un contrat ne rendant que `{ cardId, category, nom }` permettait d'écrire.
+Elle rend désormais les **cartes elles-mêmes**, comme Le Cadastre et La Planche.
+
+`GET /api/v1/palmares` enrichit chaque carte de `refCode`, `rarity`, `score`, `blasonUrl` et
+`blasonCredit` : `user_cards` est lu avec `rarity` et `score`, et `resolveCardAssets` complète
+les blasons **en un appel pour toute la page**. Noms et blasons restent deux lectures agrégées,
+jamais une requête par entrée. Aucune migration, aucune formule : le score d'une carte est
+celui de `user_cards`, le score du tableau reste `tableaux.score` figé, et le rang reste
+l'unique `ORDER BY` serveur.
+
+À l'écran, `PalmaresPlate` rend **la même planche que Le Cadastre** : `variant="compact"`,
+`w-[120px]` sur mobile et `md:w-[140px]`, la largeur exacte de `routes/collection.tsx`. Les planches
+ne sont donc pas `decorative` — elles portent leur en-tête, leur nom, leur score et leur sceau,
+parce que 120 px passent le seuil de 110 px sous lequel `.plate-optional` masque le texte
+(`styles.css`). Quatre planches ne tiennent pas sur une ligne de téléphone : elles s'enroulent
+deux par deux (`flex flex-wrap gap-3`), et chaque ligne de classement garde sa hauteur de son
+contenu. **La règle de visibilité ne bouge pas** : `/cards/:id` répond `CARD_NOT_VISIBLE` sur la
+carte d'un tiers, donc seules nos cartes sont liées (`CardLink`), celles d'un autre joueur sont
+rendues nues, sans lien. La liste imbriquée de cartes (`<ul><li>`) disparaît : un rang = un `<li>`
+de l'`<ol>`, comme avant.
+
+**Mesuré dans Docker.** `ci:check` vert aux cinq étapes (lint, typecheck, base de test,
+**595 spécifications**, mesure de charge p95 21 ms) ; banc E2E complet : **133 cas verts**, plus
+`seo.spec.ts` — « deux salles publiques portent des titres différents » — **instable une fois**
+(repassé au retry, puis vert isolément : aucune métadonnée de salle n'a été touchée par ce
+changement). Deux captures (1280 px et 390 px) montrent les planches à 140 px et 120 px, sans
+débordement horizontal, sans ligne qui déborde de sa boîte et sans planche qui sort de sa ligne
+(`scrollHeight` et `getBoundingClientRect` mesurés). Aucune spec, aucun cas E2E n'a été modifié :
+le type local de `palmares.spec.ts` ne décrit que les trois champs d'origine et l'E2E ne lit
+jamais le contenu des planches, donc l'enrichissement de `cards[]` ne cassait aucune assertion
+gelée.
+
+**Données de démonstration.** `scripts/palmares-demo.ts` (nouveau, dev uniquement, aucune
+migration) pose quatre joueurs jetables (`demo-palmares-*@hexamap.local`, tableaux préfixés
+`Démo — `) et, sur demande, un tableau composé des cartes d'un compte réel :
+
+```sh
+docker compose --profile tools run --rm dev bun run scripts/palmares-demo.ts --attach <courriel-ou-pseudo>
+docker compose --profile tools run --rm dev bun run scripts/palmares-demo.ts --clear
+```
+
+Le script part des communes réelles les plus peuplées qui portent un blason, **lit** la rareté et
+le score de la commune et de la rue dans le référentiel, prend le score du tableau dans
+`evaluateTableau`, et ne supprime jamais que les lignes qu'il a signées (`--clear` ramène la base
+de dev de 8 à 3 tableaux, vérifié). Deux constats de la base de développement, consignés : les
+fixtures E2E y ont fuité (BUG-001) et écrasaient le classement par leurs 900 000 hab. — le script
+les exclut ; et `commune_odonymes` n'y contient que leurs 60 liens, donc le lien rue ↔ commune est
+lu et vaut `false` pour une ville réelle — multiplicateur honnête (×2,5) plutôt qu'un ×5 de
+complaisance. Les blasons ne s'affichent pas en dev : le volume `blasons` n'est pas rempli par un
+import `--lite`, et `CardBlason` retombe silencieusement sur la vignette de village.
+
+Hotfix laissé sur `main`, **non commité** sur demande explicite du titulaire.
+
 ### 2026-11-26 — Le troc devient proposable depuis les amis
 
 Branche `feat/v2-troc-depuis-amis`. Le diagnostic d'abord : `POST /api/v1/trades`
