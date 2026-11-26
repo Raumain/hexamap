@@ -125,6 +125,37 @@ Aucun ne vivait dans le code du jeu ; tous venaient de l'outillage qui enchaîne
 
 # Journal
 
+### 2026-11-26 — Pages légales sans vente, suppression de compte ouverte
+
+Branche `feat/v2-legal-sans-vente`, partie de `v2` (`59e7dce`). Deux demandes du titulaire, une
+dans chaque sens : retirer du droit la boutique qui n'existe plus, et rendre effective la
+suppression de compte que le droit décrivait déjà.
+
+**Les pages légales ne vendent plus rien.** La boutique est éteinte (`SHOP_ENABLED = false`), la
+CGV retirée, l'éditeur non professionnel ; `apps/web/src/content/legal.ts` décrivait pourtant
+encore Stripe, des packs d'écus, des factures, un médiateur de la consommation et un achat réservé
+aux majeurs. Disparaissent : la clause Stripe du stockage, le bloc « Le paiement », le bloc
+« Médiation de la consommation » et sa constante, la conservation décennale des factures
+(`L. 123-22`), l'achat de packs dans « Mineurs », la mention de carte bancaire, la conversion des
+écus en euros et les pièces comptables. Restent les seules phrases vraies : hébergement OVHcloud,
+jeu de divertissement sans gain en argent réel, grand-livre supprimé avec le compte. `LAST_UPDATED`
+passe au 26 novembre 2026.
+
+**La suppression de compte n'attend plus un interrupteur.** Le mécanisme existait de bout en bout
+(`DELETE /api/v1/account`, `DangerSection`, `capabilities.deletion`) mais restait invisible :
+`ACCOUNT_DELETION_ENABLED` valait `false` par défaut, et `.env` ne le posait pas. La condition
+documentée — les pages légales publiées — est remplie (`LEGAL_PAGES_ENABLED = true`) : le défaut
+passe à `true`, la variable devenant l'échappatoire (`false` referme, `503
+ACCOUNT_DELETION_DISABLED`). `packages/spec/src/account.spec.ts` exerce désormais les deux états
+**explicitement** (`'false'` au lieu d'une variable absente) et gagne un cas qui verrouille le
+défaut ouvert ; aucun cas gelé n'est supprimé. `.docs/05-deploiement.md` §7 suit.
+
+**Mesuré, dans Docker.** `ci:check` vert : **592 spécifications**, 0 échec, mesure de charge
+p95 31,7 ms pour un seuil de 200 ms. Banc E2E complet vert : **134 cas**. La revue a corrigé deux
+choses que le premier jet laissait : un commentaire qui annonçait `403` là où la route répond
+`503`, et deux formulations encore financières (« coordonnée de carte de crédit », « pièces
+comptables ») que le grep de la phase n'attrapait pas.
+
 ### 2026-11-25 — Le Cadastre s'épure, L'Atelier repart en v3
 
 Branche `feat/v2-cadastre-epure`, partie de `v2` (`f747d98`). Quatre demandes du titulaire,
