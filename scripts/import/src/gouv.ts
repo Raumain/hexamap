@@ -1,7 +1,7 @@
-import { communeRarity, communeScore, type Rarity } from '@hexamap/shared';
+import { communeRarity, communeScore, principalPostalCode, type Rarity } from '@hexamap/shared';
 
 const GEO_API_BASE = 'https://geo.api.gouv.fr';
-const COMMUNE_FIELDS = 'nom,code,codeDepartement,codeRegion,population,centre';
+const COMMUNE_FIELDS = 'nom,code,codeDepartement,codeRegion,population,centre,codesPostaux';
 const DEPARTEMENT_FIELDS = 'nom,code,codeRegion,population';
 
 export interface RefRegionRow {
@@ -32,6 +32,7 @@ export interface RefCommuneRow {
   score_base: number;
   draw_bucket: number;
   geom: unknown | null;
+  code_postal: string | null;
 }
 
 type RawRecord = Record<string, unknown>;
@@ -199,6 +200,7 @@ export async function fetchCommunes(options: FetchCommunesOptions): Promise<{
       score_base: communeScore(population),
       draw_bucket: randomDrawBucket(),
       geom: null,
+      code_postal: principalPostalCode(entry.codesPostaux),
     });
   }
 

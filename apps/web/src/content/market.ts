@@ -54,17 +54,28 @@ export const MARKET_MINE = {
   emptyDescription: 'Mettez une carte en vente pour la retrouver ici.',
   sellTitle: 'Mettre une carte en vente',
   sellSubmit: 'Mettre en vente',
-  cardLabel: 'Carte',
+  pickerSearchLabel: 'Rechercher une carte',
+  pickerSearchPlaceholder: 'Nom ou code…',
+  pickerCategoryLabel: 'Catégorie',
+  pickerRarityLabel: 'Rareté',
+  pickerAllValues: 'Toutes',
+  pickerListLabel: 'Cartes disponibles à la vente',
+  pickerSelectionNone: 'Aucune carte choisie pour la vente.',
+  pickerSelectionChosen: 'Carte choisie',
+  pickerEmpty: 'Aucune carte ne correspond à ces filtres.',
   priceLabel: 'Prix',
   pricePlaceholder: 'Prix en crédits…',
   cancel: 'Annuler la vente',
   noUnlockedCards: "Vous n'avez aucune carte disponible à la vente.",
-  selectCard: 'Choisir une carte…',
   seeCollection: 'Voir ma collection',
   listingsTitle: 'Mes annonces',
   scoreLabel: 'Score',
   priceInvalid: 'Entrez un prix entier entre 1 et 1 000 000.',
 } as const;
+
+export function cardsCountLabel(count: number): string {
+  return count === 1 ? '1 carte' : `${count} cartes`;
+}
 
 export const LISTING_STATUS_LABELS: Record<'OPEN' | 'SOLD' | 'CANCELLED', string> = {
   OPEN: 'En vente',

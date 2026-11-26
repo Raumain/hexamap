@@ -21,6 +21,8 @@ export const COLLECTION = {
     category: 'Catégorie',
     rarity: 'Rareté',
     score: 'Score',
+    codePostal: 'Code postal',
+    exemplaires: 'Exemplaires',
     acquiredAt: 'Acquise le',
     state: 'État',
   },
@@ -34,4 +36,45 @@ export function cardsShownLabel(shown: number, total: number): string {
 
 export function collectionTotalLabel(total: number): string {
   return total === 1 ? '1 carte au total' : `${total} cartes au total`;
+}
+
+export const COLLECTION_FILTERS = {
+  summary: 'Filtres',
+  categorie: 'Catégorie',
+  rarete: 'Rareté',
+  recherche: 'Recherche',
+  recherchePlaceholder: 'Nom ou code de carte',
+  reset: 'Réinitialiser les filtres',
+} as const;
+
+export const COLLECTION_FILTERED_EMPTY = {
+  title: 'Aucune carte ne correspond à ces filtres',
+  description: 'Modifiez ou réinitialisez les filtres pour retrouver votre collection.',
+} as const;
+
+/** Marque d'un groupe d'exemplaires : jamais affichée pour un groupe d'un seul. */
+export function exemplairesMark(count: number): string {
+  return `×${count}`;
+}
+
+/**
+ * Code postal d'une carte : jamais une case vide. Une commune sans code postal,
+ * comme une région, un département ou une rue, affiche un tiret cadratin.
+ */
+export function codePostalLabel(value: string | null): string {
+  return value ?? '—';
+}
+
+export function exemplairesCountLabel(count: number): string {
+  if (count === 0) return 'Aucun exemplaire';
+  return count === 1 ? '1 exemplaire' : `${count} exemplaires`;
+}
+
+export function collectionGroupsLabel(
+  shownCards: number,
+  groups: number,
+  totalCards: number,
+): string {
+  const groupsText = groups === 1 ? '1 groupe' : `${groups} groupes`;
+  return `${cardsShownLabel(shownCards, totalCards)} · ${groupsText}`;
 }

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Navigate } from '@tanstack/react-router';
+import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { FormError } from '../components/form-error';
+import { FriendTradePanel } from '../components/trade/friend-trade-panel';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
 import { FRIENDS } from '../content/friends';
 import {
@@ -263,6 +264,10 @@ function FriendsBody() {
         >
           {friends.map((entry) => (
             <EntryRow key={entry.id} entry={entry}>
+              <FriendTradePanel
+                friendId={entry.player.id}
+                pseudo={entry.player.pseudo ?? FRIENDS.unknownPseudo}
+              />
               <button
                 type="button"
                 disabled={busy}
@@ -339,11 +344,24 @@ function Panel({ title, count, empty, children }: PanelProps) {
 }
 
 function EntryRow({ entry, children }: { entry: FriendEntry; children: ReactNode }) {
+  const pseudo = entry.player.pseudo ?? FRIENDS.unknownPseudo;
+
+  // R-003 : le libellé du lien est le pseudo, jamais « voir la vitrine », et il
+  // n'existe que si la vitrine est publique — une vitrine privée répond `404` par
+  // dessein (architecture §2.9), donc un lien serait un lien mort.
   return (
     <li className="flex flex-col gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <span className="min-w-0 truncate font-display text-[15px] text-vellum">
-        {entry.player.pseudo ?? FRIENDS.unknownPseudo}
-      </span>
+      {entry.player.profile_public ? (
+        <Link
+          to="/players/$playerId"
+          params={{ playerId: entry.player.id }}
+          className="min-w-0 truncate font-display text-[15px] text-vellum underline-offset-4 hover:underline focus-visible:underline"
+        >
+          {pseudo}
+        </Link>
+      ) : (
+        <span className="min-w-0 truncate font-display text-[15px] text-vellum">{pseudo}</span>
+      )}
       <div className="flex flex-wrap gap-2">{children}</div>
     </li>
   );

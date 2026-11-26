@@ -4,6 +4,7 @@ import { signOut } from '../../lib/auth';
 import { useInvalidateSession, useSessionState } from '../../lib/session';
 import { HexSeal } from './hex-seal';
 import { isNavItemActive, PRIMARY_NAV, SECONDARY_NAV } from './nav-items';
+import { NotificationBell } from './notification-bell';
 
 function NavGlyph({ path }: { path: string }) {
   return (
@@ -36,8 +37,8 @@ export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-veil bg-cabinet-raised pl-[env(safe-area-inset-left)] md:flex">
       <div className="pt-[env(safe-area-inset-top)]">
-        <div className="px-5 pb-5 pt-6">
-          <Link to="/" className="flex items-center gap-3 text-brass">
+        <div className="flex items-start justify-between gap-2 px-5 pb-5 pt-6">
+          <Link to="/" className="flex min-w-0 items-center gap-3 text-brass">
             <HexSeal size={30} />
             <span className="flex flex-col">
               <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-vellum">
@@ -48,6 +49,7 @@ export function Sidebar() {
               </span>
             </span>
           </Link>
+          <NotificationBell className="-mr-1.5" />
         </div>
       </div>
 
@@ -142,6 +144,15 @@ export function Sidebar() {
                 Sortir
               </button>
             </div>
+            <Link
+              to="/compte"
+              aria-current={pathname === '/compte' ? 'page' : undefined}
+              className={`mt-2 inline-flex font-mono text-[9px] uppercase tracking-[0.14em] transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:outline-none ${
+                pathname === '/compte' ? 'text-brass' : 'text-vellum/55 hover:text-brass'
+              }`}
+            >
+              Mon compte
+            </Link>
           </>
         ) : (
           <Link

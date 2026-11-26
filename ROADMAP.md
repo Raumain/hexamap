@@ -1,5 +1,9 @@
 # Hexamap — Live roadmap (what is actually left)
 
+> **v2** — la feuille de route de la v2 vit dans `.docs/07-roadmap-v2.md`. Ce fichier ne suit plus
+> que les restes de la v1 (tracks A, B, C) ; le track C (L'Assemblage) y est absorbé par les
+> phases 33 à 35.
+
 **Updated:** 2026-11-20.
 **Baseline:** `main` after PR #34 (pre-deploy hardening), #36 → #42 (phase 30, economy →
 boutique front), #44 (wave 3), #45 (Stripe webhook + 5 s redirect) and #46 (wave 2).
@@ -69,7 +73,7 @@ private showcase, the 6 000-écu catalogue — lives in `.docs/03-active-task.md
 
 | Track | Done | To do | Start a fresh session at |
 | :--- | :--- | :--- | :--- |
-| **A. Pre-deploy** | The production image was built and run against a **virgin PostgreSQL 16**: migrations, signup, charges 6/6, CORS, compression, cache, SPA, JSON 404 — all observed (§A). **A1, A3, A5, A6 and A7 are code-closed** | A2, A4, A8, A9; A3/A5 host steps; the host checklist; one real loop on the host | **A2** — import the reference data, then the `.docs/05-deploiement.md` runbook |
+| **A. Pre-deploy** | The production image was built and run against a **virgin PostgreSQL 16**: migrations, signup, charges 6/6, CORS, compression, cache, SPA, JSON 404 — all observed (§A). **A1, A3, A5, A6 and A7 are code-closed** | A4, A8, A9; A3/A5 host steps; the host checklist; one real loop on the host | **A4** — a real secret with entropy |
 | **B. La Boutique** | **30.1 → 30.8 implemented**, front `/boutique` merged (#42); the real webhook is fixed by #45 (`constructEventAsync`, raw body, success URL, 5 s redirect) | phase 305 QA/e2e; the legal gate | **305** — run the Playwright bench, then the legal checklist |
 | **C. L'Assemblage** | The **teaser is shipped**: `/assemblage`, nav entry, content, pure outline module, e2e case | 31.1 → 31.5 — the whole map | **31.1** — precomputed paths in `scripts/import` |
 
@@ -132,13 +136,13 @@ not against the development database.
 | CORS | allowed origin echoed; `https://evil.example` receives **no** `Access-Control-Allow-Origin` |
 | Better Auth mounted handlers | `/api/auth/get-session` `200`, delegation intact |
 
-**Findings to close before the first player.** A1 is closed; A2 → A9 are operator
+**Findings to close before the first player.** A1 and A2 are closed; A3 → A9 are operator
 decisions, except A3 and A6 which touch code/config.
 
 | # | Finding | Consequence | Fix |
 | :--- | :--- | :--- | :--- |
 | A1 | **Closed** — a missing hashed asset used to answer **`200 text/html`**: `GET /assets/nope.js` fell into the SPA fallback | `import()` and `<script>` send `Accept: */*`, so a stale or missing chunk yielded `Unexpected token '<'` behind a `200` — undiagnosable | `static.ts`: an allow-listed extension with no file on disk answers `404 ROUTE_NOT_FOUND` before the fallback. One red case in `static.spec.ts` first, 14 cases green |
-| A2 | Reference data is not shipped in the image — a fresh volume has none | The game cannot draw a single card (`503`), and no blason loads | Run `scripts/import` once on the host (or seed the two read-only volumes) **before** opening |
+| A2 | **Closed 2026-11-22** — Reference data is not shipped in the image — a fresh volume has none. Imported manually in production (owner's declaration); the image still ships without data, so a fresh volume needs a re-import | The game cannot draw a single card (`503`), and no blason loads | Run `scripts/import` once on the host (or seed the two read-only volumes) **before** opening |
 | A3 | **Configuration ready, host verification pending** — Better Auth could not resolve the client IP: `session.ipAddress` was `""` and it logged a shared-bucket warning | Every player shares one rate-limit bucket behind a proxy | `advanced.ipAddress` now carries `ipAddressHeaders: ['x-forwarded-for']` and `trustedProxies` fed by `TRUSTED_PROXIES` (empty by default: no header is trusted until the border is known). Still to do on the host: forward `X-Forwarded-For`, set `TRUSTED_PROXIES`, and confirm `session.ipAddress` is not `""` — `.docs/05-deploiement.md` §5 |
 | A4 | `BETTER_AUTH_SECRET` was low-entropy; Better Auth warned at boot | Session forgery if leaked | 32+ random bytes per environment, injected by the platform, rotated once |
 | A5 | **Script delivered, schedule and drill pending** — no backup existed | One `down -v` loses the whole game | `scripts/backup.sh` dumps the database **and** tars the `blasons` / `importstatus` volumes, with retention. Still host-side: schedule it and run one restore drill — `.docs/05-deploiement.md` §3 |
@@ -200,8 +204,8 @@ Provider-agnostic on purpose: these are the properties the app needs, not a vend
 
 **Product and legal**
 
-- [ ] Reference data imported (A2): `ref_regions`, `ref_departements`, `ref_communes`,
-      `ref_odonymes`, `commune_odonymes`.
+- [x] Reference data imported (A2) — *fait le 2026-11-22, déclaration du titulaire*: `ref_regions`,
+      `ref_departements`, `ref_communes`, `ref_odonymes`, `commune_odonymes`.
 - [ ] Blasons imported and attributed (`blason_credit` is served with every card).
 - [ ] Mentions légales, CGV, politique de confidentialité, cookie disclosure (a session cookie is
       still a cookie).
@@ -209,7 +213,7 @@ Provider-agnostic on purpose: these are the properties the app needs, not a vend
 - [ ] Rate limiting at the edge in front of `/api/auth/*`, in addition to Better Auth's.
 - [ ] SMTP if password reset ships (A9).
 
-**Gate.** Launch is green when A2 → A9 are closed (A1 done), the checklist is ticked, `ci:check` is green on
+**Gate.** Launch is green when A4 → A9 are closed (A1 done, A2 closed on 2026-11-22), the checklist is ticked, `ci:check` is green on
 the deployed commit, and one real loop — signup → ticket → scratch → tableau — has been played on
 the host, not on a laptop.
 
@@ -395,7 +399,7 @@ reward and no `game_config` grant — and `ACHIEVEMENT_PAYOUTS_ENABLED` cuts it 
 | A branch executes a later migration before `main` introduces an earlier one | **Covered** | Every `up` is idempotent; `kysely_migration` can be dropped and replayed twice with row counts unchanged. Rule and proof procedure in `.docs/02-database.md` §1 rule 8 / §8 step 8 |
 | The production image does not boot against a clean database | **Disproven** | 2026-11-20: virgin `postgres:16-alpine`, `target: prod`, boot applied 12/12 migrations (13 today, with `0013_shop`), signup `200`, charges seeded 6/6, draw rolled back cleanly on `503` |
 | A missing hashed asset answers `200` + `index.html` | **Hit and fixed** | `static.ts` answers `404 ROUTE_NOT_FOUND` for any allow-listed extension with no file on disk, before the SPA fallback. Locked red-then-green in `static.spec.ts` (14 cases) |
-| A host starts with no reference data | **Open — A2** | Draw returns `503 REFERENCE_DATA_MISSING` until `scripts/import` runs. Operator step, now in the host checklist |
+| A host starts with no reference data | **A2 closed 2026-11-22** | Draw returned `503 REFERENCE_DATA_MISSING` until `scripts/import` ran; the owner declares the import done on 2026-11-22. La donnée n'est pas dans l'image : un volume neuf exige un réimport |
 | Rate limiting sees one bucket for the whole world | **Config ready, host pending — A3** | `advanced.ipAddress` is set from `TRUSTED_PROXIES`, empty by default so no header is trusted. The ingress must forward `X-Forwarded-For` and the host must set the CIDR; `session.ipAddress` is the proof, not the code |
 | A full disk stops the API | **Covered — A6** | `json-file` with `max-size: 10m` / `max-file: 5` on `db` and `api`, so 50 MiB per service at most. Verified by `docker compose -f docker-compose.prod.yml config` |
 | Losing the volume loses the game | **Script covered, drill pending — A5** | `scripts/backup.sh` dumps the database plus both asset volumes with 7-day retention, and fails loudly when prod is down. Scheduling and the one restore drill remain host-side |

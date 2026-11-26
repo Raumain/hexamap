@@ -13,6 +13,16 @@ const envSchema = z
     FRONTEND_URL: z.url().optional(),
     // Origines supplémentaires autorisées (CORS + Better Auth), séparées par des virgules.
     TRUSTED_ORIGINS: z.string().default(''),
+    // Origine publique **canonique** : `robots.txt` et `sitemap.xml` la lisent,
+    // et c'est elle que la bordure HTTP doit servir (les variantes `www` et IP
+    // redirigent vers elle, sinon deux origines se disputent la même page).
+    // Facultative : le défaut est l'origine de la pile de production locale,
+    // `http://localhost:${WEB_HOST_PORT:-8080}`, pour que le développement n'ait
+    // rien à déclarer. Normalisée en origine nue — ni barre finale, ni chemin.
+    PUBLIC_ORIGIN: z
+      .url()
+      .default(`http://localhost:${process.env.WEB_HOST_PORT ?? '8080'}`)
+      .transform((value) => new URL(value).origin),
     // Adresses ou CIDR des mandataires de confiance pour la résolution de l'IP
     // cliente (reverse proxy, ingress). Vide par défaut : tant que la bordure
     // d'hébergement n'est pas connue, aucun en-tête `X-Forwarded-For` n'est cru
@@ -50,6 +60,36 @@ const envSchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
+    // Fermeture de compte : **ouverte par défaut** depuis que les pages légales
+    // sont publiées (`.docs/05-deploiement.md` §7). L'interrupteur demeure une
+    // échappatoire d'exploitation : le poser à `false` referme la suppression
+    // (`capabilities.deletion` vaut `false`, la route répond `503
+    // ACCOUNT_DELETION_DISABLED`), sans migration et sans retirer les pages
+    // légales. La variable est relue à chaque appel, donc rien n'est figé au
+    // démarrage.
+    // Le défaut est posé **avant** la transformation : `.default()` reçoit la
+    // valeur d'entrée (`'true'`), et c'est `.transform()` qui produit le booléen.
+    ACCOUNT_DELETION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    // Transport de courriel : répertoire où les messages de vérification sont
+    // écrits, un fichier JSON par message. Aucun envoi réseau ; sans lui, le
+    // changement d'adresse répond 503.
+    MAIL_OUTBOX_DIR: z.string().optional(),
+    // La Sonnette — notifications poussées du navigateur (`.docs/01-architecture.md`
+    // §4.10). Les deux clés forment une paire VAPID : générée **une fois** par
+    // l'exploitant avec `bun run --cwd apps/api vapid:generate`, puis déposée dans
+    // le magasin de secrets du déploiement. Jamais en base, jamais dans le dépôt.
+    // Paire absente ou incomplète : la sonnette est éteinte proprement (les routes
+    // répondent un code nommé), le démarrage n'échoue pas. La lecture effective se
+    // fait à l'appel, dans `lib/vapid.ts`.
+    VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
+    // Identité de contact VAPID, au format `mailto:` ou URL. Facultative.
+    VAPID_SUBJECT: z.string().optional(),
+    // Période du battement de l'ordonnanceur, en millisecondes. 60 s par contrat.
+    PUSH_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
   })
   .superRefine((value, ctx) => {
     // La valeur d'exemple de `.env.example` ne doit jamais servir de secret :

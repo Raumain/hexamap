@@ -1,5 +1,6 @@
 import type { Database, FriendshipStatus } from '@hexamap/db';
 import { type ExpressionBuilder, type Kysely, sql } from 'kysely';
+import { emitNotification } from './notifications';
 
 export type FriendErrorCode =
   | 'SELF_FRIENDSHIP'
@@ -17,7 +18,13 @@ export interface FriendEntry {
   id: string;
   status: FriendshipStatus;
   createdAt: string;
-  player: { id: string; pseudo: string | null };
+  /**
+   * `profile_public` accompagne le pseudo parce que `/friends` est le seul écran qui
+   * doive décider d'un lien vers la vitrine : une vitrine privée répond `404` par
+   * dessein, et proposer le lien quand même produirait un lien mort
+   * (`.docs/01-architecture.md` §2.9, retour R-003).
+   */
+  player: { id: string; pseudo: string | null; profile_public: boolean };
 }
 
 export interface FriendLists {
@@ -31,6 +38,11 @@ export type FriendResult<T> = { ok: true; value: T } | { ok: false; code: Friend
 export interface PlayerRef {
   id: string;
   pseudo: string | null;
+  /**
+   * `user_profiles.profile_public`, `true` quand aucune ligne de profil n'existe —
+   * exactement le défaut SQL (`.docs/02-database.md` §4.9).
+   */
+  profile_public: boolean;
 }
 
 interface FriendshipRow {
@@ -91,13 +103,16 @@ export async function findPlayerByPseudo(
 ): Promise<PlayerRef | null> {
   const rows = await db
     .selectFrom('user')
-    .select(['id', 'pseudo'])
+    .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+    .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
     .where(sql<boolean>`lower(pseudo) = lower(${pseudo})`)
     .limit(2)
     .execute();
 
-  if (rows.length !== 1) return null;
-  return rows[0] ?? null;
+  const row = rows.length === 1 ? rows[0] : undefined;
+  if (!row) return null;
+
+  return { id: row.id, pseudo: row.pseudo, profile_public: row.profile_public ?? true };
 }
 
 export async function isBlockedBetween(
@@ -120,7 +135,11 @@ function toEntry(row: FriendshipRow, other: PlayerRef): FriendEntry {
     id: other.id,
     status: row.status,
     createdAt: row.created_at.toISOString(),
-    player: { id: other.id, pseudo: other.pseudo },
+    player: {
+      id: other.id,
+      pseudo: other.pseudo,
+      profile_public: other.profile_public,
+    },
   };
 }
 
@@ -140,7 +159,16 @@ async function readPairRow(
 }
 
 async function readPlayer(db: Kysely<Database>, id: string): Promise<PlayerRef | undefined> {
-  return db.selectFrom('user').select(['id', 'pseudo']).where('id', '=', id).executeTakeFirst();
+  const row = await db
+    .selectFrom('user')
+    .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+    .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
+    .where('user.id', '=', id)
+    .executeTakeFirst();
+
+  if (!row) return undefined;
+
+  return { id: row.id, pseudo: row.pseudo, profile_public: row.profile_public ?? true };
 }
 
 async function isOverDailyCap(
@@ -190,9 +218,23 @@ export async function listFriends(db: Kysely<Database>, userId: string): Promise
   ];
   const players =
     otherIds.length > 0
-      ? await db.selectFrom('user').select(['id', 'pseudo']).where('id', 'in', otherIds).execute()
+      ? await db
+          .selectFrom('user')
+          .leftJoin('user_profiles', 'user_profiles.user_id', 'user.id')
+          .select(['user.id', 'user.pseudo', 'user_profiles.profile_public'])
+          .where('user.id', 'in', otherIds)
+          .execute()
       : [];
-  const byId = new Map(players.map((player) => [player.id, player]));
+  const byId = new Map<string, PlayerRef>(
+    players.map((player) => [
+      player.id,
+      {
+        id: player.id,
+        pseudo: player.pseudo,
+        profile_public: player.profile_public ?? true,
+      },
+    ]),
+  );
 
   const lists: FriendLists = { friends: [], incoming: [], outgoing: [] };
   for (const row of rows) {
@@ -231,6 +273,8 @@ export async function sendRequest(
       return { ok: false, code: 'PLAYER_NOT_FOUND' };
     }
 
+    const requester = await readPlayer(trx, userId);
+
     if (await isBlockedBetween(trx, userId, targetId)) {
       return { ok: false, code: 'FRIENDSHIP_BLOCKED' };
     }
@@ -264,6 +308,21 @@ export async function sendRequest(
           }
           return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
         }
+
+        // Deux consentements valent acceptation mutuelle : les deux parties
+        // l'apprennent, dans la transaction qui vient de changer le statut.
+        await emitNotification(trx, {
+          userId,
+          kind: 'FRIEND_ACCEPTED',
+          ref: targetId,
+          payload: { playerId: targetId, pseudo: target.pseudo },
+        });
+        await emitNotification(trx, {
+          userId: targetId,
+          kind: 'FRIEND_ACCEPTED',
+          ref: userId,
+          payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+        });
 
         return { ok: true, value: { request: toEntry(accepted, target), created: false } };
       }
@@ -304,6 +363,16 @@ export async function sendRequest(
         return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
       }
 
+      // La clé d'idempotence étant l'identifiant du demandeur, une réouverture ne
+      // notifie que si la ligne d'origine a été balayée par la rétention ; sinon
+      // `on conflict do nothing` laisse la première notification intacte.
+      await emitNotification(trx, {
+        userId: targetId,
+        kind: 'FRIEND_REQUEST',
+        ref: userId,
+        payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+      });
+
       return { ok: true, value: { request: toEntry(reopened, target), created: false } };
     }
 
@@ -321,6 +390,12 @@ export async function sendRequest(
       .executeTakeFirst();
 
     if (inserted) {
+      await emitNotification(trx, {
+        userId: targetId,
+        kind: 'FRIEND_REQUEST',
+        ref: userId,
+        payload: { playerId: userId, pseudo: requester?.pseudo ?? null },
+      });
       return { ok: true, value: { request: toEntry(inserted, target), created: true } };
     }
 
@@ -341,31 +416,53 @@ export async function sendRequest(
   });
 }
 
+/**
+ * Ouvre sa propre transaction : ne jamais lui passer une `Transaction`, Kysely
+ * en ouvrirait une seconde sur une autre connexion.
+ */
 async function respondTo(
   db: Kysely<Database>,
   userId: string,
   otherId: string,
   status: 'ACCEPTED' | 'DECLINED',
 ): Promise<FriendResult<{ request: FriendEntry }>> {
-  const other = await readPlayer(db, otherId);
-  if (!other) {
-    return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+  if (db.isTransaction) {
+    throw new Error('respondTo ouvre sa propre transaction : il refuse une Transaction.');
   }
 
-  const row = await db
-    .updateTable('friendships')
-    .set({ status, responded_at: new Date() })
-    .where('requester_id', '=', otherId)
-    .where('addressee_id', '=', userId)
-    .where('status', '=', 'PENDING')
-    .returning(['requester_id', 'addressee_id', 'status', 'created_at'])
-    .executeTakeFirst();
+  return db.transaction().execute(async (trx): Promise<FriendResult<{ request: FriendEntry }>> => {
+    const other = await readPlayer(trx, otherId);
+    if (!other) {
+      return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+    }
 
-  if (!row) {
-    return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
-  }
+    const accepter = await readPlayer(trx, userId);
 
-  return { ok: true, value: { request: toEntry(row, other) } };
+    const row = await trx
+      .updateTable('friendships')
+      .set({ status, responded_at: new Date() })
+      .where('requester_id', '=', otherId)
+      .where('addressee_id', '=', userId)
+      .where('status', '=', 'PENDING')
+      .returning(['requester_id', 'addressee_id', 'status', 'created_at'])
+      .executeTakeFirst();
+
+    if (!row) {
+      return { ok: false, code: 'FRIENDSHIP_NOT_FOUND' };
+    }
+
+    // Un refus reste muet (Archi §2.9) : seul le consentement prévient le demandeur.
+    if (status === 'ACCEPTED') {
+      await emitNotification(trx, {
+        userId: otherId,
+        kind: 'FRIEND_ACCEPTED',
+        ref: userId,
+        payload: { playerId: userId, pseudo: accepter?.pseudo ?? null },
+      });
+    }
+
+    return { ok: true, value: { request: toEntry(row, other) } };
+  });
 }
 
 export function acceptRequest(

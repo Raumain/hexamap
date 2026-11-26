@@ -1,8 +1,10 @@
+import { editionLabel } from '../content/rarete';
 import {
   distanceAriaLabel,
   distanceLabel,
   PANEL_CONTENT,
   type PanelKind,
+  revealedCellLabel,
 } from '../content/tickets';
 import type { TicketCell } from '../lib/tickets';
 import { Card } from './ui/Card';
@@ -11,6 +13,7 @@ type CardKind = 'CARD' | 'TREASURE' | 'TWIN';
 
 interface RevealedCellProps {
   cell: TicketCell;
+  onOpen: (cell: TicketCell) => void;
 }
 
 function isCardKind(kind: TicketCell['kind']): kind is CardKind {
@@ -26,11 +29,36 @@ const BADGE_CLASSES =
 
 const TWIN_CLASSES = 'font-mono text-[10px] uppercase tracking-[0.1em] text-brass-deep';
 
-/** Bandeau de 16 px : la marque des jumelés à gauche, la distance à droite, hors de la gravure. */
-function CellStrip({ kind, distance }: { kind: TicketCell['kind']; distance?: number | null }) {
+/**
+ * Bandeau de 16 px : la marque de la case à gauche, la distance à droite, hors
+ * de la gravure. Une région et un département nomment leur édition : le sceau de
+ * la planche dit déjà le palier, le bandeau dit d'où il vient.
+ */
+function CellStrip({
+  kind,
+  card,
+  distance,
+}: {
+  kind: TicketCell['kind'];
+  card?: TicketCell['card'] | null;
+  distance?: number | null;
+}) {
+  const edition =
+    card && (card.category === 'REGION' || card.category === 'DEPARTEMENT')
+      ? editionLabel(card.rarity)
+      : null;
+  // Le bandeau fait 16 px de haut et 56 px de large sur une case de 66 px : le
+  // badge de distance en occupe 30, il reste 26 px, soit trois caractères pleins.
+  // « Jumelé » y est déjà tronqué aujourd'hui ; le bandeau porte donc
+  // l'abréviation « Éd. », le palier reste au sceau de la planche et la phrase
+  // complète (« Édition mythique ») au survol.
+  const mark = kind === 'TWIN' ? 'Jumelé' : edition ? 'Éd.' : null;
+
   return (
     <div className="flex h-4 shrink-0 items-center justify-between gap-1">
-      <span className={TWIN_CLASSES}>{kind === 'TWIN' ? 'Jumelé' : ''}</span>
+      <span className={`${TWIN_CLASSES} min-w-0 truncate`} title={edition ?? mark ?? undefined}>
+        {mark ?? ''}
+      </span>
       {typeof distance === 'number' ? (
         <span className={BADGE_CLASSES}>
           <span aria-hidden="true">{distanceLabel(distance)}</span>
@@ -41,10 +69,13 @@ function CellStrip({ kind, distance }: { kind: TicketCell['kind']; distance?: nu
   );
 }
 
-export function RevealedCell({ cell }: RevealedCellProps) {
+export function RevealedCell({ cell, onOpen }: RevealedCellProps) {
   const { kind, card, nom, distance } = cell;
   const isTreasure = kind === 'TREASURE';
   const name = card?.nom || nom || 'Carte';
+  // Une case révélée sans contenu rendu n'a rien à agrandir : sans cette garde,
+  // elle ouvrirait un dialogue au titre générique et au corps vide.
+  const canOpen = (isCardKind(kind) && card !== null) || isPanelKind(kind);
 
   return (
     <div
@@ -55,7 +86,7 @@ export function RevealedCell({ cell }: RevealedCellProps) {
     >
       {isCardKind(kind) && card ? (
         <>
-          <CellStrip kind={kind} distance={distance} />
+          <CellStrip kind={kind} card={card} distance={distance} />
           <div className="relative flex min-h-0 flex-1 items-center justify-center">
             <Card
               type={card.category}
@@ -82,6 +113,16 @@ export function RevealedCell({ cell }: RevealedCellProps) {
             </p>
           </div>
         </>
+      ) : null}
+      {canOpen ? (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => onOpen(cell)}
+          className="absolute inset-0 z-10 rounded-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass"
+        >
+          <span className="sr-only">{revealedCellLabel(cell.index, name)}</span>
+        </button>
       ) : null}
     </div>
   );

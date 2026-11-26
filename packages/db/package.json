@@ -9,6 +9,7 @@
   "scripts": {
     "migrate": "bun src/migrate.ts",
     "ping": "bun src/ping.ts",
+    "db:prepare": "bun src/prepare.ts",
     "codegen": "kysely-codegen --dialect postgres --out-file src/types.generated.ts",
     "typecheck": "tsc --noEmit"
   },

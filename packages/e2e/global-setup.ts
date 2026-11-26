@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { type Browser, chromium, type Page } from '@playwright/test';
+import { ensureSecondAccount, secondStorageStatePath } from './fixtures/second-account';
 import { ensureComboCards } from './fixtures/tableau-fixture';
 import {
   type AccountFixture,
@@ -75,6 +76,14 @@ export default async function globalSetup(): Promise<void> {
       createdAt: new Date().toISOString(),
     };
     await writeFile(accountPath, `${JSON.stringify(account, null, 2)}\n`, 'utf8');
+
+    // Second compte, inscrit par la vraie API : plusieurs parcours de la v2
+    // exigent deux sessions à la fois (demande d'ami, troc, vitrine d'un autre
+    // joueur). Il n'a pas besoin du navigateur ouvert ici, seulement d'une
+    // session et d'une carte.
+    const second = await ensureSecondAccount({ baseURL });
+
+    console.log(`[e2e] Second compte prêt : ${second.pseudo} (${secondStorageStatePath}).`);
   } finally {
     await context.close();
     await browser.close();

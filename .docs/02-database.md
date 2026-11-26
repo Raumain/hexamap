@@ -3,7 +3,7 @@
 > **Contrat de données.**
 > Aucune table ni colonne ne doit être utilisée si elle n'est pas définie ici.
 > Si un besoin nécessite une nouvelle table/colonne : mettre à jour ce document **avant** d'écrire la migration.
-> Dernière mise à jour : 2026-11-20.
+> Dernière mise à jour : 2026-11-23 (Phase 50 — `view_box` sur les trois tables de référentiel).
 
 ---
 
@@ -35,6 +35,16 @@
 | `user_achievements` | **Migrée** | `packages/db/migrations/0011_achievements.ts` |
 | `user_profiles`, index `user_pseudo_lower_idx` | **Migrée** | `packages/db/migrations/0012_profiles.ts` |
 | Index `currency_ledger_purchase_uniq` | **Migrée** | `packages/db/migrations/0013_shop.ts` |
+| Gardes d'intégrité du référentiel : `ref_truncate_guard()` (3 triggers `BEFORE TRUNCATE`), `orphan_user_cards()` | **Migrée** | `packages/db/migrations/0014_ref_integrity.ts` |
+| `path_d text` sur `ref_regions`, `ref_departements` et `ref_communes` | **Migrée** (2026-11-22) | `packages/db/migrations/0015_atlas_paths.ts` |
+| `notifications` | **Migrée** | `packages/db/migrations/0016_notifications.ts` |
+| `trade_offers` | **Migrée** (2026-11-22) | `packages/db/migrations/0017_trade_offers.ts` |
+| `user_cards.source` élargi à `CRAFT` | **Migrée** (2026-11-22) | `packages/db/migrations/0018_card_source.ts` |
+| Colonne `tableaux.score` | **Migrée** (2026-11-22) | `packages/db/migrations/0019_tableau_score.ts` |
+| `push_subscriptions`, `push_preferences` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| Index `user_scratch_charges_empty_idx` | **Migrée** (2026-11-22) | `packages/db/migrations/0020_push.ts` |
+| Colonne `view_box` sur `ref_regions`, `ref_departements`, `ref_communes` | **Migrée** (2026-11-23) | `packages/db/migrations/0021_view_box.ts` |
+| Colonne `code_postal` et index `ref_communes_code_postal_idx` sur `ref_communes` | **Migrée** (2026-11-25) | `packages/db/migrations/0022_postal_code.ts` |
 
 **Contrat** : le DDL de ce document est figé et fait foi, mais aucune migration ne l'a encore
 appliqué. Une table au statut **Contrat** ne doit pas être interrogée en runtime, même si son
@@ -166,7 +176,8 @@ create table user_cards (
   ),
   score integer not null check (score >= 0),
   acquired_at timestamptz not null default now(),
-  source text not null default 'TICKET' check (source in ('TICKET', 'MARKET', 'REWARD')),
+  source text not null default 'TICKET'
+    check (source in ('TICKET', 'MARKET', 'REWARD', 'CRAFT')),
   locked boolean not null default false
 );
 
@@ -175,6 +186,15 @@ create index user_cards_ref_idx on user_cards (category, ref_code);
 ```
 
 `ref_code` contient : le code région, le code département, le code INSEE de la commune, ou l'identifiant `ref_odonymes.id` sérialisé en texte.
+
+`source = 'CRAFT'` appartient à L'Atelier. **La surface a été retirée du produit le 2026-11-25** :
+L'Atelier est reporté à la v3 (voir `.docs/03-active-task.md`), donc **aucune route livrée n'écrit
+cette valeur** aujourd'hui. Le `CHECK` la conserve néanmoins : une migration livrée ne se réécrit
+pas, et le socle de la v3 est déjà là. Quand la fusion reviendra, la route ne recevra ni `source`,
+ni `score`, ni `id`, et le service insérera la carte produite sous transaction — aucun client ne
+pourra donc fabriquer une carte `CRAFT`. La fusion est déterministe (palier `+1`), ne produit
+jamais `MYTHIQUE` et consomme tout le groupe `(catégorie, ref_code, rareté)` ; la règle vit dans
+`packages/shared/src/atelier.ts`, conservée.
 
 ### 4.3 Tickets
 
@@ -235,11 +255,25 @@ create table tableaux (
   departement_card_id uuid references user_cards (id) on delete set null,
   commune_card_id uuid references user_cards (id) on delete set null,
   rue_card_id uuid references user_cards (id) on delete set null,
+  score integer not null default 0,
   created_at timestamptz not null default now()
 );
 
 create index tableaux_user_idx on tableaux (user_id);
 ```
+
+- **`score` est écrit une seule fois, à la soumission**, par `evaluateTableau` de
+  `packages/shared` appelé côté serveur dans la transaction de `POST /api/v1/tableaux`. Aucune
+  formule n'est recopiée dans `apps/` : la colonne reçoit le `total` que la route renvoie déjà.
+- **`score` n'est jamais recalculé** — ni par le classement hebdomadaire, ni par une route de
+  modification. C'est la valeur figée qui fait foi, y compris si `user_cards.score` changeait
+  après coup.
+- **`0` est réservé aux insertions directes de test.** Six sites hors phase insèrent un tableau
+  sans fournir de score (les specs `tableaux`, `profile`, `atelier`, `account` ×2 et la fixture
+  `vitrine`) : le défaut les laisse fonctionner, et aucun chemin de production n'écrit `0`. La
+  brèche est **bornée et écrite** : `packages/spec/src/palmares.spec.ts` asserte que la route de
+  soumission écrit toujours le score, et une migration ultérieure pourra retirer le défaut une
+  fois ces six sites mis à jour — d'ici là, il est documenté, pas silencieux.
 
 ### 4.5 Marché V1 (vente et achat direct uniquement)
 
@@ -325,6 +359,19 @@ create table user_scratch_charges (
   reste fractionnaire du compte à rebours.
 - Un ticket n'existe pas sans charge dépensée ; l'index unique partiel
   `tickets_one_active_per_user` est conservé tel quel.
+- **Index de balayage de La Sonnette (migration `0020_push`).** L'ordonnanceur de la
+  poussée (`.docs/01-architecture.md` §4.10) cherche les seuls carnets **vides** dont
+  la prochaine charge est atteinte. Il lit donc :
+
+  ```sql
+  create index if not exists user_scratch_charges_empty_idx
+    on user_scratch_charges (last_regen_at) where charges = 0;
+  ```
+
+  L'index est **partiel sur `charges = 0`** : au repos, la quasi-totalité des lignes
+  en sont exclues, et un battement à vide ne lit aucune ligne de cette table. Le
+  balayage conduit ensuite la jointure vers `push_subscriptions` par `user_id`, servie
+  par `push_subscriptions_user_idx`. Aucune colonne nouvelle : l'index seul est ajouté.
 
 ### 4.8 Médailles
 
@@ -402,6 +449,198 @@ create unique index user_pseudo_lower_idx on "user" (lower(pseudo)) where pseudo
   deux sens — c'est une règle du service, pas une cascade SQL.
 - La vitrine ne lit **ni** `session`, **ni** `account`, **ni** `user.currency`.
 
+### 4.10 Notifications
+
+```sql
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references "user" ("id") on delete cascade,
+  kind text not null,
+  dedupe_key text not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+create unique index if not exists notifications_user_dedupe_idx
+  on notifications (user_id, dedupe_key);
+create index if not exists notifications_user_idx
+  on notifications (user_id, created_at desc) where read_at is null;
+```
+
+`kind` n'a **aucune contrainte `CHECK`** : la liste fermée est **validée dans le code**, pas en
+base, pour que la phase 40 émette `TRADE_*` sans migration. Neuf valeurs existent, déclarées par
+`NOTIFICATION_KINDS` de `packages/shared/src/notifications.ts` :
+
+| `kind` | Émis par | Référence de `dedupe_key` |
+| :--- | :--- | :--- |
+| `FRIEND_REQUEST` | phase 39 (`services/friends.ts`, `sendRequest`) | `requester_id` |
+| `FRIEND_ACCEPTED` | phase 39 (`services/friends.ts`, acceptation) | `accepter_id` |
+| `ACHIEVEMENT` | phase 39 (`services/achievements.ts`) | `achievement.key` |
+| `MARKET_SOLD` | phase 39 (`routes/market.ts`, achat) | `listing_id` |
+| `MARKET_BOUGHT` | phase 39 (`routes/market.ts`, achat) | `listing_id` |
+| `TRADE_OFFER` | phase 40 | à définir par le troc |
+| `TRADE_ACCEPTED` | phase 40 | à définir par le troc |
+| `TRADE_DECLINED` | phase 40 | à définir par le troc |
+| `TRADE_EXPIRED` | phase 40 | à définir par le troc |
+
+Les quatre `TRADE_*` sont **déclarés et rendus** par la phase 39, mais **émis** par la phase 40 :
+la salle les reconnaît dès aujourd'hui sans qu'une émission puisse exister avant que le troc ne
+soit livré.
+
+**Idempotence.** `dedupe_key` vaut `<kind>:<référence>` et se construit par la fonction pure
+`notificationDedupeKey` : `ACHIEVEMENT:<key>`, `MARKET_SOLD:<listing_id>`,
+`FRIEND_REQUEST:<requester_id>`. L'écriture est un
+`insert … on conflict (user_id, dedupe_key) do nothing`, et **c'est l'index unique qui porte
+l'idempotence** : deux émissions simultanées du même événement lisent toutes deux « absent », la
+base n'en garde qu'une.
+
+**Charge utile.** `payload` est un JSON borné qui décide de l'affichage de la salle : identifiant
+public, pseudo public, prix, libellé de médaille. Il ne porte **jamais** `grid`,
+`treasure_index`, ni le solde ou les cartes d'un tiers — même liste de non-exposition que le §2.9.
+Il identifie de quoi rebondir (lien vers `/players/:id` quand il porte un `playerId`).
+
+**Rétention.** 90 jours (`NOTIFICATION_RETENTION_MS` dans `packages/shared`). Le balayage se fait
+**à la lecture de la salle** (`GET /api/v1/notifications`), borné à l'utilisateur qui lit :
+`delete … where user_id = ? and created_at < now() - interval '90 days'`. Aucun ordonnanceur,
+aucune dépendance, et un compte ne purge jamais les lignes d'un autre.
+
+### 4.11 Troc — offres d'échange
+
+```sql
+create table if not exists trade_offers (
+  id uuid primary key default gen_random_uuid(),
+  proposer_id text not null references "user" ("id") on delete cascade,
+  receiver_id text not null references "user" ("id") on delete cascade,
+  offered_card_id uuid not null references user_cards (id) on delete cascade,
+  requested_card_id uuid not null references user_cards (id) on delete cascade,
+  status text not null default 'PENDING'
+    check (status in ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  expires_at timestamptz not null,
+  check (proposer_id <> receiver_id),
+  check (offered_card_id <> requested_card_id)
+);
+
+create index if not exists trade_offers_receiver_idx
+  on trade_offers (receiver_id, status, created_at desc);
+create index if not exists trade_offers_proposer_idx
+  on trade_offers (proposer_id, status, created_at desc);
+
+-- Une carte engagée ne se repropose pas, et ne se revend pas.
+create unique index if not exists trade_offers_offered_pending_idx
+  on trade_offers (offered_card_id) where status = 'PENDING';
+-- Une carte demandée n'est l'objet que d'une seule offre ouverte : c'est cette
+-- unicité qui rend l'acceptation décidable, et elle interdit aussi qu'une même
+-- carte soit demandée par deux propositions simultanées.
+create unique index if not exists trade_offers_requested_pending_idx
+  on trade_offers (requested_card_id) where status = 'PENDING';
+```
+
+- **Le troc est 1 ↔ 1 et rien d'autre.** `offered_card_id` et `requested_card_id` suffisent :
+  aucune table de jonction, aucun lot, aucun prix, aucun écu. Le N ↔ N est hors périmètre.
+- **Cinq statuts seulement** : `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELLED`, `EXPIRED`.
+  `PENDING` est le seul état ouvert ; les quatre autres sont terminaux et ne se rouvrent pas.
+  La liste fermée vit dans `packages/shared/src/trade.ts` (`TRADE_STATUSES`,
+  `canTransitionTrade`), et le `CHECK` de la table n'en accepte aucune autre valeur.
+- **`responded_at` est l'instant où l'offre a quitté `PENDING`**, quelle qu'en soit la cause :
+  acceptation, refus, annulation, ou constat d'expiration par le balayage paresseux. Il reste
+  `NULL` tant que l'offre est ouverte.
+- **`expires_at` est écrit à la proposition** (`TRADE_OFFER_TTL_MS`, 7 jours) : la durée vit dans
+  `packages/shared`, jamais dans une valeur par défaut de colonne, pour qu'un réglage de jeu ne
+  demande pas une migration.
+- **`locked` reste réservé à la vente.** Le troc ne pose jamais `locked = true` ; il vérifie
+  `locked = false` à la proposition. Une carte ne peut donc être à la fois en vente et en troc :
+  proposer une carte verrouillée répond `409 CARD_LOCKED`, et mettre en vente une carte engagée
+  répond `409 CARD_IN_TRADE`. Aucune colonne partagée ne porte cette exclusivité, deux gardes
+  symétriques suffisent.
+- **Les deux index partiels portent l'exclusivité**, pas une vérification applicative seule : deux
+  propositions simultanées sur la même carte voient l'une et l'autre « libre », la base n'en
+  garde qu'une, et le conflit est traduit en `409 CARD_ALREADY_IN_TRADE`.
+- **L'acceptation est atomique** : `SELECT … FOR UPDATE` sur la ligne d'offre puis sur les deux
+  `user_cards` (dans l'ordre de leur identifiant), vérification que chaque carte appartient
+  toujours au camp qui l'a engagée, transfert des deux `user_cards.user_id`, statut `ACCEPTED`,
+  `responded_at`, notifications — une seule transaction. Une carte vendue entre-temps répond
+  `409 TRADE_CARD_MOVED` et rien ne bouge.
+- **Aucune table de journalisation anti-collusion.** `trade_offers` est elle-même le registre :
+  la paire de comptes, les deux cartes et les deux horodatages. C'est une limite assumée, écrite
+  au journal de la phase : on relit *qui* a échangé *quoi* avec *qui* et *quand*, on ne détecte
+  pas un schéma de comptes secondaires. Le troc n'écrit **jamais** dans `currency_ledger`.
+- **L'expiration est paresseuse et bornée à l'utilisateur.** Aucun ordonnanceur n'existe dans le
+  runtime : `expireOffersForUser` s'exécute à la lecture des offres, à la proposition, à
+  l'acceptation et à la mise en vente d'une carte. Le coût est O(offres de cet utilisateur) ; une
+  offre morte ne bloque donc jamais un tiers, seulement une partie, et la mise en vente d'une
+  carte balaie d'abord les offres du vendeur.
+
+### 4.12 La Sonnette — abonnements et préférences
+
+```sql
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references "user" ("id") on delete cascade,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  last_sent_on text check (last_sent_on is null or last_sent_on ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'),
+  last_notified_charge_at timestamptz,
+  last_sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Un point de terminaison désigne un navigateur, pas un compte : il est unique,
+-- et se réabonner depuis le même navigateur avec un autre compte le transfère.
+create unique index if not exists push_subscriptions_endpoint_idx
+  on push_subscriptions (endpoint);
+create index if not exists push_subscriptions_user_idx
+  on push_subscriptions (user_id);
+
+create table if not exists push_preferences (
+  user_id text primary key references "user" ("id") on delete cascade,
+  quiet_start smallint not null default 22 check (quiet_start between 0 and 23),
+  quiet_end smallint not null default 8 check (quiet_end between 0 and 23),
+  updated_at timestamptz not null default now()
+);
+```
+
+- **Deux tables, et la séparation est le contrat.** Le désabonnement **supprime** la
+  ligne de `push_subscriptions` — c'est ce que demande le service de push quand il
+  répond `404` ou `410`, et c'est la seule façon d'arrêter réellement l'envoi. Une
+  préférence posée sur cette ligne disparaîtrait donc avec elle, et le joueur qui
+  réactive retrouverait les heures calmes par défaut **sans l'avoir demandé**.
+  `push_preferences` est donc une table distincte, clé `user_id`, qui **survit** au
+  désabonnement.
+- **`endpoint` est unique globalement**, pas par couple `(user_id, endpoint)`. Un
+  abonnement est un navigateur ; deux comptes sur le même navigateur ne doivent pas
+  produire deux lignes, sinon une seule charge enverrait deux notifications au même
+  appareil. L'abonnement est un `on conflict (endpoint) do update set user_id = …` :
+  se connecter avec un autre compte sur le même navigateur réassigne l'abonnement,
+  il ne le duplique pas.
+- **`p256dh` et `auth`** sont les deux secrets du chiffrement `aes128gcm` fournis par
+  le navigateur (`PushSubscription.getKey`). Ils sont stockés tels quels, en `text`
+  base64url ; ils ne sont **jamais** rendus par une route.
+- **`last_sent_on` porte le quota quotidien**, et c'est un `text` `YYYY-MM-DD` **à dessein**.
+  `date` serait relu par le driver `pg` en `Date` à minuit **local** du serveur : la
+  comparaison avec le jour UTC dériverait d'un jour aux bords, exactement là où le quota
+  compte. La colonne porte donc le jour UTC tel que `utcDay()` de `packages/shared` le
+  produit, et le `CHECK` fige le format. Au plus une notification par jour et par
+  abonnement. La colonne vit en base, jamais dans un cache mémoire : un redémarrage de
+  l'API ne peut pas doubler l'envoi.
+- **`last_notified_charge_at timestamptz` porte l'anti-doublon par charge.** Il vaut
+  l'instant de régénération annoncé (`last_regen_at + SCRATCH_REGEN_MS`). Un battement
+  qui revoit le même instant ne réannonce rien, même le lendemain : le quota
+  quotidien et cette colonne sont deux gardes distinctes, la première contre le
+  harcèlement, la seconde contre le doublon.
+- **L'heure est UTC.** Les heures calmes sont des heures UTC, pas locales : aucun
+  fuseau n'est stocké, aucune dépendance de fuseau horaire n'entre dans le domaine.
+  `quiet_start > quiet_end` décrit une plage qui passe minuit (22 → 8), et
+  `quiet_start === quiet_end` désactive les heures calmes.
+- **Aucune clé `game_config` nouvelle.** Les heures calmes par défaut (`22` → `8`)
+  vivent dans `packages/shared/src/push.ts` et dans les défauts SQL de la table ;
+  aucune n'est un réglage de jeu qu'un écran d'administration modifierait.
+- **Rien n'est jamais poussé hors du retour de charge.** Une vente, une médaille ou une
+  offre de troc restent dans Le Guichet : la poussée ne double pas la salle.
+
 ---
 
 ## 5. Schéma des référentiels (import Open Data)
@@ -413,7 +652,9 @@ create table ref_regions (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text,
+  view_box text not null default '0 0 1000 1000'
 );
 
 create table ref_departements (
@@ -424,7 +665,9 @@ create table ref_departements (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text,
+  view_box text not null default '0 0 1000 1000'
 );
 
 create index ref_departements_region_idx on ref_departements (code_region);
@@ -445,11 +688,15 @@ create table ref_communes (
   geom jsonb,
   blason_url text,
   contour_url text,
-  blason_credit text
+  blason_credit text,
+  path_d text,
+  view_box text not null default '0 0 1000 1000',
+  code_postal text
 );
 
 create index ref_communes_rarete_bucket_idx on ref_communes (rarete, draw_bucket);
 create index ref_communes_departement_idx on ref_communes (code_departement);
+create index ref_communes_code_postal_idx on ref_communes (code_postal);
 
 create table ref_odonymes (
   id bigserial primary key,
@@ -481,6 +728,86 @@ image n'a pu être importée. `blason_credit` est l'attribution obligatoire au f
 colonnes sont nullable : Wikidata ne référence pas de blason pour toutes les entités, et
 `contour_url` n'est rempli que pour les communes sans armoiries (repli géographique IGN).
 
+`path_d` est le tracé SVG de l'entité, **dérivé de `geom`** et écrit une seule fois au moment de
+l'import ; il n'est **jamais** calculé au runtime, ni côté API ni côté navigateur. `NULL` quand
+la géométrie est absente, invalide, ou hors du `viewBox` métropolitain. Le contrat de projection
+est unique et partagé par les trois tables : **Mercator sphérique (EPSG:3857)**, `R = 6 378 137`,
+cadré sur l'emprise métropolitaine lon `[−5,5 ; 9,9]` / lat `[41,2 ; 51,3]`, rendu dans le
+`viewBox` **`0 0 1000 1000`** avec `y` inversé, échelle uniforme et centrage. Aucun index : la
+colonne se lit par clé primaire, elle ne se filtre pas.
+
+**`view_box` — le cadre d'affichage.** `view_box` est le `viewBox` SVG de l'entité, tel qu'il s'écrit dans l'attribut (`'0 0 1000 1000'`), donc consommable sans transformation par le composant qui le reçoit. Il porte le cadre du **groupe** auquel l'entité appartient — la région, son département et ses communes portent la **même** valeur. Un cadre par DROM (5 au total), calculé sur la bbox de l'ensemble du groupe. La métropole garde `0 0 1000 1000`, **valeur par défaut de la colonne** : les ~35 000 lignes métropolitaines ne sont jamais réécrites. `path_d` est exprimé **dans** le repère nommé par `view_box` de sa propre ligne : c'est ce qui fait qu'une commune de DROM s'assemble avec ses voisines. Il n'est **jamais** calculé au runtime (ni API ni navigateur) : il est écrit une fois, par le script de backfill `scripts/import/src/atlas-overseas.ts`.
+
+**`code_postal` — le code principal, un seul.** `ref_communes.code_postal` porte **un** code à cinq
+chiffres, jamais un tableau : `geo.api.gouv.fr` publie `codesPostaux` en tableau et n'en désigne
+aucun comme principal, donc le produit retient le **premier code à cinq chiffres non vide** de ce
+tableau, dans l'ordre de la source (règle pure `principalPostalCode` de
+`packages/shared/src/postal.ts`). La colonne est **nullable et sans défaut** : une commune dont la
+source ne publie aucun code postal n'en a pas, et un code postal n'est pas une clé — une commune
+peut en avoir porté un autre. L'index `ref_communes_code_postal_idx` sert le tri, pas une
+contrainte d'unicité. La valeur est écrite par l'import — y compris par le `do update set` du mode
+`--merge`, sinon un réimport ne remplirait jamais les lignes existantes.
+
+### 5.1 Intégrité du référentiel (migration `0014_ref_integrity`)
+
+```sql
+create or replace function ref_truncate_guard() returns trigger
+language plpgsql as $$
+declare cited bigint;
+begin
+  execute format('select count(*) from user_cards where category = %L', TG_ARGV[0]) into cited;
+  if cited > 0 then
+    raise exception 'la table % est citée par % carte(s) : un réimport ne peut pas la vider',
+      TG_TABLE_NAME, cited
+      using errcode = 'foreign_key_violation';
+  end if;
+  return null;
+end $$;
+
+create trigger ref_truncate_guard           before truncate on ref_regions      for each statement execute function ref_truncate_guard('REGION');
+create trigger ref_departements_truncate_guard before truncate on ref_departements for each statement execute function ref_truncate_guard('DEPARTEMENT');
+create trigger ref_communes_truncate_guard     before truncate on ref_communes     for each statement execute function ref_truncate_guard('COMMUNE');
+
+create or replace function orphan_user_cards()
+returns table (id uuid, user_id text, category text, ref_code text)
+language sql stable as $$
+  select uc.id, uc.user_id, uc.category::text, uc.ref_code
+  from user_cards uc
+  where (uc.category = 'REGION'      and not exists (select 1 from ref_regions      r where r.code      = uc.ref_code))
+     or (uc.category = 'DEPARTEMENT' and not exists (select 1 from ref_departements d where d.code      = uc.ref_code))
+     or (uc.category = 'COMMUNE'     and not exists (select 1 from ref_communes     c where c.code_insee = uc.ref_code))
+     or (uc.category = 'RUE'         and not exists (select 1 from ref_odonymes     o where o.id::text  = uc.ref_code))
+$$;
+```
+
+- **Aucune colonne, aucun index, aucune table n'est ajouté** par cette migration : elle ne pose
+  que deux fonctions et trois triggers.
+- **`TRUNCATE` est refusé dès qu'une carte cite la table** (`23503`), pour `ref_regions`,
+  `ref_departements` et `ref_communes`. C'est le chemin destructeur qui a produit BUG-002.
+  **`ref_odonymes` n'est pas gardée** : deux cas gelés de `tickets.spec.ts` vident
+  volontairement `commune_odonymes` et `ref_odonymes` pour éprouver la robustesse du tirage, et
+  une garde les rendrait rouges ; les cartes de rue restent protégées par l'élagage `--merge`.
+  `DELETE` reste permis partout, parce que les `afterAll` de `packages/spec` suppriment les
+  `ref_*` avant `"user"` et qu'une garde sur `DELETE` ferait échouer chaque nettoyage de la
+  suite gelée.
+- **`orphan_user_cards()` ne répare rien**, elle nomme le dégât : jusqu'ici
+  `routes/cards.ts` résolvait le nom par `noms.get(...) ?? ''` et une carte sans référentiel
+  s'affichait simplement sans nom, sans que rien ne puisse la compter.
+- **Une clé étrangère `(category, ref_code)` et un `CHECK` sur `ref_regions.code` ont été
+  écartés**, et pas par confort : `achievements.spec.ts` insère une carte `COMMUNE` sans aucun
+  référentiel semé, cinq autres fichiers de spec sèment des régions aux codes `<préfixe>-R1`, le
+  banc sème `E2E-R1`, et leurs nettoyages suppriment les `ref_*` avant `"user"`. Une FK ou un
+  `CHECK` de table rejetterait ces fixtures, que cette phase n'a pas le droit de réécrire. La
+  validation du code de région vit donc à la frontière que BUG-003 propose lui-même :
+  `scripts/import` refuse un code hors des dix-huit codes officiels **avant** la première
+  écriture (`REFERENCE_CODE_INVALID`), via `isFrenchRegionCode` de `packages/shared`.
+- **Réimport non destructeur.** `bun run --cwd scripts/import start --merge` remplace le
+  `TRUNCATE` par un upsert (`on conflict … do update set`) suivi de
+  `pruneUnreferencedReferenceRows` (`packages/db/src/reference-integrity.ts`), qui supprime une
+  ligne périmée **seulement** si aucune carte ne la cite. Les colonnes d'assets (`blason_url`,
+  `contour_url`, `blason_credit`) et `geom` ne sont jamais réécrites par ce chemin : elles
+  appartiennent aux étapes blasons et atlas.
+
 ---
 
 ## 6. Types Kysely
@@ -501,7 +828,7 @@ export type Rarity =
 export type CardCategory = 'REGION' | 'DEPARTEMENT' | 'COMMUNE' | 'RUE';
 export type TicketStatus = 'ACTIVE' | 'EXHAUSTED' | 'EXPIRED';
 export type MarketStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
-export type CardSource = 'TICKET' | 'MARKET' | 'REWARD';
+export type CardSource = 'TICKET' | 'MARKET' | 'REWARD' | 'CRAFT';
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export interface UserTable {
@@ -605,6 +932,8 @@ export interface TableauTable {
   departement_card_id: string | null;
   commune_card_id: string | null;
   rue_card_id: string | null;
+  /** `Generated` parce que la colonne porte un défaut SQL (`0`) : Kysely autorise l'omission. */
+  score: Generated<number>;
   created_at: Generated<Date>;
 }
 
@@ -660,6 +989,27 @@ export interface UserProfileTable {
   updated_at: Generated<Date>;
 }
 
+export type NotificationKind =
+  | 'FRIEND_REQUEST'
+  | 'FRIEND_ACCEPTED'
+  | 'ACHIEVEMENT'
+  | 'MARKET_SOLD'
+  | 'MARKET_BOUGHT'
+  | 'TRADE_OFFER'
+  | 'TRADE_ACCEPTED'
+  | 'TRADE_DECLINED'
+  | 'TRADE_EXPIRED';
+
+export interface NotificationTable {
+  id: Generated<string>;
+  user_id: string;
+  kind: NotificationKind;
+  dedupe_key: string;
+  payload: unknown;
+  created_at: Generated<Date>;
+  read_at: Date | null;
+}
+
 export interface RefRegionTable {
   code: string;
   nom: string;
@@ -667,6 +1017,8 @@ export interface RefRegionTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefDepartementTable {
@@ -678,6 +1030,8 @@ export interface RefDepartementTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
+  view_box: Generated<string>;
 }
 
 export interface RefCommuneTable {
@@ -695,6 +1049,9 @@ export interface RefCommuneTable {
   blason_url: string | null;
   contour_url: string | null;
   blason_credit: string | null;
+  path_d: string | null;
+  view_box: Generated<string>;
+  code_postal: Generated<string | null>;
 }
 
 export interface RefOdonymeTable {
@@ -710,6 +1067,27 @@ export interface RefOdonymeTable {
 export interface CommuneOdonymeTable {
   code_insee: string;
   odonyme_id: string;
+}
+
+export interface PushSubscriptionTable {
+  id: Generated<string>;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  /** Jour UTC du dernier envoi, `YYYY-MM-DD` ; `null` tant qu'aucun envoi n'a eu lieu. */
+  last_sent_on: string | null;
+  /** Instant de régénération annoncé, pour ne pas réannoncer la même charge. */
+  last_notified_charge_at: Date | null;
+  last_sent_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface PushPreferencesTable {
+  user_id: string;
+  quiet_start: Generated<number>;
+  quiet_end: Generated<number>;
+  updated_at: Generated<Date>;
 }
 
 export interface Database {
@@ -735,6 +1113,9 @@ export interface Database {
   ref_communes: RefCommuneTable;
   ref_odonymes: RefOdonymeTable;
   commune_odonymes: CommuneOdonymeTable;
+  push_subscriptions: PushSubscriptionTable;
+  push_preferences: PushPreferencesTable;
+  notifications: NotificationTable;
 }
 ```
 
@@ -749,6 +1130,14 @@ export interface Database {
 - Un utilisateur a au plus **un ticket `ACTIVE`** (index unique partiel).
 - `treasure_index ∈ [0, 15]`.
 - `distance = |L1 - L2| + |C1 - C2| ∈ [0, 6]`.
+- **Le score d'un tableau est figé à la soumission** dans `tableaux.score` et n'est **jamais**
+  recalculé : ni le classement, ni une route de modification ne le réécrivent.
+- **Le classement hebdomadaire est ordonné `score desc, created_at asc, id asc`**, en SQL, en une
+  seule implémentation serveur. Le rang est la position 1..N : le départage étant total, aucun ex
+  æquo n'est partagé et le navigateur ne trie jamais.
+- **La semaine est la semaine ISO 8601** (lundi 00:00:00.000 UTC → lundi suivant exclu) calculée
+  depuis `tableaux.created_at`. Une semaine inexistante (`2027-W53`) est refusée, jamais repliée
+  sur la semaine 1 de l'année suivante.
 - Une carte ne peut être dans qu'une seule annonce **ouverte** (index unique partiel `market_listings_open_card_idx`).
 - Un achat est atomique : débit acheteur, crédit vendeur, transfert de `user_cards.user_id`, statut `SOLD`, `buyer_id`, `sold_at`.
 - Les cartes verrouillées (`locked = true`) ne peuvent pas être vendues ou supprimées.
@@ -769,6 +1158,48 @@ export interface Database {
   porte l'idempotence, et une insertion en conflit ne paie pas.
 - `"user".pseudo` est unique sans tenir compte de la casse dès que l'index `user_pseudo_lower_idx`
   est migré.
+- **Aucune table de référentiel citée par une carte ne peut être vidée** : `TRUNCATE
+  ref_regions|ref_departements|ref_communes|ref_odonymes` lève `23503` dès qu'une ligne de
+  `user_cards` porte la catégorie correspondante (`0014_ref_integrity`).
+- **`path_d` n'est jamais calculé au runtime.** Il est dérivé de `geom` une seule fois, à l'import,
+  et se lit ensuite tel quel : ni l'API ni le navigateur ne projettent ni ne simplifient une
+  géométrie.
+- **Une entité d'outre-mer porte `path_d = NULL`.** La règle est géométrique, pas une liste de
+  codes : le `viewBox` partagé est métropolitain, donc une géométrie dont la bbox est disjointe de
+  `[0, 1000]²` est classée `out_of_viewbox` et ne rend aucun tracé.
+- **Un élagage de référentiel ne supprime jamais une ligne citée.** `--merge` élague une ligne
+  périmée seulement si aucune carte ne la cite ; une ligne conservée pour cette raison est
+  comptée dans `PruneResult.preserved`.
+- **À l'import, un code de région hors des dix-huit codes officiels est refusé avant toute
+  écriture** (`REFERENCE_CODE_INVALID`), et `isFrenchRegionCode` de `packages/shared` est la
+  seule autorité sur cette liste.
+- **L'unicité `(user_id, dedupe_key)` porte l'idempotence des notifications** : l'émission écrit
+  `on conflict do nothing`, et deux émissions simultanées du même événement n'écrivent qu'une
+  ligne. Aucune vérification « lire puis insérer » ne tient ce rôle.
+- **`notifications.read_at` n'est jamais dans le futur** : une notification se marque lue, elle ne
+  se marque pas « à lire plus tard ». Un `read_at` postérieur à `now()` est un défaut d'écriture,
+  pas un état.
+- **Le balayage à 90 jours ne supprime que les lignes plus anciennes que la rétention, et jamais
+  celles d'un autre compte** : `delete … where user_id = ? and created_at < now() - interval
+  '90 days'` s'exécute à la lecture de la salle, sans ordonnanceur.
+- **Un `endpoint` de poussée est unique globalement** : se réabonner depuis le même navigateur
+  réassigne la ligne, il n'en crée pas une seconde. Deux lignes pour un même appareil
+  enverraient deux notifications pour une seule charge.
+- **Le quota de poussée est porté par `push_subscriptions.last_sent_on`**, jamais par un cache
+  mémoire : un redémarrage de l'API ne peut pas doubler l'envoi. Il est écrit **au moment d'un
+  envoi tenté** — accepté ou refusé —, ce qui borne à un par jour les réessais sur un abonnement
+  durablement cassé.
+- **Le même instant de régénération n'est jamais annoncé deux fois** :
+  `last_notified_charge_at` retient l'instant annoncé, et un échec d'envoi ne le consomme pas.
+- **Les heures calmes reportent, elles ne consomment rien.** La décision ne lit que des données,
+  et l'écriture du quota n'a lieu qu'après une tentative : une plage calme laisse
+  `last_sent_on` intact et l'envoi part à la première heure autorisée.
+- **Un désabonnement supprime la ligne de `push_subscriptions` et laisse `push_preferences`
+  intacte** : réactiver la sonnette ne remet pas les heures calmes par défaut.
+- **Un `404` ou un `410` du service de push supprime la ligne.** Tout autre échec la conserve.
+- `view_box` appartient au **groupe** (le DROM) et se recopie à l'identique sur la région, son département et ses communes ; un `view_box` dérivé par entité empêcherait les communes de s'assembler.
+- Toute ligne métropolitaine garde `view_box = '0 0 1000 1000'` ; le backfill d'outre-mer ne l'écrit jamais.
+- `path_d` est exprimé dans le repère de `view_box` de sa ligne, et n'est jamais recalculé au runtime.
 
 ### 7.2 Tirage d'une carte d'un palier
 

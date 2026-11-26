@@ -3,7 +3,12 @@ import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { authPlugin } from '../middleware/auth';
 import { resolveCardDetail } from '../services/card-detail';
-import { cardNomKey, resolveCardAssets, resolveCardNoms } from '../services/draw';
+import {
+  cardNomKey,
+  resolveCardAssets,
+  resolveCardNoms,
+  resolveCardPostalCodes,
+} from '../services/draw';
 
 const raritySchema = t.Union([
   t.Literal('COMMUNE'),
@@ -27,12 +32,18 @@ const cardSchema = t.Object(
     category: categorySchema,
     refCode: t.String(),
     nom: t.String(),
+    codePostal: t.Union([t.String(), t.Null()]),
     blasonUrl: t.Union([t.String(), t.Null()]),
     blasonCredit: t.Union([t.String(), t.Null()]),
     rarity: raritySchema,
     score: t.Integer(),
     acquiredAt: t.String(),
-    source: t.Union([t.Literal('TICKET'), t.Literal('MARKET'), t.Literal('REWARD')]),
+    source: t.Union([
+      t.Literal('TICKET'),
+      t.Literal('MARKET'),
+      t.Literal('REWARD'),
+      t.Literal('CRAFT'),
+    ]),
     locked: t.Boolean(),
   },
   { additionalProperties: false },
@@ -103,7 +114,12 @@ const cardDetailSchema = t.Object(
         rarity: raritySchema,
         score: t.Integer(),
         acquiredAt: t.String(),
-        source: t.Union([t.Literal('TICKET'), t.Literal('MARKET'), t.Literal('REWARD')]),
+        source: t.Union([
+          t.Literal('TICKET'),
+          t.Literal('MARKET'),
+          t.Literal('REWARD'),
+          t.Literal('CRAFT'),
+        ]),
         locked: t.Boolean(),
         blasonUrl: t.Union([t.String(), t.Null()]),
         blasonCredit: t.Union([t.String(), t.Null()]),
@@ -161,6 +177,8 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
 
       const noms = await resolveCardNoms(db, rows);
       const assets = await resolveCardAssets(db, rows);
+      // Une seule requête de plus, et seulement s'il y a des communes dans la page.
+      const postalCodes = await resolveCardPostalCodes(db, rows);
 
       const items = rows.map((r) => {
         const asset = assets.get(cardNomKey(r.category, r.ref_code));
@@ -169,6 +187,10 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
           category: r.category,
           refCode: r.ref_code,
           nom: noms.get(cardNomKey(r.category, r.ref_code)) ?? '',
+          codePostal:
+            r.category === 'COMMUNE'
+              ? (postalCodes.get(cardNomKey(r.category, r.ref_code)) ?? null)
+              : null,
           blasonUrl: asset?.blasonUrl ?? null,
           blasonCredit: asset?.blasonCredit ?? null,
           rarity: r.rarity,
@@ -266,10 +288,26 @@ export const cardRoutes = new Elysia({ name: 'routes.cards' })
         .where('status', '=', 'OPEN')
         .executeTakeFirst();
 
-      // Une carte n'est exposée qu'à son propriétaire ou tant qu'elle est en vente.
+      // Une carte n'est exposée qu'à son propriétaire, tant qu'elle est en vente,
+      // ou à la partie adverse d'une offre d'échange ouverte : sans cette
+      // troisième voie, le destinataire ne pourrait pas ouvrir ce qu'on lui offre.
       if (card.user_id !== user.id && !listing) {
-        set.status = 403;
-        return { code: 'CARD_NOT_VISIBLE', message: "Cette carte n'est pas exposée." };
+        const engaged = await db
+          .selectFrom('trade_offers')
+          .select('id')
+          .where('status', '=', 'PENDING')
+          .where((eb) =>
+            eb.and([
+              eb.or([eb('offered_card_id', '=', card.id), eb('requested_card_id', '=', card.id)]),
+              eb.or([eb('proposer_id', '=', user.id), eb('receiver_id', '=', user.id)]),
+            ]),
+          )
+          .executeTakeFirst();
+
+        if (!engaged) {
+          set.status = 403;
+          return { code: 'CARD_NOT_VISIBLE', message: "Cette carte n'est pas exposée." };
+        }
       }
 
       const refs = [{ category: card.category, ref_code: card.ref_code }];

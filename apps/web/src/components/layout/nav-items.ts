@@ -6,11 +6,14 @@ export type SalonPath =
   | '/tableau'
   | '/tableaux'
   | '/friends'
+  | '/guichet'
   | '/market'
   | '/market/mine'
   | '/achievements'
-  | '/assemblage'
-  | '/boutique';
+  | '/atlas'
+  | '/palmares'
+  | '/boutique'
+  | '/rarete';
 
 export interface NavItem {
   to: SalonPath;
@@ -53,6 +56,12 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 /** Les salles secondaires, avant l'interrupteur de la boutique. */
 const SECONDARY_NAV_BASE: readonly NavItem[] = [
   {
+    to: '/guichet',
+    label: 'Le Guichet',
+    short: 'Guichet',
+    glyph: 'M12 3a5 5 0 0 1 5 5v4l2 3H5l2-3V8a5 5 0 0 1 5-5M10 18a2 2 0 0 0 4 0',
+  },
+  {
     to: '/tableaux',
     label: 'Les Planches',
     short: 'Planches',
@@ -79,16 +88,28 @@ const SECONDARY_NAV_BASE: readonly NavItem[] = [
       'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z',
   },
   {
-    to: '/assemblage',
-    label: "L'Assemblage",
-    short: 'Assemblage',
+    to: '/atlas',
+    label: "L'Atlas",
+    short: 'Atlas',
     glyph: 'M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2zM9 4v14M15 6v14',
+  },
+  {
+    to: '/palmares',
+    label: 'Le Palmarès',
+    short: 'Palmarès',
+    glyph: 'M8 21h8M12 17v4M7 4h10v3a5 5 0 0 1-10 0zM7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3',
   },
   {
     to: '/boutique',
     label: 'La Boutique',
     short: 'Boutique',
     glyph: 'M4 8h16l-1 12H5zM9 8V6a3 3 0 0 1 6 0v2M12 12v4M10 14h4',
+  },
+  {
+    to: '/rarete',
+    label: 'Les Raretés',
+    short: 'Raretés',
+    glyph: 'M12 3l7 9-7 9-7-9zM5 12h14',
   },
 ];
 
@@ -110,13 +131,15 @@ const SALON_TITLES: Record<string, string> = {
   '/tableau': 'La Planche',
   '/tableaux': 'Les Planches',
   '/friends': 'Les Amis',
+  '/guichet': 'Le Guichet',
   '/market': 'Le Comptoir',
   '/market/mine': 'Mes Offres',
   '/achievements': 'Les Médailles',
-  '/assemblage': "L'Assemblage",
+  '/atlas': "L'Atlas",
+  '/palmares': 'Le Palmarès',
   '/boutique': 'La Boutique',
   '/boutique/succes': 'La Boutique',
-  '/cgv': 'Conditions de vente',
+  '/rarete': 'Les Raretés',
   '/mentions-legales': 'Mentions légales',
   '/confidentialite': 'Confidentialité',
   '/login': 'Le Seuil',

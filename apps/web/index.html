@@ -11,10 +11,39 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Hexamap" />
+    <!--
+      Repli de marque : le titre et la description de la page visitée sont posés
+      au rendu par `apps/web/src/lib/seo.ts`. Ces deux balises servent au shell
+      avant l'exécution du JavaScript — et au repli SPA.
+    -->
     <meta
       name="description"
       content="Hexamap — le cabinet de cartographie. Collectionnez les régions, départements, communes et rues de France."
     />
+    <!--
+      Identité de marque (I-005). `url` et `@id` sont volontairement absents : un
+      fichier statique ne peut pas connaître l'origine canonique, et en inventer
+      une est interdit. Ils rejoindront le graphe le jour où le prérendu rendra
+      l'origine connue côté serveur — même raison que la canonique.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "Hexamap",
+            "description": "Le cabinet de cartographie : un jeu de collection de lieux réels de France."
+          },
+          {
+            "@type": "WebSite",
+            "name": "Hexamap",
+            "inLanguage": "fr",
+            "description": "Collectionnez les régions, départements, communes et rues de France."
+          }
+        ]
+      }
+    </script>
     <link rel="preload" href="/fonts/Fraunces-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link
       rel="preload"

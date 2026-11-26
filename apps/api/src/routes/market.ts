@@ -10,6 +10,8 @@ import {
   resolveCardAssets,
   resolveCardNoms,
 } from '../services/draw';
+import { emitNotification } from '../services/notifications';
+import { expireOffersForUser, findOpenOfferForCard } from '../services/trade';
 
 const categorySchema = t.Union([
   t.Literal('REGION'),
@@ -279,6 +281,10 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
       }
 
       try {
+        // Aucun ordonnanceur n'existe : une offre expirée doit être constatée
+        // avant la garde, sinon elle empêcherait son auteur de vendre sa carte.
+        await expireOffersForUser(db, user.id);
+
         const listingId = await db.transaction().execute(async (trx) => {
           const card = await trx
             .selectFrom('user_cards')
@@ -309,6 +315,18 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
 
           if (alreadyListed) {
             throw new HttpError(409, 'CARD_ALREADY_LISTED', 'Cette carte est déjà en vente.');
+          }
+
+          // Une carte engagée dans un troc n'entre pas en vente : Le Troc et Le
+          // Comptoir s'excluent, et cette garde est le pendant de `CARD_LOCKED`.
+          const engaged = await findOpenOfferForCard(trx, body.userCardId);
+
+          if (engaged) {
+            throw new HttpError(
+              409,
+              'CARD_IN_TRADE',
+              "Cette carte est engagée dans une offre d'échange. Annulez-la d'abord.",
+            );
           }
 
           const inserted = await trx
@@ -392,7 +410,7 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
           // tout interblocage entre deux achats croisés.
           const lockedUsers = await trx
             .selectFrom('user')
-            .select(['id', 'currency'])
+            .select(['id', 'currency', 'pseudo'])
             .where('id', 'in', [user.id, listing.seller_id])
             .orderBy('id')
             .forUpdate()
@@ -449,6 +467,21 @@ export const marketRoutes = new Elysia({ name: 'routes.market', prefix: '/market
               { user_id: seller.id, delta: listing.price, reason: 'MARKET_SELL' },
             ])
             .execute();
+
+          // Le vendeur apprend la vente, l'acheteur son achat, dans la même
+          // transaction : aucune notification ne survit à un achat annulé.
+          await emitNotification(trx, {
+            userId: seller.id,
+            kind: 'MARKET_SOLD',
+            ref: listing.id,
+            payload: { listingId: listing.id, price: listing.price, buyerPseudo: buyer.pseudo },
+          });
+          await emitNotification(trx, {
+            userId: buyer.id,
+            kind: 'MARKET_BOUGHT',
+            ref: listing.id,
+            payload: { listingId: listing.id, price: listing.price },
+          });
 
           await trx
             .updateTable('user_cards')

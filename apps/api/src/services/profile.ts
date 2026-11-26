@@ -2,11 +2,13 @@ import type { CardCategory } from '@hexamap/db';
 import {
   type CommuneOdonymeRef,
   evaluateTableau,
+  RARITY_LABELS,
+  type Rarity,
   rueExistsInCommune,
   type TableauGeography,
 } from '@hexamap/shared';
 import { sql } from 'kysely';
-import type { Executor } from './draw';
+import { blasonOf, type Executor } from './draw';
 
 /** Relation du lecteur avec le joueur affiché ; `null` quand les amitiés ne sont pas migrées. */
 export type FriendState = 'SELF' | 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS' | null;
@@ -17,12 +19,30 @@ export interface ProfileCompleteness {
   total: number;
 }
 
+export interface PlayerBestTableauSlot {
+  category: CardCategory;
+  refCode: string;
+  rarity: Rarity;
+  score: number;
+  nom: string;
+  blasonUrl: string | null;
+}
+
+/** Quatre positions, dans l'ordre `REGION`, `DEPARTEMENT`, `COMMUNE`, `RUE`. */
+export type PlayerBestTableauSlots = [
+  PlayerBestTableauSlot | null,
+  PlayerBestTableauSlot | null,
+  PlayerBestTableauSlot | null,
+  PlayerBestTableauSlot | null,
+];
+
 export interface PlayerBestTableau {
   id: string;
   name: string;
   score: number;
   multiplier: number;
   links: number;
+  slots: PlayerBestTableauSlots;
 }
 
 /**
@@ -55,6 +75,14 @@ const EDITION_TOTALS: Record<'REGION' | 'DEPARTEMENT', number> = {
 };
 
 const CARD_CATEGORIES: CardCategory[] = ['REGION', 'DEPARTEMENT', 'COMMUNE', 'RUE'];
+
+/** L'ordre des planches de la vitrine : la position **est** la catégorie. */
+const TABLEAU_SLOT_CATEGORIES = ['REGION', 'DEPARTEMENT', 'COMMUNE', 'RUE'] as const;
+
+/** Le catalogue des libellés de `packages/shared` est la seule autorité sur les paliers. */
+function isRarity(value: string): value is Rarity {
+  return Object.hasOwn(RARITY_LABELS, value);
+}
 
 /**
  * Les tables des phases 26 à 28 (`blocks`, `friendships`, `user_achievements`)
@@ -252,10 +280,98 @@ function buildGeography(cards: SelectedCards, refs: GeographyRefs): TableauGeogr
   };
 }
 
+interface TableauSlotRow {
+  slot_index: number;
+  ref_code: string | null;
+  rarity: string | null;
+  score: number | null;
+  nom: string | null;
+  blason_url: string | null;
+  contour_url: string | null;
+  blason_credit: string | null;
+}
+
+/**
+ * Les quatre planches d'un tableau, en **une seule instruction** quel que soit
+ * le nombre de cartes posées. La position est le contrat : `index = slot`, et
+ * la catégorie vient de `TABLEAU_SLOT_CATEGORIES`, jamais de
+ * `user_cards.category`. `blasonOf` reste le seul propriétaire du repli
+ * `blason_url ?? contour_url`.
+ */
+async function loadBestTableauSlots(
+  exec: Executor,
+  tableauId: string,
+): Promise<PlayerBestTableauSlots> {
+  const result = await sql<TableauSlotRow>`
+    with target as (
+      select region_card_id, departement_card_id, commune_card_id, rue_card_id
+      from tableaux
+      where id = ${tableauId}
+    ),
+    showcase_slots as (
+      select s.n as slot_index, t.*
+      from target t
+      cross join (values (0), (1), (2), (3)) as s(n)
+    )
+    select
+      ss.slot_index as slot_index,
+      uc.ref_code as ref_code,
+      uc.rarity as rarity,
+      uc.score as score,
+      coalesce(r.nom, d.nom, c.nom, o.nom_affichage) as nom,
+      coalesce(r.blason_url, d.blason_url, c.blason_url) as blason_url,
+      coalesce(r.contour_url, d.contour_url, c.contour_url) as contour_url,
+      coalesce(r.blason_credit, d.blason_credit, c.blason_credit) as blason_credit
+    from showcase_slots ss
+    left join user_cards uc on uc.id = case ss.slot_index
+        when 0 then ss.region_card_id
+        when 1 then ss.departement_card_id
+        when 2 then ss.commune_card_id
+        else ss.rue_card_id
+      end
+    left join ref_regions r on ss.slot_index = 0 and r.code = uc.ref_code
+    left join ref_departements d on ss.slot_index = 1 and d.code = uc.ref_code
+    left join ref_communes c on ss.slot_index = 2 and c.code_insee = uc.ref_code
+    left join ref_odonymes o on ss.slot_index = 3 and o.id::text = uc.ref_code
+    order by ss.slot_index
+  `.execute(exec);
+
+  const rowsBySlot = new Map(result.rows.map((row) => [row.slot_index, row] as const));
+
+  const slotAt = (index: 0 | 1 | 2 | 3): PlayerBestTableauSlot | null => {
+    const row = rowsBySlot.get(index);
+    if (
+      !row ||
+      row.ref_code === null ||
+      row.rarity === null ||
+      row.score === null ||
+      !isRarity(row.rarity)
+    ) {
+      return null;
+    }
+
+    return {
+      category: TABLEAU_SLOT_CATEGORIES[index],
+      refCode: row.ref_code,
+      rarity: row.rarity,
+      score: row.score,
+      nom: row.nom ?? '',
+      blasonUrl: blasonOf({
+        blason_url: row.blason_url,
+        contour_url: row.contour_url,
+        blason_credit: row.blason_credit,
+      }).blasonUrl,
+    };
+  };
+
+  return [slotAt(0), slotAt(1), slotAt(2), slotAt(3)];
+}
+
 /**
  * Meilleur tableau du joueur, recalculé avec les fonctions partagées de
  * `packages/shared/src/tableau.ts` : aucune formule n'est recopiée ici.
- * `null` quand aucun tableau n'est complet.
+ * `null` quand le joueur n'a aucun tableau — un tableau troué reste rendu,
+ * ses emplacements vides valant `null`.
  */
 async function loadBestTableau(
   exec: Executor,
@@ -292,15 +408,16 @@ async function loadBestTableau(
         .filter((value): value is string => value !== null),
     ),
   ];
-  if (cardIds.length === 0) {
-    return null;
-  }
-
-  const cards = await exec
-    .selectFrom('user_cards')
-    .select(['id', 'category', 'ref_code', 'score'])
-    .where('id', 'in', cardIds)
-    .execute();
+  // Un joueur peut avoir des tableaux dont toutes les cartes ont été
+  // transférées : la lecture en lot est sautée, pas le tableau.
+  const cards =
+    cardIds.length === 0
+      ? ([] as CardRow[])
+      : await exec
+          .selectFrom('user_cards')
+          .select(['id', 'category', 'ref_code', 'score'])
+          .where('id', 'in', cardIds)
+          .execute();
   const cardsById = new Map(cards.map((card) => [card.id, card] as const));
 
   const selectionOf = (tableau: (typeof tableaux)[number]): SelectedCards => ({
@@ -371,19 +488,12 @@ async function loadBestTableau(
     odonymesByCommune.set(row.code_insee, list);
   }
 
-  let best: PlayerBestTableau | null = null;
+  let best: Omit<PlayerBestTableau, 'slots'> | null = null;
 
   for (const tableau of tableaux) {
     const selection = selectionOf(tableau);
-    const complete =
-      selection.region !== null &&
-      selection.departement !== null &&
-      selection.commune !== null &&
-      selection.rue !== null;
-    if (!complete) {
-      continue;
-    }
-
+    // Un tableau troué reste candidat : un emplacement vide vaut 0 et abaisse
+    // le multiplicateur, donc un tableau complet gagne toujours.
     const geography = buildGeography(selection, {
       region: selection.region ? (regionByCode.get(selection.region.ref_code) ?? null) : null,
       departement: selection.departement
@@ -414,7 +524,11 @@ async function loadBestTableau(
     }
   }
 
-  return best;
+  if (!best) {
+    return null;
+  }
+
+  return { ...best, slots: await loadBestTableauSlots(exec, best.id) };
 }
 
 /**
@@ -515,4 +629,28 @@ export async function loadPlayerProfile(
     friendCount,
     friendState,
   };
+}
+
+/** Réglages de vitrine du compte lui-même, tels que `GET /profile` les rend. */
+export interface AccountProfileSettings {
+  bio: string | null;
+  profilePublic: boolean;
+}
+
+/**
+ * Le défaut de la table vaut aussi en lecture : sans ligne `user_profiles`, la
+ * vitrine est publique et la biographie est vide, exactement comme le PATCH
+ * écrit une première ligne. Aucune erreur n'est avalée : une panne SQL remonte.
+ */
+export async function loadAccountProfileSettings(
+  exec: Executor,
+  userId: string,
+): Promise<AccountProfileSettings> {
+  const row = await exec
+    .selectFrom('user_profiles')
+    .select(['bio', 'profile_public'])
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
+
+  return { bio: row?.bio ?? null, profilePublic: row?.profile_public ?? true };
 }

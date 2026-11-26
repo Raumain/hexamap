@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, Navigate, useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../components/button';
 import { FormError } from '../components/form-error';
 import { RevealedCell } from '../components/revealed-cell';
+import { RevealedCellModal } from '../components/revealed-cell-modal';
 import { ScratchCell } from '../components/scratch-cell';
 import { Card } from '../components/ui/Card';
 import { OverlayPortal } from '../components/ui/overlay-portal';
@@ -49,6 +50,8 @@ function TicketPage() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<TicketCell | null>(null);
+  const [openCell, setOpenCell] = useState<TicketCell | null>(null);
+  const closeCell = useCallback(() => setOpenCell(null), []);
   const [sound, setSound] = useState(() => readStoredFlag(SOUND_PREFERENCE_KEY, false));
   const celebrationOpen = celebration !== null;
 
@@ -295,7 +298,7 @@ function TicketPage() {
           >
             {ticket.cells.map((cell) => {
               if (cell.revealed) {
-                return <RevealedCell key={cell.index} cell={cell} />;
+                return <RevealedCell key={cell.index} cell={cell} onOpen={setOpenCell} />;
               }
               if (isScratchable) {
                 return (
@@ -411,6 +414,8 @@ function TicketPage() {
           </div>
         </OverlayPortal>
       ) : null}
+
+      {openCell ? <RevealedCellModal cell={openCell} onClose={closeCell} /> : null}
     </section>
   );
 }

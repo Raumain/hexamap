@@ -1,15 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Navigate, useRouter } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { useSeoHead } from '../components/seo-head';
 import { outlineButtonClass } from '../components/ui/button-classes';
+import { Card } from '../components/ui/Card';
 import { SessionUnavailable } from '../components/ui/session-unavailable';
-import { PLAYER_PROFILE } from '../content/player-profile';
+import { bestTableauLinksLabel, PLAYER_PROFILE } from '../content/player-profile';
 import { CATEGORY_LABELS } from '../content/tickets';
 import {
   type PlayerProfile,
   playerProfileErrorMessage,
   playerProfileQueryOptions,
 } from '../lib/player-profile';
+import { BRAND_DESCRIPTION, currentOrigin, publicHead } from '../lib/seo';
 import { useSessionState } from '../lib/session';
 
 const scoreFormatter = new Intl.NumberFormat('fr-FR');
@@ -19,6 +22,9 @@ const longDateFormatter = new Intl.DateTimeFormat('fr-FR', {
   month: 'long',
   year: 'numeric',
 });
+
+/** L'ordre des quatre emplacements est le contrat : index = emplacement. */
+const TABLEAU_SLOT_ORDER = ['REGION', 'DEPARTEMENT', 'COMMUNE', 'RUE'] as const;
 
 export const Route = createFileRoute('/players/$playerId')({
   component: PlayerProfilePage,
@@ -50,6 +56,23 @@ function PlayerProfilePage() {
 function PlayerProfileView({ playerId }: { playerId: string }) {
   const router = useRouter();
   const profileQuery = useQuery(playerProfileQueryOptions(playerId));
+
+  // La vitrine est la seule page dont le titre dépend de la donnée : elle nomme
+  // le joueur par son **pseudo**, et rien d'autre. §2.9 interdit d'afficher ici
+  // l'adresse électronique, le solde, les cartes verrouillées ou une vitrine
+  // privée — le titre n'en porte donc aucun.
+  const pseudo = profileQuery.data?.pseudo ?? null;
+  useSeoHead(
+    publicHead({
+      title: pseudo === null ? 'La Vitrine — Hexamap' : `La collection de ${pseudo} — Hexamap`,
+      description:
+        pseudo === null
+          ? BRAND_DESCRIPTION
+          : `La collection de ${pseudo} sur Hexamap : cartes, tableaux et médailles.`,
+      path: `/players/${playerId}`,
+      origin: currentOrigin(),
+    }),
+  );
 
   if (profileQuery.isPending) {
     return (
@@ -111,9 +134,11 @@ function PlayerProfileView({ playerId }: { playerId: string }) {
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         <CountersSheet player={player} />
         <CompletenessSheet player={player} />
-        <BestTableauSheet player={player} />
-        <MedalsSheet player={player} />
       </div>
+
+      <BestTableauSheet player={player} />
+
+      <MedalsSheet player={player} />
 
       {friendState !== null && friendState !== 'SELF' ? (
         <FriendControl state={friendState} />
@@ -188,19 +213,59 @@ function BestTableauSheet({ player }: { player: PlayerProfile }) {
       {best === null ? (
         <p className="mt-4 font-display italic text-vellum/60">{PLAYER_PROFILE.bestTableauEmpty}</p>
       ) : (
-        <div className="mt-5 space-y-3">
-          <p className="font-display text-lg text-vellum">{best.name}</p>
-          <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className="font-display text-3xl tabular-nums text-brass">
-              {scoreFormatter.format(best.score)}
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
-              {PLAYER_PROFILE.pts}
-            </span>
-            <span className="font-mono text-[12px] tabular-nums text-vellum/70">
-              ×{multiplierFormatter.format(best.multiplier)}
-            </span>
+        <div className="mt-5 space-y-5">
+          <div className="space-y-2">
+            <p className="font-display text-lg text-vellum">{best.name}</p>
+            <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="font-display text-3xl tabular-nums text-brass">
+                {scoreFormatter.format(best.score)}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
+                {PLAYER_PROFILE.pts}
+              </span>
+              <span className="font-mono text-[12px] tabular-nums text-vellum/70">
+                ×{multiplierFormatter.format(best.multiplier)}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
+                {bestTableauLinksLabel(best.links)}
+              </span>
+            </p>
+          </div>
+
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-vellum/60">
+            {PLAYER_PROFILE.bestTableauCardsLabel}
           </p>
+
+          <ol className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {TABLEAU_SLOT_ORDER.map((category, index) => {
+              const slot = best.slots[index] ?? null;
+              return (
+                <li key={category}>
+                  {slot === null ? (
+                    <div className="flex aspect-[5/7] w-full flex-col items-center justify-center gap-2 rounded-[2px] border border-dashed border-veil-strong/70 bg-cabinet-sunk/30 p-3 text-center">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-vellum/60">
+                        {CATEGORY_LABELS[category]}
+                      </span>
+                      <span className="font-display text-[11px] italic leading-snug text-vellum/45">
+                        {PLAYER_PROFILE.bestTableauSlotEmpty}
+                      </span>
+                    </div>
+                  ) : (
+                    <Card
+                      type={slot.category}
+                      rarity={slot.rarity}
+                      name={slot.nom}
+                      score={slot.score}
+                      refCode={slot.refCode}
+                      blasonUrl={slot.blasonUrl}
+                      variant="compact"
+                      className="w-full"
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </div>
       )}
     </Sheet>

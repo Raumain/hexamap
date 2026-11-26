@@ -255,7 +255,8 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 
 ## 7. Produit et légal
 
-- [ ] **[hôte]** Référentiel importé (**A2**) : `ref_regions`, `ref_departements`, `ref_communes`,
+- [x] **[hôte]** Référentiel importé (**A2**) — *fait le 2026-11-22, déclaration du titulaire* :
+      `ref_regions`, `ref_departements`, `ref_communes`,
       `ref_odonymes`, `commune_odonymes`. Sans lui, la génération d'un ticket répond
       `503 REFERENCE_DATA_MISSING` — et, par construction, la charge n'est pas consommée. Le
       constat A2 n'est pas un défaut : le référentiel n'est pas dans l'image, c'est volontaire.
@@ -267,21 +268,26 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
 - [ ] **[hôte]** Blasons importés et attribués. `blason_credit` est servi avec chaque carte : une
       carte sans attribution est un manquement, pas un détail d'affichage.
 
-- [ ] **[juridique]** Mentions légales, CGV, politique de confidentialité et information sur les
+- [ ] **[juridique]** Mentions légales, politique de confidentialité et information sur les
       cookies — un cookie de session reste un cookie. Le dépôt ne livre que la **structure** :
-      `/cgv`, `/mentions-legales` et `/confidentialite` rendent trois documents dont chaque
-      section porte un repère `[À COMPLÉTER — …]`, et un bandeau « Texte provisoire — à
-      compléter avant la mise en vente. » reste affiché tant qu'un repère subsiste. Le **texte
-      juridique** est le livrable du titulaire du site, rédigé par un professionnel ; ce dépôt
-      ne contient aucune prose juridique et aucune des trois pages ne doit être considérée comme
-      publiée avant remplacement des repères.
+      `/mentions-legales` et `/confidentialite` rendent deux documents dont chaque section porte
+      un repère `[À COMPLÉTER — …]`, et un bandeau « Texte provisoire — à compléter avant la
+      mise en vente. » reste affiché tant qu'un repère subsiste. Le **texte juridique** est le
+      livrable du titulaire du site, rédigé par un professionnel ; ce dépôt ne contient aucune
+      prose juridique et aucune des deux pages ne doit être considérée comme publiée avant
+      remplacement des repères. **La page de conditions générales de vente a été retirée de
+      l'interface** (retour R-004, phase 46) : aucune URL `/cgv` n'existe plus, et la boutique
+      étant fermée, aucune vente n'a lieu.
 
-- [ ] **[hôte]** Après le texte, le Dashboard Stripe : enregistrer l'URL publique des CGV
-      (Settings → Business → Public details) **avant** de poser `SHOP_REQUIRE_TOS_CONSENT=true`.
+- [ ] **[hôte]** Après le texte, le Dashboard Stripe : enregistrer l'URL publique des conditions
+      générales de vente (Settings → Business → Public details) **avant** de poser
+      `SHOP_REQUIRE_TOS_CONSENT=true`. Cette URL ne peut plus désigner une page du jeu : la page
+      CGV a été retirée de l'interface (retour R-004, phase 46) et la boutique est fermée, donc
+      le document devrait être publié ailleurs — l'interrupteur reste éteint en attendant.
       Tant que cette URL manque, Stripe refuse `terms_of_service: 'required'` et le checkout
-      échoue ; l'interrupteur reste donc éteint par défaut, et le consentement aux CGV n'est pas
-      recueilli au paiement. Le texte de renoncement au droit de rétractation, lui, est déjà
-      transmis au paiement (`custom_text.submit`) quel que soit l'état de l'interrupteur.
+      échoue ; le consentement aux CGV n'est donc pas recueilli au paiement. Le texte de
+      renoncement au droit de rétractation, lui, est déjà transmis au paiement
+      (`custom_text.submit`) quel que soit l'état de l'interrupteur.
 
 - [ ] **[juridique]** DPA signé avec l'hébergeur, résidence des données dans l'UE.
 
@@ -298,6 +304,17 @@ incomplète — les blasons et l'état d'import ne sont pas dans PostgreSQL.
       | Ne pas fournir SMTP | Aucune réinitialisation de mot de passe : il faut l'écrire dans l'interface et accepter des comptes perdus |
 
       Tant que rien n'est décidé, ne pas laisser croire qu'une réinitialisation existe.
+
+- [ ] **[hôte]** Interrupteurs du compte, posés sur le service `api` :
+
+      | Variable | Défaut | Rôle |
+      | :--- | :--- | :--- |
+      | `ACCOUNT_DELETION_ENABLED` | `true` | Ouvre `DELETE /api/v1/account`. **Ouverte par défaut** depuis la publication des pages légales définitives, qui décrivent la suppression et son effet : la fonctionnalité n'attend plus d'interrupteur. La poser à `false` la referme — c'est l'échappatoire d'exploitation, sans migration et sans retirer les pages. La variable est relue à chaque appel, donc un redéploiement n'est pas nécessaire pour l'éteindre. |
+      | `MAIL_OUTBOX_DIR` | absente | Transport de courriel : chaque message de vérification est écrit en JSON dans ce répertoire, sans aucun envoi réseau. Absente, `POST /api/v1/account/email` répond `503 EMAIL_VERIFICATION_DISABLED` et l'écran `/compte` désactive le formulaire au lieu d'annoncer un envoi. |
+
+      Le courriel n'est donc pas un service : c'est un fichier. Une vraie remise suppose un
+      prestataire (A9 ci-dessus), pas un dossier. `GET /api/v1/account/capabilities` rend ces
+      deux états à l'interface, qui ne propose jamais une action vouée au `503`.
 
 ---
 
@@ -551,7 +568,11 @@ un redémarrage ne casse rien.
       healthcheck en échec ne redémarre pas le conteneur sous Docker ; c'est la plateforme qui
       décide de le remplacer.
 
-### 8.6 Le référentiel (A2) — le vrai bloquant
+### 8.6 Le référentiel (A2) — levé, mais hors de l'image
+
+Import réalisé en production le 2026-11-22 (déclaration du titulaire ; non revérifié depuis cette
+machine). L'image ne contient toujours aucune donnée : un volume neuf, une restauration ou un
+changement d'hôte exige `scripts/import` avant d'ouvrir, et la sauvegarde couvre déjà ces volumes.
 
 Sans référentiel, la génération d'un ticket répond `503 REFERENCE_DATA_MISSING` et, par
 construction, la charge n'est **pas** consommée. La commande de §7
@@ -728,7 +749,7 @@ ces deux variables sont déjà posées par le `Dockerfile:62-65`.
 
 L'ouverture est verte quand :
 
-1. le référentiel et les blasons sont importés sur l'hôte (A2) ;
+1. le référentiel et les blasons sont importés sur l'hôte (A2) — fait le 2026-11-22 ;
 2. A3 est **vérifié sur l'hôte** — `session.ipAddress` non vide derrière le proxy ;
 3. A4, A8, A9 sont tranchés sur l'hôte ou juridiquement ;
 4. A6 et A7 sont en place (code livré, `docker compose config` le montre) ;

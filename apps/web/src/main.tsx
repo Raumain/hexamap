@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { NotFound } from './components/ui/not-found';
 import { registerPwa } from './lib/pwa';
+import { parseSearch, stringifySearch } from './lib/search-params';
 import { routeTree } from './routeTree.gen';
 import './styles.css';
 
@@ -11,6 +13,11 @@ const queryClient = new QueryClient();
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  // Le routeur n'a aucun composant de repli par défaut en français : sans cette
+  // ligne, `throw notFound()` rendait la page anglaise de TanStack Router.
+  defaultNotFoundComponent: NotFound,
+  stringifySearch,
+  parseSearch,
   context: { queryClient },
 });
 

@@ -1,3 +1,6 @@
+import type { Rarity } from '@hexamap/shared';
+import { editionLabel } from './rarete';
+
 export const CARD_DETAIL = {
   eyebrow: 'SALLE VI · LE CARTEL',
   back: 'Retour',
@@ -7,11 +10,14 @@ export const CARD_DETAIL = {
   cartelTitle: 'Cartel',
   categoryLabel: 'Catégorie',
   rarityLabel: 'Rareté',
+  editionLabel: 'Édition',
+  editionLink: 'Comprendre les six éditions',
   scoreLabel: 'Score',
   refLabel: 'Référence',
   acquiredLabel: 'Acquise le',
   sourceLabel: 'Provenance',
   stateLabel: 'État',
+  exemplairesLabel: 'Exemplaires',
   placeTitle: 'Le lieu',
   placeEmpty: "Aucune donnée de référence n'accompagne cette planche.",
   populationLabel: 'Population',
@@ -48,10 +54,22 @@ export const CARD_SOURCE_LABELS = {
   TICKET: 'Découverte au grattage',
   MARKET: 'Acquise au comptoir',
   REWARD: 'Récompense',
+  CRAFT: 'Fondue à l’Atelier',
 } as const;
 
 export function stateLabel(locked: boolean, listed: boolean): string {
   if (listed) return 'En vente';
   if (locked) return 'Verrouillée';
   return 'Au cadastre';
+}
+
+/**
+ * La phrase du GDD §2.1 pour une région ou un département : le lieu ne fixe pas
+ * la rareté, l'édition est la carte. Les deux catégories n'ont pas le même
+ * genre, d'où la forme accordée.
+ */
+export function editionNote(category: 'REGION' | 'DEPARTEMENT', rarity: Rarity): string {
+  const subject =
+    category === 'REGION' ? 'une région peut être tirée' : 'un département peut être tiré';
+  return `${editionLabel(rarity)} — ${subject} dans les six éditions ; sa valeur est celle de l’édition, pas du lieu.`;
 }

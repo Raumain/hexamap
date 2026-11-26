@@ -21,6 +21,8 @@ export type PanelKind = 'STATION' | 'BELVEDERE' | 'RENOVATION';
 export interface PanelContent {
   label: string;
   description: string;
+  /** Le texte développé, repris de .docs/01-architecture.md §2.6. */
+  detail: string;
   /** Tracé SVG (viewBox 24×24, rendu en trait) — purement décoratif. */
   icon: string;
 }
@@ -29,16 +31,19 @@ export const PANEL_CONTENT: Record<PanelKind, PanelContent> = {
   STATION: {
     label: 'Station-service',
     description: '+2 grattages.',
+    detail: '+2 coups de grattoir sur ce ticket.',
     icon: 'M5 21h14M8 21V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v12M9 4h6l-1 3h-4Z',
   },
   BELVEDERE: {
     label: 'Belvédère',
     description: 'Révèle une case voisine.',
+    detail: "Une carte Commune et la révélation gratuite d'une case adjacente.",
     icon: 'M4 8V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3M16 8V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3M2 12a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2ZM14 12a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2ZM12 10v9',
   },
   RENOVATION: {
     label: 'Rénovation',
     description: '+1 palier de rareté sur la prochaine carte.',
+    detail: '+1 palier de rareté à la prochaine carte découverte.',
     icon: 'M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9M18 15l4-4M21.5 11.5l-1.9-1.9a2 2 0 0 0-2.8 0l-4.8 4.8',
   },
 };
@@ -63,6 +68,9 @@ export const TICKET = {
   treasureEyebrow: 'Découverte',
   treasureFallbackName: 'Pépite',
   treasureModalLink: 'Ranger dans le cadastre',
+  cellDialogEyebrow: 'Détail de la case',
+  cellDialogClose: 'Fermer',
+  cellDialogCardFallback: 'Carte',
   closeModal: 'Fermer',
   retry: 'Réessayer',
   soundOn: 'Activer le son du grattoir',
@@ -75,6 +83,10 @@ export function scrapesLabel(count: number): string {
 
 export function cellLabel(index: number): string {
   return `Case ${index + 1} à gratter`;
+}
+
+export function revealedCellLabel(index: number, name: string): string {
+  return `Agrandir la case ${index + 1} — ${name}`;
 }
 
 export function lockedCellLabel(index: number): string {

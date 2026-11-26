@@ -1,8 +1,11 @@
+import { pseudoErrorMessage, validatePseudo } from '@hexamap/shared';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { sql } from 'kysely';
 import { db } from './db';
 import { env } from './env';
+import { accountDeletionEnabled } from './lib/account-switch';
+import { sendVerificationMail } from './lib/mailer';
 
 // Accès dev depuis le LAN : le web est servi sur 5174 et joint via l'IP de la
 // machine. Better Auth accepte les motifs à wildcard ; `192.168.*.*` n'accepte
@@ -56,11 +59,9 @@ if (env.NODE_ENV === 'production' && env.TRUSTED_PROXIES.trim() === '') {
 
 // Le pseudo est l'identité publique (`.docs/01-architecture.md` §2.9) : il sert
 // d'URL dans `/players/:id`, donc il est validé en forme et unique sans tenir
-// compte de la casse. La validation vit ici, pas dans un écran d'inscription,
-// parce que Better Auth est la seule porte d'entrée des comptes.
-const PSEUDO_MIN_LENGTH = 3;
-const PSEUDO_MAX_LENGTH = 24;
-
+// compte de la casse. La forme est décidée une seule fois, par
+// `packages/shared/src/pseudo.ts` ; l'unicité reste ici parce que Better Auth
+// est la seule porte d'entrée des comptes.
 export const auth = betterAuth({
   database: {
     db,
@@ -71,6 +72,24 @@ export const auth = betterAuth({
   trustedOrigins,
   emailAndPassword: {
     enabled: true,
+  },
+  // Le changement de courriel passe par un lien signé : aucune colonne
+  // `pendingEmail` n'existe, c'est l'ouverture du lien qui écrit. L'inscription
+  // n'envoie rien (`sendOnSignUp: false`) : elle garde son comportement actuel.
+  //
+  // Ce rappel reste branché après R-001, et c'est un constat, pas un oubli : son
+  // unique consommateur est le flux `changeEmail` de Better Auth. La
+  // réinitialisation de mot de passe ne l'utilise pas — `sendResetPassword`
+  // n'existe nulle part dans le dépôt, aucune route de réinitialisation n'est
+  // montée — et `sendChangeEmailVerification` non plus. Le débrancher laisserait
+  // donc `POST /api/v1/account/email` sans aucun chemin d'application, alors que
+  // `packages/spec/src/account.spec.ts` gèle encore ce flux.
+  emailVerification: {
+    expiresIn: 3600,
+    sendOnSignUp: false,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendVerificationMail({ to: user.email, url });
+    },
   },
   user: {
     additionalFields: {
@@ -85,23 +104,43 @@ export const auth = betterAuth({
         input: false,
       },
     },
+    changeEmail: {
+      enabled: true,
+    },
+    // Better Auth répond 404 si la suppression n'est pas activée. Elle l'est,
+    // mais un `beforeDelete` la refuse tant que l'interrupteur est éteint : le
+    // chemin direct `POST /api/auth/delete-user` ne contourne donc pas le 503
+    // de la route métier.
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async () => {
+        if (!accountDeletionEnabled()) {
+          throw new APIError('SERVICE_UNAVAILABLE', {
+            message: 'La suppression de compte est momentanément indisponible.',
+            code: 'ACCOUNT_DELETION_DISABLED',
+          });
+        }
+      },
+    },
   },
   // Le rate limiter Better Auth persiste ses compteurs en base : ils survivent
   // aux redémarrages et sont partagés par toutes les instances de l'API.
   databaseHooks: {
     user: {
       create: {
-        // Un pseudo hors de 3 à 24 caractères, ou déjà pris à la casse près,
-        // est refusé avant toute écriture : le compteur d'erreurs Better Auth
-        // n'a rien à réconcilier ensuite.
+        // Un pseudo hors de 3 à 24 caractères, mal formé, ou déjà pris à la
+        // casse près, est refusé avant toute écriture : le compteur d'erreurs
+        // Better Auth n'a rien à réconcilier ensuite.
         before: async (user) => {
-          const pseudo = typeof user.pseudo === 'string' ? user.pseudo.trim() : '';
-          if (pseudo.length < PSEUDO_MIN_LENGTH || pseudo.length > PSEUDO_MAX_LENGTH) {
+          const raw = typeof user.pseudo === 'string' ? user.pseudo : '';
+          const validation = validatePseudo(raw);
+          if (!validation.ok) {
             throw new APIError('BAD_REQUEST', {
-              message: `Le pseudo doit contenir entre ${PSEUDO_MIN_LENGTH} et ${PSEUDO_MAX_LENGTH} caractères.`,
+              message: pseudoErrorMessage(validation.problem),
             });
           }
 
+          const pseudo = validation.pseudo;
           const taken = await sql<{ id: string }>`
             select id from "user" where lower(pseudo) = lower(${pseudo}) limit 1
           `.execute(db);

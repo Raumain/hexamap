@@ -829,20 +829,23 @@ test('mobile — « Les Planches » ne s’allume pas sur La Planche', async ({ 
   );
 });
 
-test("mobile — la salle de l'Assemblage annonce sa venue", async ({ page }) => {
+test("mobile — la salle de L'Atlas s'ouvre depuis la feuille", async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
   await openMoreSheet(page);
   const sheet = page.getByRole('dialog', { name: MORE_SHEET });
-  await sheet.getByRole('link', { name: "L'Assemblage" }).click();
+  // Le lien porte le nom de la salle : `nav-items.ts` a suivi le renommage.
+  // La redirection de l'ancienne adresse est couverte par `atlas.spec.ts`.
+  await sheet.getByRole('link', { name: "L'Atlas" }).click();
 
-  await expect(page).toHaveURL(/\/assemblage$/);
-  await expect(page.getByRole('heading', { name: "L'Assemblage" })).toBeVisible();
-  await expect(page.getByText('Bientôt disponible')).toBeVisible();
+  await expect(page).toHaveURL(/\/atlas$/);
+  await expect(page.getByRole('heading', { level: 1, name: "L'Atlas" })).toBeVisible();
 
-  // L'aperçu est un contour vide : le cas ne vérifie que sa présence et son nom.
-  await expect(page.getByRole('img', { name: /Carte de France, encore vide/ })).toBeVisible();
+  // La salle remplace le teaser : la table équivalente est là, et l'annonce
+  // « Bientôt disponible » a disparu avec la salle qu'elle décrivait.
+  await expect(page.getByRole('table', { name: 'Table équivalente de la carte' })).toBeVisible();
+  await expect(page.getByText('Bientôt disponible')).toHaveCount(0);
 });
 
 test('mobile — la feuille se ferme par Échap et rend le focus', async ({ page }) => {
@@ -871,58 +874,68 @@ test.describe('mobile — sans session', () => {
   });
 });
 
-/* ── 10. La Boutique ─────────────────────────────────────────────────────── */
+/* ── 10. La Boutique retirée ────────────────────────────────────────────── */
 
-test.describe('mobile — la boutique', () => {
+test.describe('mobile — la boutique retirée', () => {
   // 390 px : la largeur de référence des cas de la phase 22.
   test.use({ viewport: { width: 390, height: 844 } });
 
   const BOUTIQUE_ROOM = 'La Boutique';
-  // Les prix TTC sont rendus par `Intl.NumberFormat('fr-FR', …)` : l'espace
-  // avant l'euro est insécable et sa largeur varie selon ICU — le motif la
-  // tolère, et l'ancre interdit que « 4,99 € » reconnaisse le suffixe de
-  // « 44,99 € ».
-  const PACK_PRICES: readonly RegExp[] = [/^4,99\s?€$/, /^9,99\s?€$/, /^19,99\s?€$/, /^44,99\s?€$/];
-  // Chaîne exacte de `BOUTIQUE.errors.SHOP_DISABLED` dans `content/boutique.ts`.
-  const SHOP_DISABLED = "La boutique n'est pas encore ouverte.";
 
-  test('mobile — la boutique affiche les quatre packs et refuse un achat sans clé', async ({
-    page,
-  }) => {
+  test("mobile — la boutique n'est plus offerte ni atteignable", async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
+    // La feuille des salles secondaires ne porte plus l'entrée : le produit a
+    // éteint la boutique (`SHOP_ENABLED = false`), la navigation la filtre.
     await openMoreSheet(page);
     const sheet = page.getByRole('dialog', { name: MORE_SHEET });
-    await sheet.getByRole('link', { name: BOUTIQUE_ROOM }).click();
+    await expect(sheet.getByRole('link', { name: BOUTIQUE_ROOM })).toHaveCount(0);
 
-    await expect(page).toHaveURL(/\/boutique$/);
-    await expect(page.getByRole('heading', { level: 1, name: BOUTIQUE_ROOM })).toBeVisible();
+    // L'URL directe ne rend plus rien de la salle : la route lève `notFound()`.
+    // On n'asserte pas le texte du 404 (il appartient au routeur), seulement
+    // l'absence de l'interface commerciale.
+    await page.goto('/boutique');
+    await expect(page.getByRole('heading', { level: 1, name: BOUTIQUE_ROOM })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Acheter' })).toHaveCount(0);
+    await expect(page.getByText("La boutique n'est pas encore ouverte.")).toHaveCount(0);
+  });
+});
 
-    // Quatre planches, un seul bouton par planche. Le prix TTC est le premier
-    // `dd` de chaque planche : l'assertion reste attachée à la planche et
-    // ancrée, sinon « 44,99 € » satisferait aussi le motif de « 4,99 € ».
-    const cards = page.getByRole('article');
-    await expect(cards).toHaveCount(4);
-    for (const [index, price] of PACK_PRICES.entries()) {
-      await expect(cards.nth(index).locator('dd').first()).toHaveText(price);
+/**
+ * Phase 43 « La Sonnette » — le message doit correspondre au navigateur, jamais
+ * à un bouton inerte.
+ *
+ * Le cas tourne sur les deux projets tactiles, et c'est voulu : un iPhone non
+ * installé lit la marche à suivre d'iOS, un Android lit que le serveur a éteint
+ * la sonnette (le banc n'a pas de paire VAPID). Chacun asserte **son** état réel ;
+ * aucun cas n'est sauté, et la branche est décidée par l'agent utilisateur que le
+ * navigateur s'attribue vraiment.
+ */
+test.describe('mobile — la Sonnette dit ce que le navigateur peut faire', () => {
+  test('compte — la bascule suit le support réel', async ({ page }) => {
+    await page.goto('/compte', { waitUntil: 'domcontentloaded' });
+
+    const isIos = await page.evaluate(() => /iPad|iPhone|iPod/.test(navigator.userAgent));
+    const state = page.locator('[data-push-state]');
+    const toggle = page.getByRole('button', { name: 'Activer la Sonnette' });
+
+    if (isIos) {
+      // iOS 16.4+ **et** une PWA installée : le banc émule un iPhone non
+      // installé, donc la marche à suivre doit être écrite, pas un bouton mort.
+      await expect(state).toHaveAttribute('data-push-state', 'ios-requires-install');
+      await expect(page.locator('[data-push-message="ios-install"]')).toContainText(
+        'écran d’accueil',
+      );
+      await expect(page.locator('[data-push-message="ios-install"]')).toContainText('16.4');
+      await expect(toggle).toHaveCount(0);
+      return;
     }
 
-    const buyButtons = page.getByRole('button', { name: 'Acheter' });
-    await expect(buyButtons).toHaveCount(4);
-
-    // Sans clé Stripe, l'API répond `503 SHOP_DISABLED` : la salle l'annonce et
-    // laisse les boutons réarmés.
-    await buyButtons.first().click();
-    await expect(page.getByText(SHOP_DISABLED)).toBeVisible();
-    await expect(buyButtons.first()).toBeEnabled();
-
-    await assertNoHorizontalOverflow(page, '/boutique');
-
-    // Preuve jointe au rapport : la planche se lit, pas seulement des nombres.
-    await test.info().attach('boutique-390.png', {
-      contentType: 'image/png',
-      body: await page.screenshot({ fullPage: true }),
-    });
+    // Sans paire VAPID, le serveur éteint la sonnette : l'écran le dit, et
+    // n'offre toujours pas de bouton qui ne ferait rien.
+    await expect(state).toHaveAttribute('data-push-state', 'disabled');
+    await expect(page.locator('[data-push-message="disabled"]')).toBeVisible();
+    await expect(toggle).toHaveCount(0);
   });
 });
