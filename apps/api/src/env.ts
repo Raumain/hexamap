@@ -60,16 +60,18 @@ const envSchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
-    // Fermeture de compte : le défaut du code reste `false` parce qu'une
-    // spécification exerce les **deux** états dans un même processus en
-    // supprimant la variable (`packages/spec/src/account.spec.ts`). L'ouverture
-    // est une décision d'exploitation, pas un défaut : `.env.example` pose
-    // `ACCOUNT_DELETION_ENABLED=true`, et la variable est relue à chaque appel.
-    // Le défaut est posé **avant** la transformation : en Zod 4, `.default()`
-    // s'applique à la sortie, et `'false'` y serait une chaîne, donc vraie.
+    // Fermeture de compte : **ouverte par défaut** depuis que les pages légales
+    // sont publiées (`.docs/05-deploiement.md` §7). L'interrupteur demeure une
+    // échappatoire d'exploitation : le poser à `false` referme la suppression
+    // (`capabilities.deletion` vaut `false`, la route répond `503
+    // ACCOUNT_DELETION_DISABLED`), sans migration et sans retirer les pages
+    // légales. La variable est relue à chaque appel, donc rien n'est figé au
+    // démarrage.
+    // Le défaut est posé **avant** la transformation : `.default()` reçoit la
+    // valeur d'entrée (`'true'`), et c'est `.transform()` qui produit le booléen.
     ACCOUNT_DELETION_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     // Transport de courriel : répertoire où les messages de vérification sont
     // écrits, un fichier JSON par message. Aucun envoi réseau ; sans lui, le
