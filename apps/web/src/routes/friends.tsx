@@ -263,11 +263,16 @@ function FriendsBody() {
           empty={FRIENDS.empty.friends}
         >
           {friends.map((entry) => (
-            <EntryRow key={entry.id} entry={entry}>
-              <FriendTradePanel
-                friendId={entry.player.id}
-                pseudo={entry.player.pseudo ?? FRIENDS.unknownPseudo}
-              />
+            <EntryRow
+              key={entry.id}
+              entry={entry}
+              detail={
+                <FriendTradePanel
+                  friendId={entry.player.id}
+                  pseudo={entry.player.pseudo ?? FRIENDS.unknownPseudo}
+                />
+              }
+            >
               <button
                 type="button"
                 disabled={busy}
@@ -343,14 +348,26 @@ function Panel({ title, count, empty, children }: PanelProps) {
   );
 }
 
-function EntryRow({ entry, children }: { entry: FriendEntry; children: ReactNode }) {
+function EntryRow({
+  entry,
+  children,
+  detail,
+}: {
+  entry: FriendEntry;
+  children: ReactNode;
+  detail?: ReactNode;
+}) {
   const pseudo = entry.player.pseudo ?? FRIENDS.unknownPseudo;
 
   // R-003 : le libellé du lien est le pseudo, jamais « voir la vitrine », et il
   // n'existe que si la vitrine est publique — une vitrine privée répond `404` par
   // dessein (architecture §2.9), donc un lien serait un lien mort.
+  //
+  // `detail` occupe une ligne entière sous les actions : `sm:flex-wrap` et
+  // `w-full` la posent à la ligne, sans hauteur déclarée — la hauteur d'une
+  // ligne reste celle de son contenu (BUG-008).
   return (
-    <li className="flex flex-col gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-3 rounded-[2px] border border-veil bg-cabinet-sunk/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       {entry.player.profile_public ? (
         <Link
           to="/players/$playerId"
@@ -363,6 +380,7 @@ function EntryRow({ entry, children }: { entry: FriendEntry; children: ReactNode
         <span className="min-w-0 truncate font-display text-[15px] text-vellum">{pseudo}</span>
       )}
       <div className="flex flex-wrap gap-2">{children}</div>
+      {detail ? <div className="w-full min-w-0">{detail}</div> : null}
     </li>
   );
 }

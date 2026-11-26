@@ -20,9 +20,7 @@ export const TROC = {
     'Aucune carte libre à proposer : une carte en vente ou déjà engagée dans un troc ne peut pas l’être.',
   sent: 'Proposition envoyée. La réponse arrivera au Guichet.',
   friend: {
-    open: 'Proposer un troc',
-    pickTitle: (pseudo: string) => `Cartes de ${pseudo}`,
-    pickHint: (pseudo: string) => `Choisissez une carte de ${pseudo} à demander.`,
+    cardsTitle: (pseudo: string) => `Cartes de ${pseudo} à demander`,
     pickLabel: (nom: string) => `Demander « ${nom} »`,
     empty: 'Cet ami n’a aucune carte libre à échanger pour le moment.',
     loading: 'Chargement de sa collection…',

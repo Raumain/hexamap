@@ -103,19 +103,15 @@ test.describe('Le Troc', () => {
       const incoming = page.getByRole('listitem').filter({ hasText: player.pseudo });
       await incoming.getByRole('button', { name: 'Accepter' }).click();
 
-      const friendRow = page
-        .getByRole('listitem')
-        .filter({ hasText: player.pseudo })
-        .filter({ has: page.getByRole('button', { name: 'Proposer un troc' }) });
-      await expect(friendRow).toBeVisible();
+      const friendRow = page.getByRole('listitem').filter({ hasText: player.pseudo });
+      const requestedCardButton = friendRow.getByRole('button', {
+        name: 'Demander « Commune E2E MYTHIQUE 1 »',
+      });
+      await expect(requestedCardButton).toBeVisible();
 
-      // 2. La proposition se construit depuis la collection troquable de l'ami.
-      await friendRow.getByRole('button', { name: 'Proposer un troc' }).click();
-      const friendCards = page.getByRole('dialog', { name: `Cartes de ${player.pseudo}` });
-      await expect(friendCards).toBeVisible();
-      await friendCards
-        .getByRole('button', { name: 'Demander « Commune E2E MYTHIQUE 1 »' })
-        .click();
+      // 2. La collection troquable de l'ami est posée à même sa ligne : aucune
+      //    modale intermédiaire, la planche est le bouton.
+      await requestedCardButton.click();
 
       const dialog = page.getByRole('dialog', { name: 'Proposer un troc' });
       await expect(dialog).toBeVisible();
