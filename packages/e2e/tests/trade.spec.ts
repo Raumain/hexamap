@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type BrowserContext, expect, type Page, test } from '@playwright/test';
+import { type BrowserContext, expect, type Locator, type Page, test } from '@playwright/test';
 import { ensureTradeCards } from '../fixtures/trade-fixture';
 import { E2E_PASSWORD, readAccountFixture } from './fixtures/auth';
 
@@ -48,6 +48,27 @@ async function cardIds(page: Page): Promise<string[]> {
   expect(response.ok()).toBe(true);
   const body = (await response.json()) as { items: Array<{ id: string }> };
   return body.items.map((item) => item.id);
+}
+
+/**
+ * Les deux listes du troc sont virtualisées : une carte hors viewport n'existe
+ * pas dans le DOM. Le pointeur est posé au centre de la modale — la liste y
+ * occupe la zone centrale —, puis la molette descend jusqu'à ce que la planche
+ * cherchée soit rendue.
+ */
+async function pickCard(page: Page, dialog: Locator, name: RegExp): Promise<void> {
+  const target = dialog.getByRole('button', { name });
+  const box = await dialog.boundingBox();
+  if (box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if ((await target.count()) > 0) break;
+    await page.mouse.wheel(0, 240);
+    await page.waitForTimeout(30);
+  }
+
+  await expect(target).toHaveCount(1);
+  await target.click();
 }
 
 /**
@@ -104,20 +125,20 @@ test.describe('Le Troc', () => {
       await incoming.getByRole('button', { name: 'Accepter' }).click();
 
       const friendRow = page.getByRole('listitem').filter({ hasText: player.pseudo });
-      const requestedCardButton = friendRow.getByRole('button', {
-        name: 'Demander « Commune E2E MYTHIQUE 1 »',
-      });
-      await expect(requestedCardButton).toBeVisible();
+      await friendRow.getByRole('button', { name: 'Proposer un troc' }).click();
 
-      // 2. La collection troquable de l'ami est posée à même sa ligne : aucune
-      //    modale intermédiaire, la planche est le bouton.
-      await requestedCardButton.click();
-
+      // 2. Une seule modale, deux temps : la carte de l'ami à demander, puis la
+      //    sienne. Les deux se choisissent en cliquant une planche de la liste.
       const dialog = page.getByRole('dialog', { name: 'Proposer un troc' });
       await expect(dialog).toBeVisible();
-      await dialog
-        .getByLabel('Carte à offrir')
-        .selectOption({ label: 'Commune — Commune E2E LEGENDAIRE 1' });
+      await pickCard(page, dialog, /Commune E2E MYTHIQUE 1/);
+
+      await expect(dialog).toContainText('Commune E2E MYTHIQUE 1');
+      await pickCard(page, dialog, /Commune E2E LEGENDAIRE 1/);
+
+      await expect(dialog).toContainText(
+        '« Commune E2E MYTHIQUE 1 » contre « Commune E2E LEGENDAIRE 1 »',
+      );
       await dialog.getByRole('button', { name: 'Envoyer la proposition' }).click();
       await expect(
         page.getByText('Proposition envoyée. La réponse arrivera au Guichet.'),
